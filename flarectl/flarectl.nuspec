@@ -3,7 +3,7 @@
   <metadata>
     <id>flarectl</id>
     <version>0.44.0</version>
-    <title>flarectl</title>
+    <title>flarectl, Cloudflare's official CLI.</title>
     <authors>>Cloudflare</authors>
     <owners>Cloudflare</owners>
     <licenseUrl>https://github.com/cloudflare/cloudflare-go/blob/master/LICENSE</licenseUrl>
