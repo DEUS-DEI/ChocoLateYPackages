@@ -30,7 +30,7 @@
     <releaseNotes>https://github.com/cloudflare/cloudflare-go/releases</releaseNotes>
     <tags>flarectl  Cloudflare's CLI tool</tags>
     <projectSourceUrl>https://github.com/cloudflare/cloudflare-go/tree/master/cmd/flarectl</projectSourceUrl>
-    <packageSourceUrl>https://github.com/DEUS-DEI/flarectl</packageSourceUrl>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages</packageSourceUrl>
     <docsUrl>https://support.cloudflare.com/hc/en-us/articles/360000841472</docsUrl>
     <bugTrackerUrl>https://github.com/cloudflare/cloudflare-go/issues</bugTrackerUrl>
   </metadata>
