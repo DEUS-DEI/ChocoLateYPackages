@@ -5,18 +5,15 @@
     <version>0.45.0</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/flarectl</packageSourceUrl>
     <owners>DEUS-DEI</owners>
-	
     <title>flarectl, Cloudflare's official CLI.</title>
     <authors>>Cloudflare</authors>
-	<projectUrl>https://www.cloudflare.com/es-es/dns/</projectUrl>
+    <projectUrl>https://www.cloudflare.com/es-es/dns/</projectUrl>
     <iconUrl>https://www.cloudflare.com/static/07c330059a6e7ba8289566756ba405aa/dns-hero-illustration.svg</iconUrl>
     <copyright>2022</copyright>
     <licenseUrl>https://github.com/cloudflare/cloudflare-go/blob/master/LICENSE</licenseUrl>	
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/cloudflare/cloudflare-go/tree/master/cmd/flarectl</projectSourceUrl>
     <docsUrl>https://support.cloudflare.com/hc/en-us/articles/360000841472</docsUrl>
-
-
     <bugTrackerUrl>https://github.com/cloudflare/cloudflare-go/issues</bugTrackerUrl>
     <tags>flarectl  cloudflare cli tool</tags>
     <summary>If you need to add multiple sites (10+) to Cloudflare at once, you can do so via the Cloudflare API. You can also add domains using flarectl, Cloudflare's official CLI.</summary>
@@ -35,8 +32,7 @@
 	... and then run the following command in flarectl:
 		for domain in $(cat domains.txt); do flarectl zone create --zone=$domain --jumpstart=false; done
 	After this, you can get the name-servers for each domain via "flarectl zone list":
-		for domain in $(cat domains.txt); do flarectl zone info --zone=$domain; done
-	</description>
+		for domain in $(cat domains.txt); do flarectl zone info --zone=$domain; done</description>
     <releaseNotes>https://github.com/cloudflare/cloudflare-go/releases</releaseNotes>
   </metadata>
 </package>
