@@ -1,4 +1,7 @@
 # ChocoLateYPackages
-Cloudflare flarectl
-Github Desktop Beta
 
+Cloudflare© flarectl
+
+Github© Desktop Beta
+
+Nicepage©
