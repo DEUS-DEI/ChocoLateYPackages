@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>github-desktop-beta</id>
+    <version>3.0.6-beta1</version>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/github-desktop-beta</packageSourceUrl>
+    <owners>DEUS-DEI</owners>
+
+    <title>GitHub Desktop Beta</title>
+    <authors>GitHub</authors>
+    <projectUrl>https://desktop.github.com</projectUrl>
+    <iconUrl>https://desktop.github.com/images/desktop-icon.svg</iconUrl>
+    <copyright>2022</copyright>
+    <licenseUrl>https://github.com/desktop/desktop/blob/development/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/desktop/desktop</projectSourceUrl>
+    <docsUrl>https://github.com/desktop/desktop/tree/development/docs</docsUrl>
+    
+	
+    <bugTrackerUrl>https://github.com/desktop/desktop/issues</bugTrackerUrl>
+    <tags>github desktop beta</tags>
+    <summary> GitHub Desktop Beta. The beta channel has the latest features and bug fixes being tested for the next production release.</summary>
+    <description> GitHub Desktop
+
+Focus on what matters instead of fighting with Git. Whether you're new to Git or a seasoned user, GitHub Desktop simplifies your development workflow.
+
+Attribute commits with collaborators easily
+
+Quickly add co-authors to your commit. Great for pairing and excellent for sending a little love/credit to that special someone who helped fix that gnarly bug of yours. See the attribution on the history page, undo an accidental attribution, and see the co-authors on github.com
+
+
+Checkout branches with pull requests and view CI statuses
+
+See all open pull requests for your repositories and check them out as if they were a local branch, even if they're from upstream branches or forks. See which pull requests pass commit status checks, too!
+
+
+Syntax highlighted diffs
+
+The new GitHub Desktop supports syntax highlighting when viewing diffs for a variety of different languages.
+
+ Expanded image diff support
+
+Easily compare changed images. See the before and after, swipe or fade between the two, or look at just the changed parts.
+Icon representing a terminal
+Extensive editor and shell integrations
+
+Open your favorite editor or shell from the app, or jump back to GitHub Desktop from your shell. GitHub Desktop is your springboard for work.
+Icon representing organizations
+Community supported
+
+GitHub Desktop is open source now! Check out our roadmap, contribute, and help us make collaboration even easier.</description>
+    <releaseNotes>https://desktop.github.com/release-notes/?env=beta</releaseNotes>
+  </metadata>
+</package>
