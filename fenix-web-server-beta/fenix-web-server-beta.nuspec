@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>fenix-web-server-beta</id>
+    <version>3.0.0.13</version>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/fenix-web-server-beta</packageSourceUrl>
+    <owners>DEUS-DEI</owners>
+
+    <title>Fenix Web Server</title>
+    <authors>Ecor Ventures LLC</authors>
+    <projectUrl>https://preview.fenixwebserver.com</projectUrl>
+    <iconUrl>https://preview.fenixwebserver.com/assets/logos/fenix_light_bg.svg</iconUrl>
+    <copyright>2017</copyright>
+    <licenseUrl>https://github.com/coreybutler/fenix/blob/master/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/coreybutler/fenix</projectSourceUrl>
+    <docsUrl>https://docs.fenixwebserver.com/</docsUrl>
+    
+	
+    <bugTrackerUrl>https://github.com/author/fenix-docs/issues</bugTrackerUrl>
+    <tags>Fenix Web Server</tags>
+    <summary> A desktop web server. for smart devs. Develop locally. Demo publicly. Done effortlessly.</summary>
+    <description>
+A desktop web server
+for smart devs
+Develop locally. Demo publicly. Done effortlessly. 
+
+Work smarter with Fenix
+Visual web servers
+Create and manage web servers with a beautiful GUI
+
+Persist multiple servers
+Save server settings for instant recall later on
+
+One-click sharing
+Create a secure public link to share your local work with colleagues and clients
+
+Realtime Configuration
+Update server settings with simple toggles
+
+Intuitive CLI / API
+Automate server creation and configuration programmatically
+
+Remote Imports
+Import code from the cloud directly into Fenix
+    </description>
+    <releaseNotes>https://github.com/coreybutler/fenix/releases</releaseNotes>
+  </metadata>
+</package>
