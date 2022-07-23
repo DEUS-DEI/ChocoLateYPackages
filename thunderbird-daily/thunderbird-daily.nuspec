@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>thunderbird-daily</id>
-    <version>104.0a1</version>
+    <version>104.0.1</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/thunderbird-daily</packageSourceUrl>
     <owners>DEUS-DEI</owners>
 
@@ -27,11 +27,11 @@
       Tailored for all your needs
       Thunderbird makes email better for you, bringing together speed, privacy and the latest technologies. Focus on what matters and forget about complexity.
 
-      Secure & Private
+      Secure and Private
       Multiple features, such as built-in Do Not Track and remote content blocking, work together to ensure your safety and privacy, so you can have peace of mind.
 
       Highly Customizable
-      With Add-ons (Extensions & Themes) and many more features you can change the look and feel of Thunderbird in an instant.
+      With Add-ons (Extensions and Themes) and many more features you can change the look and feel of Thunderbird in an instant.
 
       Calendar
       Organize your life — it’s about time!
