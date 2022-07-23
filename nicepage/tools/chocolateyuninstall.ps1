@@ -1,8 +1,8 @@
 ﻿$ErrorActionPreference = 'Stop';
-$packageName    = 'thunderbird-daily'
-$softwareName   = 'Daily*'
+$packageName    = 'nicepage'
+$softwareName   = 'Nicepage*'
 $fileType       = 'exe'
-$silentArgs     = '"%ProgramFiles%\Thunderbird Daily\uninstall\helper.exe" /S'
+$silentArgs     = '/S'
 $validExitCodes = @(0)
 [array] $key = Get-UninstallRegistryKey -SoftwareName $softwareName
 if ($key.Count -eq 1) {
