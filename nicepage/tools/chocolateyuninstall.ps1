@@ -2,7 +2,8 @@
 $packageName    = 'nicepage'
 $softwareName   = 'Nicepage*'
 $fileType       = 'exe'
-$silentArgs     = '/S'
+$silentArgs     = '"%LocalAppData%\Programs\Nicepage\Uninstall Nicepage.exe" /S'
+Programs\Nicepage\Uninstall Nicepage.exe"
 $validExitCodes = @(0)
 [array] $key = Get-UninstallRegistryKey -SoftwareName $softwareName
 if ($key.Count -eq 1) {

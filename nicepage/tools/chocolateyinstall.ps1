@@ -1,6 +1,6 @@
 ﻿$packageName= 'nicepage'
 $toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://nicepage.com/get/windowsfull'
+$url = 'https://get.nicepage.com/Nicepage-4.14.1-full.exe'
 $FileLocation = Join-Path $toolsDir 'nicepage.exe'
 Get-ChocolateyWebFile -PackageName 'nicepage' `
                       -Url $url -FileFullPath $FileLocation `

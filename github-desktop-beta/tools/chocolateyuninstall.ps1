@@ -1,6 +1,6 @@
 ﻿$ErrorActionPreference = 'Stop';
 $packageName    = 'github-desktop-beta'
-$softwareName   = 'GitHub Desktop'
+$softwareName   = 'GitHub Desktop*'
 $fileType       = 'exe'
 $silentArgs     = '%LocalAppData%\GitHubDesktop\Update.exe --uninstall .'
 $validExitCodes = @(0)
