@@ -1,2 +1,7 @@
-# Executables
 *.nupkg
+*.exe
+*.zip
+*.ico
+*.png
+*.jpg
+*.msi
