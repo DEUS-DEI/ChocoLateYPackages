@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>github-desktop-beta</id>
-    <version>3.0.6-beta1</version>
+    <version>3.0.6-beta2</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/github-desktop-beta</packageSourceUrl>
     <owners>DEUS-DEI</owners>
 
