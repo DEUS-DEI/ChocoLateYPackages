@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>flarectl</id>
-    <version>0.45.0</version>
+    <version>0.46.0</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/flarectl</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>flarectl, Cloudflare's official CLI.</title>
