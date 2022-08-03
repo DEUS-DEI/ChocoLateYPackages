@@ -1,13 +1,18 @@
-﻿
-Note: Include this file if including binaries you have the right to distribute. 
-Otherwise delete. this file. If you are the software author, you can change this
-mention you are the author of the software.
-
-===DELETE ABOVE THIS LINE AND THIS LINE===
-
-VERIFICATION
+﻿VERIFICATION
 Verification is intended to assist the Chocolatey moderators and community
 in verifying that this package's contents are trustworthy.
- 
-<Include details of how to verify checksum contents>
-<If software vendor, explain that here - checksum verification instructions are optional>
+
+Cloudflare WARP Beta MSI releases: https://install.appcenter.ms/orgs/cloudflare/apps/1.1.1.1-windows/distribution_groups/beta
+
+You may use the Windows certutil utility to confirm the hash of the MSI
+included in this package against the Cloudflare_WARP_Release-x64.msi release of the same version:
+
+Cloudflare WARP
+22.7.281.1
+Cloudflare_WARP_Release-x64.msi
+
+certutil -hashfile Cloudflare_WARP_Release-x64.msi SHA256
+
+SHA256 hash de Cloudflare_WARP_Release-x64.msi:
+cad18934aa56e3480fa8cff98ce47de06cb3acf998d8ed6802207095efc5cd80
+CertUtil: -hashfile command completed successfully.
