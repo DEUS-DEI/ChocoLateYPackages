@@ -10,7 +10,7 @@
     <authors>Cloudflare</authors>
     <projectUrl>https://one.one.one.one/beta</projectUrl>
     <iconUrl>https://theme.zdassets.com/theme_assets/9172443/9cb2c72a3ac2e360bdfa66ce0910a9549f9f28ba.svg</iconUrl>
-    <copyright>2022</copyright>
+    <copyright>2022 Cloudflare, Inc.</copyright>
     <licenseUrl>https://www.cloudflare.com/application/terms/</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://install.appcenter.ms/orgs/cloudflare/apps/1.1.1.1-windows/distribution_groups/beta</projectSourceUrl>

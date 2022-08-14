@@ -8,9 +8,9 @@
 
     <title>GitHub Desktop Beta</title>
     <authors>GitHub</authors>
-    <projectUrl>https://desktop.github.com</projectUrl>
+    <projectUrl>https://desktop.github.com/beta/</projectUrl>
     <iconUrl>https://desktop.github.com/images/desktop-icon.svg</iconUrl>
-    <copyright>2022</copyright>
+    <copyright>2022 GitHub, Inc.</copyright>
     <licenseUrl>https://github.com/desktop/desktop/blob/development/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/desktop/desktop</projectSourceUrl>

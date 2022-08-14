@@ -6,10 +6,10 @@
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/flarectl</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>flarectl, Cloudflare's official CLI.</title>
-    <authors>>Cloudflare</authors>
+    <authors>Cloudflare</authors>
     <projectUrl>https://www.cloudflare.com/es-es/dns/</projectUrl>
     <iconUrl>https://www.cloudflare.com/static/07c330059a6e7ba8289566756ba405aa/dns-hero-illustration.svg</iconUrl>
-    <copyright>2022</copyright>
+    <copyright>2022 Cloudflare, Inc.</copyright>
     <licenseUrl>https://github.com/cloudflare/cloudflare-go/blob/master/LICENSE</licenseUrl>	
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/cloudflare/cloudflare-go/tree/master/cmd/flarectl</projectSourceUrl>

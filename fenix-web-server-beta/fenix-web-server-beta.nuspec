@@ -2,15 +2,15 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>fenix-web-server-beta</id>
-    <version>3.0.0.13</version>
+    <version>3.0.0-beta13</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/fenix-web-server-beta</packageSourceUrl>
     <owners>DEUS-DEI</owners>
 
-    <title>Fenix Web Server</title>
+    <title>Fenix Web Server Beta</title>
     <authors>Ecor Ventures LLC</authors>
     <projectUrl>https://preview.fenixwebserver.com</projectUrl>
     <iconUrl>https://preview.fenixwebserver.com/assets/logos/fenix_light_bg.svg</iconUrl>
-    <copyright>2017</copyright>
+    <copyright>2017 Ecor Ventures LLC</copyright>
     <licenseUrl>https://github.com/coreybutler/fenix/blob/master/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/coreybutler/fenix</projectSourceUrl>
