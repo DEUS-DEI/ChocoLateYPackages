@@ -1,10 +1,10 @@
 ﻿$packageName= 'nicepage'
 $toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://get.nicepage.com/Nicepage-4.15.8-full.exe'
+$url = 'https://get.nicepage.com/Nicepage-4.16.0-full.exe'
 $FileLocation = Join-Path $toolsDir 'nicepage.exe'
 Get-ChocolateyWebFile -PackageName 'nicepage' `
                       -Url $url -FileFullPath $FileLocation `
-                      -Checksum 'c75c552fcc67ddd09208b1a0108d7029b450aded4a306404fb259c1e1a5d2639' `
+                      -Checksum '3dce302ef641418cabcce90cd38814516f16ca7c63fb40c5217aa8e4ced8f2da' `
                       -ChecksumType 'sha256'
 $packageArgs = @{
   packageName   = $packageName
