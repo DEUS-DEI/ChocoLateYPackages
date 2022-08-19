@@ -3,8 +3,8 @@ $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
   unzipLocation = $toolsDir
-  url64bit      = 'https://github.com/cloudflare/cloudflare-go/releases/download/v0.47.0/flarectl_0.47.0_windows_amd64.zip'
-  checksum64    = 'beeb4898eb66bd2d925449c831e661f1eda92c91c2777f668d9d1f403e3ce66d'
+  url64bit      = 'https://github.com/cloudflare/cloudflare-go/releases/download/v0.47.1/flarectl_0.47.1_windows_amd64.zip'
+  checksum64    = '6c271d52f8a50419bd157a28191a96276285e5fa3c1e639ecdf8378f9669998e'
   checksumType64= 'sha256'
 }
 Install-ChocolateyZipPackage @packageArgs
