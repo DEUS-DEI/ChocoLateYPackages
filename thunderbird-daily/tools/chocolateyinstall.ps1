@@ -1,6 +1,6 @@
 ﻿$packageName= 'thunderbird-daily'
 $toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central-l10n/thunderbird-105.0a1.en-US.win64.installer.exe'
+$url = 'https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central-l10n/thunderbird-151.0a1.en-US.win64.installer.exe'
 $FileLocation = Join-Path $toolsDir 'thunderbird-daily.exe'
 Get-ChocolateyWebFile -PackageName 'thunderbird-daily' `
                       -Url $url -FileFullPath $FileLocation `

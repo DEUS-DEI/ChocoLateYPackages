@@ -1,6 +1,6 @@
 ﻿$packageName= 'github-desktop-beta'
 $toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://desktop.githubusercontent.com/github-desktop/releases/3.0.6-beta2-706ecf57/GitHubDesktopSetup-x64.exe'
+$url = 'https://desktop.githubusercontent.com/releases/3.5.7-c5e06544/GitHubDesktopSetup-x64.exe'
 $FileLocation = Join-Path $toolsDir 'github-desktop-beta.exe'
 Get-ChocolateyWebFile -PackageName 'github-desktop-beta' `
                       -Url $url -FileFullPath $FileLocation `
