@@ -23,100 +23,89 @@ $jobScriptBlock = {
 
     switch ($packageName) {
         'fenix-web-server' {
-            function global:au_SearchReplace {
-                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*\$url\s*=\s*)(''.*'')' = "`$1'https://github.com/coreybutler/fenix/releases/download/v$($Latest.Version)/fenix-windows-$($Latest.Version).zip'" } }
-            }
+            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(\$url\s*=\s*)(''.*'')' = "`$1'https://github.com/coreybutler/fenix/releases/download/v$($Latest.Version)/fenix-windows-$($Latest.Version).zip'" } } }
             function global:au_GetLatest {
                 $req = Invoke-RestMethod -Uri 'https://api.github.com/repos/coreybutler/fenix/releases'
                 $latest = $req | Where-Object { $_.prerelease -eq $false -and $_.tag_name -notmatch '-' } | Select-Object -First 1
                 return @{ Version = $latest.tag_name.Replace('v', ''); URL32 = ($latest.assets | Where-Object name -like "*windows*.zip").browser_download_url }
             }
-            $checksumFlag = 32
+            $cf = 32
         }
 
         'fenix-web-server-beta' {
-            function global:au_SearchReplace {
-                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*\$url\s*=\s*)(''.*'')' = "`$1'https://github.com/coreybutler/fenix/releases/download/$($Latest.OriginalVersion)/Fenix.Setup.$($Latest.OriginalVersion).exe'" } }
-            }
+            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(\$url\s*=\s*)(''.*'')' = "`$1'https://github.com/coreybutler/fenix/releases/download/$($Latest.OriginalVersion)/Fenix.Setup.$($Latest.OriginalVersion).exe'" } } }
             function global:au_GetLatest {
                 $req = Invoke-RestMethod -Uri 'https://api.github.com/repos/coreybutler/fenix/releases'
                 $latest = $req | Where-Object { $_.prerelease -eq $true } | Select-Object -First 1
-                $urlVersion = $latest.tag_name.Replace('v', '')
-                return @{ Version = ($urlVersion -replace '-rc\.', '-rc'); OriginalVersion = $urlVersion; URL32 = ($latest.assets | Where-Object name -like "Fenix.Setup*.exe").browser_download_url }
+                $urlV = $latest.tag_name.Replace('v', '')
+                return @{ Version = ($urlV -replace '-rc\.', '.'); OriginalVersion = $urlV; URL32 = ($latest.assets | Where-Object name -like "Fenix.Setup*.exe").browser_download_url }
             }
-            $checksumFlag = 32
+            $cf = 32
         }
 
         'thunderbird-beta' {
-            function global:au_SearchReplace {
-                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*\$url\s*=\s*)(''.*'')' = "`$1'https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$($Latest.OriginalVersion)/win64/en-US/Thunderbird%20Setup%20$($Latest.OriginalVersion).exe'" } }
-            }
+            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(\$url\s*=\s*)(''.*'')' = "`$1'https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$($Latest.OriginalVersion)/win64/en-US/Thunderbird%20Setup%20$($Latest.OriginalVersion).exe'" } } }
             function global:au_GetLatest {
                 $req = Invoke-RestMethod -Uri 'https://product-details.mozilla.org/1.0/thunderbird_versions.json'
-                $rawVersion = $req.LATEST_THUNDERBIRD_DEVEL_VERSION
-                return @{ Version = ($rawVersion -replace 'b', '-beta'); OriginalVersion = $rawVersion; URL64 = "https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$rawVersion/win64/en-US/Thunderbird%20Setup%20$rawVersion.exe" }
+                $rv = $req.LATEST_THUNDERBIRD_DEVEL_VERSION
+                return @{ Version = ($rv -replace 'b', '.'); OriginalVersion = $rv; URL64 = "https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$rv/win64/en-US/Thunderbird%20Setup%20$rv.exe" }
             }
-            $checksumFlag = 64
+            $cf = 64
         }
 
         'thunderbird-daily' {
-            function global:au_SearchReplace {
-                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*\$url\s*=\s*)(''.*'')' = "`$1'https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central-l10n/thunderbird-$($Latest.OriginalVersion).en-US.win64.installer.exe'" } }
-            }
+            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(\$url\s*=\s*)(''.*'')' = "`$1'https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central-l10n/thunderbird-$($Latest.OriginalVersion).en-US.win64.installer.exe'" } } }
             function global:au_GetLatest {
                 $req = Invoke-RestMethod -Uri 'https://product-details.mozilla.org/1.0/thunderbird_versions.json'
-                $rawVersion = $req.LATEST_THUNDERBIRD_NIGHTLY_VERSION
-                return @{ Version = ($rawVersion -replace 'a', '-alpha'); OriginalVersion = $rawVersion; URL64 = "https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central-l10n/thunderbird-$rawVersion.en-US.win64.installer.exe" }
+                $rv = $req.LATEST_THUNDERBIRD_NIGHTLY_VERSION
+                return @{ Version = ($rv -replace 'a', '.'); OriginalVersion = $rv; URL64 = "https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central-l10n/thunderbird-$rv.en-US.win64.installer.exe" }
             }
-            $checksumFlag = 64
+            $cf = 64
         }
 
         'github-desktop-beta' {
-            function global:au_SearchReplace {
-                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*\$url\s*=\s*)(''.*'')' = "`$1'$($Latest.URL64)'" } }
-            }
+            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(\$url\s*=\s*)(''.*'')' = "`$1'$($Latest.URL64)'" } } }
             function global:au_GetLatest {
                 $req = Invoke-RestMethod -Uri 'https://central.github.com/api/deployments/desktop/desktop/latest?version=beta&os=windows'
-                return @{ Version = ($req.version -replace '-beta', '-beta'); URL64 = ($req.url -replace "GitHubDesktop-x64.zip", "GitHubDesktopSetup-x64.exe") }
+                return @{ Version = ($req.version -replace '-beta', ''); URL64 = ($req.url -replace "GitHubDesktop-x64.zip", "GitHubDesktopSetup-x64.exe") }
             }
-            $checksumFlag = 64
+            $cf = 64
         }
 
         'nicepage' {
-            function global:au_SearchReplace {
-                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*\$url\s*=\s*)(''.*'')' = "`$1'https://get.nicepage.com/Nicepage-$($Latest.Version)-full.exe'" } }
-            }
+            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(\$url\s*=\s*)(''.*'')' = "`$1'https://get.nicepage.com/Nicepage-$($Latest.Version)-full.exe'"; '(?i)(-Checksum\s*)(''.*'')' = "`$1'$($Latest.Checksum32)'" } } }
             function global:au_GetLatest {
-                # Fallback to user provided version if scraping fails, but try scraping first
-                $version = "8.4.0" 
-                $resp = Invoke-WebRequest -Uri "https://nicepage.com/download" -UseBasicParsing -ErrorAction SilentlyContinue
-                if ($resp.Content -match 'Nicepage-([\d\.]+)-full\.exe') { $version = $Matches[1] }
-                return @{ Version = $version; URL32 = "https://get.nicepage.com/Nicepage-$version-full.exe" }
+                $v = "8.4.0"; $resp = Invoke-WebRequest -Uri "https://nicepage.com/download" -UseBasicParsing -ErrorAction SilentlyContinue
+                if ($resp.Content -match 'Nicepage-([\d\.]+)-full\.exe') { $v = $Matches[1] }
+                return @{ Version = $v; URL32 = "https://get.nicepage.com/Nicepage-$v-full.exe" }
             }
-            $checksumFlag = 32
+            $cf = 32
         }
 
         'warp-beta' {
-            function global:au_SearchReplace {
-                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*url64\s*=\s*)(''.*'')' = "`$1'$($Latest.URL64)'" } }
-            }
+            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(url64\s*=\s*)(''.*'')' = "`$1'$($Latest.URL64)'"; '(?i)(checksum64\s*=\s*)(''.*'')' = "`$1'$($Latest.Checksum64)'" } } }
             function global:au_GetLatest {
-                # Best effort for AppCenter without specific release ID download link
-                $release = Invoke-RestMethod -Uri "https://install.appcenter.ms/api/v0.1/apps/cloudflare/1.1.1.1-windows/distribution_groups/beta/public_releases" | Select-Object -First 1
-                return @{ Version = $release.version; URL64 = "https://install.appcenter.ms/api/v0.1/apps/cloudflare/1.1.1.1-windows/distribution_groups/beta/releases/$($release.id)/download" }
+                $resp = Invoke-WebRequest -Uri "https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/beta-releases/" -UseBasicParsing
+                $v = "2026.3.13" # Based on last updated date in documentation
+                if ($resp.Content -match 'Version\s+([\d\.]+)') { $v = $Matches[1] }
+                return @{ Version = $v; URL64 = "https://downloads.cloudflareclient.com/v1/download/windows/beta" }
             }
-            $checksumFlag = 64
+            $cf = 64
         }
     }
 
-    if ($checksumFlag) {
+    if ($cf) {
+        $updatePath = Join-Path (Get-Location) "update.ps1"
+        $updateContent = "function au_GetLatest { return `$global:Latest }; function au_SearchReplace { return `$global:au_SR }"
+        $global:au_SR = au_SearchReplace
+        $updateContent | Out-File -FilePath $updatePath -Force
+        
         try {
-            New-Item -ItemType File -Name 'update.ps1' -Value '' -Force | Out-Null
-            Update-Package -ChecksumFor $checksumFlag
+            Update-Package -ChecksumFor $cf
         } catch {
             Write-Error "Error en $packageName : $_"
         } finally {
-            Remove-Item 'update.ps1' -Force -ErrorAction SilentlyContinue
+            Remove-Item $updatePath -Force -ErrorAction SilentlyContinue
         }
     }
     Pop-Location
@@ -130,9 +119,7 @@ foreach ($pkg in $activePackages) {
     $jobs += Start-Job -ScriptBlock $jobScriptBlock -ArgumentList $pkg, $rootDir
 }
 
-Write-Host "`nEsperando a que todas las descargas paralelas y revisiones terminen (esto puede tardar debido a los tamaños)..."
-Wait-Job -Job $jobs | Out-Null
-
-Write-Host "`nResultados:"
+Write-Host "`nEsperando resultados..."
+Wait-Job -Job $jobs -Timeout 600 | Out-Null
 Receive-Job -Job $jobs
 Remove-Job -Job $jobs
