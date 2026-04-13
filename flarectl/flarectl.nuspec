@@ -5,7 +5,7 @@
     <version>0.47.1</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/flarectl</packageSourceUrl>
     <owners>DEUS-DEI</owners>
-    <title>flarectl, Cloudflare's official CLI.</title>
+    <title>[Deprecated] flarectl, Cloudflare CLI.</title>
     <authors>Cloudflare</authors>
     <projectUrl>https://www.cloudflare.com/es-es/dns/</projectUrl>
     <iconUrl>https://www.cloudflare.com/static/07c330059a6e7ba8289566756ba405aa/dns-hero-illustration.svg</iconUrl>
@@ -15,9 +15,12 @@
     <projectSourceUrl>https://github.com/cloudflare/cloudflare-go/tree/master/cmd/flarectl</projectSourceUrl>
     <docsUrl>https://support.cloudflare.com/hc/en-us/articles/360000841472</docsUrl>
     <bugTrackerUrl>https://github.com/cloudflare/cloudflare-go/issues</bugTrackerUrl>
-    <tags>flarectl  cloudflare cli tool</tags>
+    <tags>flarectl cloudflare cli tool deprecated discontinued</tags>
     <summary>If you need to add multiple sites (10+) to Cloudflare at once, you can do so via the Cloudflare API. You can also add domains using flarectl, Cloudflare's official CLI.</summary>
-    <description>Adding Multiple Sites to Cloudflare via Automation
+    <description>
+    **DEPRECATED:** We are officially discontinuing updates for this Chocolatey package. The developers at Cloudflare no longer distribute pre-compiled Windows executable binaries for `flarectl` on their GitHub releases. If you need to use this tool going forward, you must compile it from source manually using the Go programming language.
+
+    Adding Multiple Sites to Cloudflare via Automation
 	 If you need to add multiple sites (10+) to Cloudflare at once, you can do so via the Cloudflare API. Adding multiple sites can be useful when you:
 		Have multiple domains mapping back to a single, canonical domain - e.g. domains in different countries (.com.au, .co.uk, etc) that you want to have protected by Cloudflare
 		Are an agency or IT consultancy, and manage multiple domains on behalf of your customers (note: you should consider the Cloudflare Partner program)
