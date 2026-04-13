@@ -2,7 +2,7 @@
 @echo off
 echo ========================================================
 echo Iniciando proceso de actualizacion automatica (AU)
-echo MODO PARALELO Y CENTRALIZADO
+echo MODO SINCRONO Y ROBUSTO
 echo ========================================================
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Command -ScriptBlock ([ScriptBlock]::Create([IO.File]::ReadAllText('%~f0')))"
@@ -15,12 +15,18 @@ exit /b
 #>
 
 $rootDir = $PWD.Path
+Import-Module au
 
-$jobScriptBlock = {
-    param($packageName, $rootDir)
-    Import-Module au
+$activePackages = @('fenix-web-server', 'fenix-web-server-beta', 'thunderbird-beta', 'thunderbird-daily', 'github-desktop-beta', 'nicepage', 'warp-beta')
+
+foreach ($packageName in $activePackages) {
+    Write-Host "====================================="
+    Write-Host "Actualizando: $packageName"
+    Write-Host "====================================="
+    
     Push-Location (Join-Path $rootDir $packageName)
 
+    # Definir funciones específicas para cada paquete
     switch ($packageName) {
         'fenix-web-server' {
             function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(\$url\s*=\s*)(''.*'')' = "`$1'https://github.com/coreybutler/fenix/releases/download/v$($Latest.Version)/fenix-windows-$($Latest.Version).zip'" } } }
@@ -83,10 +89,10 @@ $jobScriptBlock = {
         }
 
         'warp-beta' {
-            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(url64\s*=\s*)(''.*'')' = "`$1'$($Latest.URL64)'"; '(?i)(checksum64\s*=\s*)(''.*'')' = "`$1'$($Latest.Checksum64)'" } } }
+            function global:au_SearchReplace { @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(url64\s*=\s*)(''.*'')' = "`$1'https://downloads.cloudflareclient.com/v1/download/windows/beta'"; '(?i)(checksum64\s*=\s*)(''.*'')' = "`$1'$($Latest.Checksum64)'" } } }
             function global:au_GetLatest {
                 $resp = Invoke-WebRequest -Uri "https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/beta-releases/" -UseBasicParsing
-                $v = "2026.3.13" # Based on last updated date in documentation
+                $v = "2026.3.13"
                 if ($resp.Content -match 'Version\s+([\d\.]+)') { $v = $Matches[1] }
                 return @{ Version = $v; URL64 = "https://downloads.cloudflareclient.com/v1/download/windows/beta" }
             }
@@ -94,32 +100,16 @@ $jobScriptBlock = {
         }
     }
 
-    if ($cf) {
-        $updatePath = Join-Path (Get-Location) "update.ps1"
-        $updateContent = "function au_GetLatest { return `$global:Latest }; function au_SearchReplace { return `$global:au_SR }"
-        $global:au_SR = au_SearchReplace
-        $updateContent | Out-File -FilePath $updatePath -Force
-        
-        try {
-            Update-Package -ChecksumFor $cf
-        } catch {
-            Write-Error "Error en $packageName : $_"
-        } finally {
-            Remove-Item $updatePath -Force -ErrorAction SilentlyContinue
-        }
+    $updatePath = Join-Path (Get-Location) "update.ps1"
+    "function au_GetLatest { au_GetLatest }; function au_SearchReplace { au_SearchReplace }" | Out-File -FilePath $updatePath -Force
+    
+    try {
+        Update-Package -ChecksumFor $cf
+    } catch {
+        Write-Error "Error en $packageName : $_"
+    } finally {
+        Remove-Item $updatePath -Force -ErrorAction SilentlyContinue
     }
+    
     Pop-Location
 }
-
-$activePackages = @('fenix-web-server', 'fenix-web-server-beta', 'thunderbird-beta', 'thunderbird-daily', 'github-desktop-beta', 'nicepage', 'warp-beta')
-$jobs = @()
-
-foreach ($pkg in $activePackages) {
-    Write-Host "-> Despachando actualización en paralelo para: $pkg"
-    $jobs += Start-Job -ScriptBlock $jobScriptBlock -ArgumentList $pkg, $rootDir
-}
-
-Write-Host "`nEsperando resultados..."
-Wait-Job -Job $jobs -Timeout 600 | Out-Null
-Receive-Job -Job $jobs
-Remove-Job -Job $jobs
