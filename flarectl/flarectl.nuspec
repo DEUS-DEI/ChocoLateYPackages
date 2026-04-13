@@ -18,7 +18,7 @@
     <tags>flarectl cloudflare cli tool deprecated discontinued</tags>
     <summary>If you need to add multiple sites (10+) to Cloudflare at once, you can do so via the Cloudflare API. You can also add domains using flarectl, Cloudflare's official CLI.</summary>
     <description>
-    **DEPRECATED:** We are officially discontinuing updates for this Chocolatey package. The developers at Cloudflare no longer distribute pre-compiled Windows executable binaries for `flarectl` on their GitHub releases. If you need to use this tool going forward, you must compile it from source manually using the Go programming language.
+    **DEPRECATED:** We are officially discontinuing updates for this Chocolatey package. The developers at Cloudflare have placed `flarectl` into maintenance mode and are moving toward a new unified CLI named `cf` (in technical preview), alongside `Wrangler` for edge compute. Because of this deprecation, Cloudflare no longer distributes pre-compiled Windows executable binaries for `flarectl` on their GitHub releases. If you need to use this specific legacy tool going forward, you must compile it from source manually using the Go programming language.
 
     Adding Multiple Sites to Cloudflare via Automation
 	 If you need to add multiple sites (10+) to Cloudflare at once, you can do so via the Cloudflare API. Adding multiple sites can be useful when you:
