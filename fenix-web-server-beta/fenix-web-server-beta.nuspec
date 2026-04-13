@@ -21,7 +21,9 @@
     <tags>Fenix Web Server</tags>
     <summary> A desktop web server. for smart devs. Develop locally. Demo publicly. Done effortlessly.</summary>
     <description>
-A desktop web server
+      **DISCLAIMER: This package provides the "Beta" releases of Fenix Web Server. It differs from the standard `fenix-web-server` package by installing early-access software. Use this if you want to test upcoming features.**
+
+      A desktop web server
 for smart devs
 Develop locally. Demo publicly. Done effortlessly. 
 

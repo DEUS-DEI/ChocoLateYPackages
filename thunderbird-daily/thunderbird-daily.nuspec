@@ -18,9 +18,12 @@
     
 	
     <bugTrackerUrl>https://bugzilla.mozilla.org/describecomponents.cgi?product=Thunderbird</bugTrackerUrl>
+    <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/releases/</releaseNotes>
     <tags>mozilla thunderbird daily nightly email calendar</tags>
     <summary>Thunderbird is a free email application that’s easy to set up and customize - and it’s loaded with great features!</summary>
     <description>
+      **DISCLAIMER: This package provides the "Daily" (Nightly/Alpha) builds of Mozilla Thunderbird. It differs from the standard `thunderbird` package by installing the actively developed, bleeding-edge testing version. Use this if you want to test upcoming features. It is not intended for production environments.**
+
       Make Email Easier.
       Thunderbird is a free email application that’s easy to set up and customize - and it’s loaded with great features!
 

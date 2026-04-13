@@ -1,4 +1,4 @@
-﻿$packageName= 'fenix-web-server'
+$packageName= 'fenix-web-server'
 $toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
 $url = 'https://github.com/coreybutler/fenix/releases/download/v2.0.0/fenix-windows-2.0.0.zip'
 $FileLocation = Join-Path $toolsDir 'fenix-web-server.zip'
@@ -13,7 +13,7 @@ $packageArgs = @{
   packageName   = $packageName
   fileType      = 'exe'
   file          = (Get-Childitem -Path $toolsDir -Filter "*.exe").fullname
-  silentArgs    = ""
+  silentArgs    = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-'
   validExitCodes= @(0)
   softwareName  = 'Fenix*'
 }

@@ -21,6 +21,8 @@
     <tags>mozilla thunderbird beta email calendar</tags>
     <summary>Thunderbird is a free email application that’s easy to set up and customize - and it’s loaded with great features!</summary>
     <description>
+      **DISCLAIMER: This package provides the "Beta" builds of Mozilla Thunderbird. It differs from the standard `thunderbird` package by installing the upcoming beta release. Use this if you want to test new features before they hit the stable channel.**
+
       Make Email Easier.
       Thunderbird is a free email application that’s easy to set up and customize - and it’s loaded with great features!
 

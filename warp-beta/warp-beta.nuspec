@@ -20,7 +20,9 @@
     
     <tags>cloudflare warp beta</tags>
     <summary>The Cloudflare WARP client allows individuals and organizations to have a faster, more secure, and more private experience online.</summary>
-    <description>Cloudflare WARP client
+    <description>**DISCLAIMER: This package provides the "Beta" releases of the Cloudflare WARP client. It differs from the standard `warp` package by installing early-access software. Use this if you want to test upcoming features.**
+
+Cloudflare WARP client
 
 The Cloudflare WARP client allows individuals and organizations to have a faster, more secure, and more private experience online. The WARP client sits between your device and the Internet, and has several connection modes to better suit different needs.
 Cloudflare WARP is in part powered by 1.1.1.1, the world’s fastest DNS resolver.

@@ -1,0 +1,39 @@
+name: Auto Update Packages
+
+on:
+  schedule:
+    - cron: '0 5 * * *' # Corre todos los días a las 5:00 AM (UTC)
+  workflow_dispatch: # Te permite agregar un botón en GitHub para correrlo cuando quieras
+
+jobs:
+  update-repo:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Chocolatey Automatic Updater (AU)
+        shell: powershell
+        run: |
+          Install-Module au -Scope CurrentUser -Force
+
+      - name: Run Update Script
+        shell: powershell
+        run: |
+          .\update_all.ps1
+
+      - name: Commit and Push Changes
+        shell: powershell
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          
+          # Verificamos si los scripts modificaron algún .ps1 o .nuspec
+          $changes = git status --porcelain
+          if ($changes) {
+            git commit -m "chore: Auto-update pacakge versions via AU"
+            git push
+          } else {
+            Write-Host "Revisión completada: No se encontraron nuevas versiones hoy."
+          }
