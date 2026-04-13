@@ -81,6 +81,32 @@ $jobScriptBlock = {
             }
             $checksumFlag = 64
         }
+
+        'nicepage' {
+            function global:au_SearchReplace {
+                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*\$url\s*=\s*)(''.*'')' = "`$1'https://get.nicepage.com/Nicepage-$($Latest.Version)-full.exe'" } }
+            }
+            function global:au_GetLatest {
+                # Fallback to user provided version if scraping fails, but try scraping first
+                $version = "8.4.0" 
+                $resp = Invoke-WebRequest -Uri "https://nicepage.com/download" -UseBasicParsing -ErrorAction SilentlyContinue
+                if ($resp.Content -match 'Nicepage-([\d\.]+)-full\.exe') { $version = $Matches[1] }
+                return @{ Version = $version; URL32 = "https://get.nicepage.com/Nicepage-$version-full.exe" }
+            }
+            $checksumFlag = 32
+        }
+
+        'warp-beta' {
+            function global:au_SearchReplace {
+                @{ ".\tools\chocolateyinstall.ps1" = @{ '(?i)(^\s*url64\s*=\s*)(''.*'')' = "`$1'$($Latest.URL64)'" } }
+            }
+            function global:au_GetLatest {
+                # Best effort for AppCenter without specific release ID download link
+                $release = Invoke-RestMethod -Uri "https://install.appcenter.ms/api/v0.1/apps/cloudflare/1.1.1.1-windows/distribution_groups/beta/public_releases" | Select-Object -First 1
+                return @{ Version = $release.version; URL64 = "https://install.appcenter.ms/api/v0.1/apps/cloudflare/1.1.1.1-windows/distribution_groups/beta/releases/$($release.id)/download" }
+            }
+            $checksumFlag = 64
+        }
     }
 
     if ($checksumFlag) {
@@ -96,7 +122,7 @@ $jobScriptBlock = {
     Pop-Location
 }
 
-$activePackages = @('fenix-web-server', 'fenix-web-server-beta', 'thunderbird-beta', 'thunderbird-daily', 'github-desktop-beta')
+$activePackages = @('fenix-web-server', 'fenix-web-server-beta', 'thunderbird-beta', 'thunderbird-daily', 'github-desktop-beta', 'nicepage', 'warp-beta')
 $jobs = @()
 
 foreach ($pkg in $activePackages) {
