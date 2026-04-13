@@ -18,9 +18,9 @@ jobs:
           Install-Module au -Scope CurrentUser -Force
 
       - name: Run Update Script
-        shell: powershell
+        shell: cmd
         run: |
-          .\update_all.ps1
+          update_all.bat
 
       - name: Commit and Push Changes
         shell: powershell
