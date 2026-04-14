@@ -1,7 +1,7 @@
 <# :
 @echo off
 echo ========================================================
-echo AU Maestro: Actualizacion, Push y Limpieza Inteligente
+echo AU Maestro: Actualizacion, Push y Git Sync
 echo ========================================================
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Command -ScriptBlock ([ScriptBlock]::Create([IO.File]::ReadAllText('%~f0')))"
@@ -15,19 +15,19 @@ exit /b
 $rootDir = $PWD.Path
 Import-Module au
 
-# Función de Limpieza de Basura (Archivos no deseados en el repo)
+# Función de Limpieza de Basura
 function Cleanup-Trash {
-    Write-Host "`n>>> Ejecutando limpieza de archivos no deseados..." -ForegroundColor Gray
     $trashExtensions = @("*.exe", "*.msi", "*.zip", "*.nupkg", "*.tmp", "*.log", "*.mar", "*.pkg")
     foreach ($ext in $trashExtensions) {
         Get-ChildItem -Path $rootDir -Filter $ext -Recurse | Where-Object { $_.FullName -notmatch "node_modules" } | ForEach-Object {
-            Write-Host "    Borrando: $($_.FullName)" -ForegroundColor DarkGray
             Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
         }
     }
 }
 
 $activePackages = @('fenix-web-server', 'fenix-web-server-beta', 'thunderbird-beta', 'thunderbird-daily', 'github-desktop-beta', 'nicepage', 'warp-beta')
+$report = @()
+$globalUpdated = $false
 
 foreach ($packageName in $activePackages) {
     Write-Host "`n>>> Procesando: $packageName" -ForegroundColor Cyan
@@ -49,25 +49,51 @@ foreach ($packageName in $activePackages) {
     "function au_GetLatest { au_GetLatest }; function au_SearchReplace { au_SearchReplace }" | Out-File -FilePath $updatePath -Force
     
     try {
+        $oldVersion = ([xml](Get-Content "$packageName.nuspec")).package.metadata.version
         $result = if ($cf -gt 0) { Update-Package -ChecksumFor $cf } else { Update-Package }
         
         if ($result.Updated) {
-            Write-Host ">>> Actualizacion detectada. Empaquetando..." -ForegroundColor Yellow
+            $globalUpdated = $true
+            Write-Host ">>> Actualizacion Detectada: $packageName v$oldVersion -> v$($result.RemoteVersion)" -ForegroundColor Green
             choco pack
             $nupkg = Get-ChildItem -Filter "*.nupkg" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($nupkg) {
-                Write-Host ">>> Subiendo $($nupkg.Name)..." -ForegroundColor Green
                 choco push $nupkg.FullName --source "https://push.chocolatey.org/"
             }
         }
+
+        $report += [PSCustomObject]@{
+            Paquete  = $packageName
+            Anterior = $oldVersion
+            Nueva    = if ($result.Updated) { $result.RemoteVersion } else { $oldVersion }
+            Estado   = if ($result.Updated) { "Actualizado" } else { "Al dia" }
+        }
     } catch {
         Write-Error "Error en $packageName : $_"
+        $report += [PSCustomObject]@{ Paquete = $packageName; Anterior = "?"; Nueva = "?"; Estado = "Error" }
     } finally {
         Remove-Item $updatePath -Force -ErrorAction SilentlyContinue
     }
-    
     Pop-Location
 }
 
-# Ejecutar limpieza al final del proceso global
+# --- RESUMEN FINAL ---
+Write-Host "`n========================================================" -ForegroundColor White
+Write-Host "                RESUMEN DE ACTUALIZACIONES" -ForegroundColor White
+Write-Host "========================================================" -ForegroundColor White
+$report | Format-Table -AutoSize
 Cleanup-Trash
+
+# --- SYNC CON GIT (SOLO SI HUBO ACTUALIZACIONES) ---
+if ($globalUpdated) {
+    Write-Host "`n>>> Sincronizando cambios con Git..." -ForegroundColor Cyan
+    $updatedString = ($report | Where-Object { $_.Estado -eq "Actualizado" } | ForEach-Object { "$($_.Paquete) v$($_.Nueva)" }) -join ", "
+    $commitMsg = "feat: automated update of $updatedString"
+    
+    git add .
+    git commit -m $commitMsg
+    git push
+    Write-Host ">>> Git Sync Completado." -ForegroundColor Green
+} else {
+    Write-Host "`n>>> No hay cambios que sincronizar en Git." -ForegroundColor Gray
+}
