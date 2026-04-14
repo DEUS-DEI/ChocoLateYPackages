@@ -4,13 +4,16 @@ echo ========================================================
 echo AU Maestro: Actualizacion, Push y Git Sync
 echo ========================================================
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Command -ScriptBlock ([ScriptBlock]::Create([IO.File]::ReadAllText('%~f0')))"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { [ScriptBlock]::Create([IO.File]::ReadAllText('%~f0')).Invoke($args) }" %*
 echo.
 echo ========================================================
 echo Proceso finalizado.
 echo ========================================================
 exit /b
 #>
+$Force = $args -contains "-Force" -or $args -contains "/Force"
+if ($Force) { Write-Host ">>> MODO FORZADO ACTIVADO: Se re-empaquetaran y subiran todos los paquetes." -ForegroundColor Yellow }
+
 
 $rootDir = $PWD.Path
 Import-Module au
@@ -52,7 +55,8 @@ foreach ($packageName in $activePackages) {
         $oldVersion = ([xml](Get-Content "$packageName.nuspec")).package.metadata.version
         $result = if ($cf -gt 0) { Update-Package -ChecksumFor $cf } else { Update-Package }
         
-        if ($result.Updated) {
+        if ($result.Updated -or $Force) {
+            if ($Force -and -not $result.Updated) { Write-Host ">>> Forzando push para $packageName..." -ForegroundColor Yellow }
             $globalUpdated = $true
             Write-Host ">>> Actualizacion Detectada: $packageName v$oldVersion -> v$($result.RemoteVersion)" -ForegroundColor Green
             choco pack
