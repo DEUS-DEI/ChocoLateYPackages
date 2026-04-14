@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>github-desktop-beta</id>
+    <version>999.0.0</version>
+    <title>[DEPRECATED] GitHub Desktop Beta</title>
+    <authors>GitHub, Inc.</authors>
+    <owners>DEUS-DEI</owners>
+    <projectUrl>https://desktop.github.com/</projectUrl>
+    <iconUrl>https://desktop.github.com/images/desktop-icon.svg</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>
+### IMPORTANT - NAME CHANGE
+This package has been renamed to **github-desktop-pre** to comply with Chocolatey's Package ID naming conventions.
+Installing this version will automatically install the new package as a dependency.
+    </description>
+    <summary>Transitional package towards github-desktop-pre</summary>
+    <tags>deprecated github</tags>
+    <dependencies>
+      <dependency id="github-desktop-pre" />
+    </dependencies>
+  </metadata>
+</package>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>thunderbird-beta</id>
+    <version>999.0.0</version>
+    <title>[DEPRECATED] Mozilla Thunderbird Beta</title>
+    <authors>Mozilla</authors>
+    <owners>DEUS-DEI</owners>
+    <projectUrl>https://www.thunderbird.net/en-US/thunderbird/beta/all/</projectUrl>
+    <iconUrl>https://www.thunderbird.net/media/img/thunderbird/logos/beta.png</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>
+### IMPORTANT - NAME CHANGE
+This package has been renamed to **thunderbird-mozilla** to comply with Chocolatey's Package ID naming conventions.
+Installing this version will automatically install the new package as a dependency.
+    </description>
+    <summary>Transitional package towards thunderbird-mozilla</summary>
+    <tags>deprecated thunderbird</tags>
+    <dependencies>
+      <dependency id="thunderbird-mozilla" />
+    </dependencies>
+  </metadata>
+</package>

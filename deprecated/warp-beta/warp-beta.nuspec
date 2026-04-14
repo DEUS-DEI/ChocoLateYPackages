@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>warp-beta</id>
+    <version>999.0.0</version>
+    <title>[DEPRECATED] Cloudflare WARP Beta</title>
+    <authors>Cloudflare</authors>
+    <owners>DEUS-DEI</owners>
+    <projectUrl>https://one.one.one.one/beta</projectUrl>
+    <iconUrl>https://theme.zdassets.com/theme_assets/9172443/9cb2c72a3ac2e360bdfa66ce0910a9549f9f28ba.svg</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>
+### IMPORTANT - NAME CHANGE
+This package has been renamed to **cloudflare-warp-pre** to comply with Chocolatey's Package ID naming conventions.
+Installing this version will automatically install the new package as a dependency.
+    </description>
+    <summary>Transitional package towards cloudflare-warp-pre</summary>
+    <tags>deprecated cloudflare warp</tags>
+    <dependencies>
+      <dependency id="cloudflare-warp-pre" />
+    </dependencies>
+  </metadata>
+</package>

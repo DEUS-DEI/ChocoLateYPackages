@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>fenix-web-server-beta</id>
+    <version>999.0.0</version>
+    <title>[DEPRECATED] Fenix Web Server Beta</title>
+    <authors>Ecor Ventures LLC</authors>
+    <owners>DEUS-DEI</owners>
+    <projectUrl>https://preview.fenixwebserver.com</projectUrl>
+    <iconUrl>https://preview.fenixwebserver.com/assets/logos/fenix_light_bg.svg</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>
+### IMPORTANT - NAME CHANGE
+This package has been renamed to **fenix-web-server-pre** to comply with Chocolatey's Package ID naming conventions.
+Installing this version will automatically install the new package as a dependency.
+You may safely uninstall this package (fenix-web-server-beta) after the migration.
+    </description>
+    <summary>Transitional package towards fenix-web-server-pre</summary>
+    <tags>deprecated fenix</tags>
+    <dependencies>
+      <dependency id="fenix-web-server-pre" />
+    </dependencies>
+  </metadata>
+</package>
