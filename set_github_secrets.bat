@@ -9,7 +9,7 @@ echo.
 :: Verificar si gh existe
 where gh >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [ERROR] GitHub CLI (gh) no esta instalado.
+    echo [ERROR] GitHub CLI gh no esta instalado.
     echo Descargalo en: https://cli.github.com/
     pause
     exit /b
@@ -22,7 +22,6 @@ echo.
 echo ========================================================
 echo Proceso finalizado.
 echo ========================================================
-pause
 exit /b
 #>
 
@@ -34,7 +33,7 @@ if (-not $ApiKey) {
 }
 
 Write-Host "`n>>> Verificando autenticacion en GitHub..." -ForegroundColor Gray
-$user = gh api user --jq .login -ErrorAction SilentlyContinue
+$user = gh api user --jq .login 2>$null
 
 if (-not $user) {
     Write-Host "[ERROR] No has iniciado sesion en GitHub CLI." -ForegroundColor Red
