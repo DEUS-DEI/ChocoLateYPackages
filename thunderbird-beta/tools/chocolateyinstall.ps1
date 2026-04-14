@@ -1,17 +1,43 @@
-﻿$packageName= 'thunderbird-beta'
-$toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/150.0b4/win64/en-US/Thunderbird%20Setup%20150.0b4.exe'
-$FileLocation = Join-Path $toolsDir 'thunderbird-beta.exe'
-Get-ChocolateyWebFile -PackageName 'thunderbird-beta' `
-                      -Url $url -FileFullPath $FileLocation `
-                      -Checksum 'c6a9629f4e6c5297bf22476e5f3ae41ff55b292e90ff1adaa28bf5a73adca8ed' `
-                      -ChecksumType 'sha256'
+$packageName = 'thunderbird-beta'
+$toolsDir    = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
+$version     = '150.0b4' # This will be updated by AU
+
+# Detect System Language & Architecture
+$lang = (Get-Culture).Name
+$arch = if ([Environment]::Is64BitOperatingSystem) { "win64" } else { "win" }
+
+$packageParameters = Get-PackageParameters
+if ($packageParameters['Language']) { $lang = $packageParameters['Language'] }
+if ($packageParameters['Arch']) { $arch = $packageParameters['Arch'] }
+
+$url = "https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$version/$arch/$lang/Thunderbird%20Setup%20$version.exe"
+$checksumUrl = "https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$version/SHA256SUMS"
+
+# Get Checksum from Mozilla on the fly
+$checksum = ''
+try {
+    $checksumsFile = Join-Path $toolsDir "checksums.txt"
+    Get-ChocolateyWebFile -PackageName "$packageName-checksum" -Url $checksumUrl -FileFullPath $checksumsFile
+    
+    $fileNamePattern = "$arch/$lang/Thunderbird Setup $version.exe"
+    $checksumLine = Get-Content $checksumsFile | Where-Object { $_ -like "*$fileNamePattern*" } | Select-Object -First 1
+    if ($checksumLine -match '^(\w+)\s+') {
+        $checksum = $Matches[1]
+    }
+    Remove-Item $checksumsFile -ErrorAction SilentlyContinue
+} catch {
+    Write-Warning "No se pudo validar el checksum para el idioma $lang y arquitectura $arch."
+}
+
 $packageArgs = @{
   packageName   = $packageName
   fileType      = 'exe'
-  file          = (Get-Childitem -Path $toolsDir -Filter "*.exe").fullname
+  url           = $url
+  checksum      = $checksum
+  checksumType  = 'sha256'
   silentArgs    = "-ms"
   validExitCodes= @(0)
-  softwareName  = 'Mozilla Thunderbird*'
+  softwareName  = 'Thunderbird*'
 }
-Install-ChocolateyInstallPackage @packageArgs
+
+Install-ChocolateyPackage @packageArgs
