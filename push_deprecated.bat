@@ -3,7 +3,8 @@ setlocal enabledelayedexpansion
 
 echo Preparando paquetes de transicion...
 
-set packages=fenix-web-server-beta github-desktop-beta warp-beta thunderbird-beta thunderbird-daily
+REM set packages=fenix-web-server-beta github-desktop-beta warp-beta thunderbird-beta thunderbird-daily
+set packages=warp-beta thunderbird-beta thunderbird-daily
 
 for %%p in (%packages%) do (
     echo.

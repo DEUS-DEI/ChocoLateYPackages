@@ -1,8 +1,8 @@
 name: Auto Update Packages
 
 on:
-  schedule:
-    - cron: '0 5 * * *' # Corre todos los días a las 5:00 AM (UTC)
+#  schedule:
+#    - cron: '0 5 * * *' # Corre todos los días a las 5:00 AM (UTC)
   workflow_dispatch: # Te permite agregar un botón en GitHub para correrlo cuando quieras
 
 jobs:
