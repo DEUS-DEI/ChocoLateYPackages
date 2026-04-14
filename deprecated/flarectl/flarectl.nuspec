@@ -3,7 +3,7 @@
   <metadata>
     <id>flarectl</id>
     <version>0.47.1</version>
-    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/flarectl</packageSourceUrl>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/flarectl</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>[Deprecated] flarectl, Cloudflare CLI.</title>
     <authors>Cloudflare</authors>

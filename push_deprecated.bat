@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 echo Preparando paquetes de transicion...
 
 REM set packages=fenix-web-server-beta github-desktop-beta warp-beta thunderbird-beta thunderbird-daily
-set packages=warp-beta thunderbird-beta thunderbird-daily
+set packages=warp-beta thunderbird-beta thunderbird-daily flarectl
 
 for %%p in (%packages%) do (
     echo.
