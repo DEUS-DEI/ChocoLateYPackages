@@ -8,6 +8,8 @@ on:
 jobs:
   update-repo:
     runs-on: windows-latest
+    permissions:
+      contents: write # Permiso para que el bot pueda hacer push
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -17,23 +19,28 @@ jobs:
         run: |
           Install-Module au -Scope CurrentUser -Force
 
+      - name: Set Chocolatey API Key
+        shell: powershell
+        run: |
+          choco apikey add -k ${{ secrets.CHOCO_API_KEY }} -s https://push.chocolatey.org/
+
       - name: Run Update Script
         shell: cmd
         run: |
           update_all.bat
 
-      - name: Commit and Push Changes
+      - name: Commit and Push Changes (Sync)
         shell: powershell
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add .
           
-          # Verificamos si los scripts modificaron algún .ps1 o .nuspec
+          # Verificamos si quedaron cambios pendientes después del script
           $changes = git status --porcelain
           if ($changes) {
-            git commit -m "chore: Auto-update pacakge versions via AU"
+            git commit -m "chore: Auto-update package versions via AU"
             git push
           } else {
-            Write-Host "Revisión completada: No se encontraron nuevas versiones hoy."
+            Write-Host "Revisión completada: El repositorio ya está sincronizado."
           }
