@@ -19,8 +19,18 @@ $checksumsFile = Join-Path $toolsDir "checksums.txt"
 if (Test-Path $checksumsFile) {
     $fileNamePattern = "$arch/$lang/Thunderbird Setup $version.exe"
     $checksumLine = Get-Content $checksumsFile | Where-Object { $_ -like "*$fileNamePattern*" } | Select-Object -First 1
+    
     if ($checksumLine -match '^(\w+)\s+') {
         $checksum = $Matches[1]
+    } else {
+        Write-Warning ">>> Idioma '$lang' no encontrado en el manifiesto de Mozilla. Reintentando con 'en-US'..."
+        $lang = 'en-US'
+        $url = "https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$version/$arch/$lang/Thunderbird%20Setup%20$version.exe"
+        $fileNamePattern = "$arch/$lang/Thunderbird Setup $version.exe"
+        $checksumLine = Get-Content $checksumsFile | Where-Object { $_ -like "*$fileNamePattern*" } | Select-Object -First 1
+        if ($checksumLine -match '^(\w+)\s+') {
+            $checksum = $Matches[1]
+        }
     }
 }
 
@@ -35,9 +45,8 @@ $packageArgs = @{
   url           = $url
   checksum      = $checksum
   checksumType  = 'sha256'
-  silentArgs    = "-ms"
+  silentArgs    = '-ms'
   validExitCodes= @(0)
-  softwareName  = 'Thunderbird*'
 }
 
 Install-ChocolateyPackage @packageArgs

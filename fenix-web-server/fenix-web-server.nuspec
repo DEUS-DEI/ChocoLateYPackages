@@ -9,7 +9,7 @@
     <title>Fenix Web Server</title>
     <authors>Ecor Ventures LLC</authors>
     <projectUrl>https://preview.fenixwebserver.com</projectUrl>
-    <iconUrl>https://preview.fenixwebserver.com/assets/logos/fenix_light_bg.svg</iconUrl>
+    <iconUrl>https://raw.githubusercontent.com/coreybutler/fenix/master/src/media/img/logo.png</iconUrl>
     <copyright>Copyright (c) 2017 Ecor Ventures LLC</copyright>
     <licenseUrl>https://github.com/coreybutler/fenix/blob/master/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
@@ -18,7 +18,7 @@
     
 	
     <bugTrackerUrl>https://github.com/author/fenix-docs/issues</bugTrackerUrl>
-    <tags>Fenix Web Server</tags>
+    <tags>fenix web-server webserver development localhost static-sites admin gui foss</tags>
     <summary> A desktop web server. for smart devs. Develop locally. Demo publicly. Done effortlessly.</summary>
     <description>
 A desktop web server

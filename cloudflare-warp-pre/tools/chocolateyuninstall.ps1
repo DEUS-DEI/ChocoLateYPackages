@@ -1,6 +1,7 @@
-﻿$ErrorActionPreference = 'Stop';
-$packageName = 'warp-beta'
+$ErrorActionPreference = 'Stop';
+$packageName = 'cloudflare-warp-pre'
 $uninstalled = $false
+
 [array]$key = Get-UninstallRegistryKey -SoftwareName 'Cloudflare WARP*'
 if ($key.Count -eq 1) {
   $key | ForEach-Object {

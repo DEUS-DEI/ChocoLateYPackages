@@ -1,0 +1,18 @@
+VERIFICATION
+============
+
+This package is automatically updated by the Chocolatey AU (Automatic Update) framework.
+The process ensures the binary integrity by embedding the SHA256 checksum during the packaging phase.
+
+Package ID: thunderbird-mozilla
+Update Mechanism: Automated (DEUS-DEI/ChocoLateYPackages)
+
+HOW TO VERIFY THE BINARY:
+-------------------------
+1. The downloader URL template is:
+   https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/{version}/{arch}/{lang}/Thunderbird%20Setup%20{version}.exe
+
+2. You can manually download the file and verify its SHA256 checksum against the one provided in the 'tools/checksums.txt' file within the package.
+   Get-FileHash -Path "path_to_binary" -Algorithm SHA256
+
+The checksums are extracted from Mozilla's official manifest during the automated build process.

@@ -24,8 +24,15 @@ if (Test-Path $checksumsFile) {
     $checksumLine = Get-Content $checksumsFile | Select-String -Pattern "(\w+)\s+sha256\s+$fileName"
     if ($checksumLine) {
         $checksum = $checksumLine.Matches.Groups[1].Value
-    } elseif ($checksumLine = Get-Content $checksumsFile | Select-String -Pattern "sha256\s+(\w+)\s+$fileName") {
-        $checksum = $checksumLine.Matches.Groups[1].Value
+    } else {
+        Write-Warning ">>> Idioma '$lang' no encontrado para Thunderbird Nightly. Reintentando con 'en-US'..."
+        $lang = 'en-US'
+        $fileName = "thunderbird-$version.$lang.$arch.installer.exe"
+        $url = "$baseUrl/$fileName"
+        $checksumLine = Get-Content $checksumsFile | Select-String -Pattern "(\w+)\s+sha256\s+$fileName"
+        if ($checksumLine) {
+            $checksum = $checksumLine.Matches.Groups[1].Value
+        }
     }
 }
 
@@ -40,9 +47,8 @@ $packageArgs = @{
   url           = $url
   checksum      = $checksum
   checksumType  = 'sha256'
-  silentArgs    = "-ms"
+  silentArgs    = '-ms'
   validExitCodes= @(0)
-  softwareName  = 'Daily*'
 }
 
 Install-ChocolateyPackage @packageArgs

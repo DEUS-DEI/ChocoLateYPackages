@@ -18,7 +18,7 @@
     
 	
     
-    <tags>cloudflare warp beta</tags>
+    <tags>cloudflare warp beta vpn dns security privacy admin gui</tags>
     <summary>The Cloudflare WARP client allows individuals and organizations to have a faster, more secure, and more private experience online.</summary>
     <description>**DISCLAIMER: This package provides the "Beta" releases of the Cloudflare WARP client. It differs from the standard `warp` package by installing early-access software. Use this if you want to test upcoming features.**
 

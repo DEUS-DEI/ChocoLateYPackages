@@ -18,7 +18,7 @@
     
 	
     <bugTrackerUrl>https://github.com/desktop/desktop/issues</bugTrackerUrl>
-    <tags>github desktop beta</tags>
+    <tags>github git desktop beta workflow collaboration admin gui foss</tags>
     <summary> GitHub Desktop Beta. The beta channel has the latest features and bug fixes being tested for the next production release.</summary>
     <description>
 **DISCLAIMER: This package provides the "Beta" builds of GitHub Desktop. It differs from the standard `github-desktop` package by installing the beta release channel. Use this if you want to test new features before they hit the stable channel.**

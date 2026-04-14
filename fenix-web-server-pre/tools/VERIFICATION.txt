@@ -4,15 +4,15 @@ VERIFICATION
 This package is automatically updated by the Chocolatey AU (Automatic Update) framework.
 The process ensures the binary integrity by embedding the SHA256 checksum during the packaging phase.
 
-Package ID: cloudflare-warp-pre
+Package ID: fenix-web-server-pre
 Update Mechanism: Automated (DEUS-DEI/ChocoLateYPackages)
 
 HOW TO VERIFY THE BINARY:
 -------------------------
 1. The downloader URL used is:
-   https://downloads.cloudflareclient.com/v1/download/windows/beta
+   https://github.com/coreybutler/fenix/releases (Pre-releases)
 
 2. You can manually download the file and verify its SHA256 checksum against the one provided in the 'chocolateyinstall.ps1' using:
    Get-FileHash -Path "path_to_binary" -Algorithm SHA256
 
-The checksum is verified at the time of creation by the automated system to match the official Cloudflare distribution.
+The checksum is verified at the time of creation by the automated system to match the official GitHub pre-release.

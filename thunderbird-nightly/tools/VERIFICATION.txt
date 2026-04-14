@@ -1,0 +1,18 @@
+VERIFICATION
+============
+
+This package is automatically updated by the Chocolatey AU (Automatic Update) framework.
+The process ensures the binary integrity by embedding the SHA256 checksum during the packaging phase.
+
+Package ID: thunderbird-nightly
+Update Mechanism: Automated (DEUS-DEI/ChocoLateYPackages)
+
+HOW TO VERIFY THE BINARY:
+-------------------------
+1. The downloader URL template is:
+   https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central-l10n/thunderbird-{version}.{lang}.{arch}.installer.exe
+
+2. You can manually download the file and verify its SHA256 checksum against the one provided in the 'tools/checksums.txt' file within the package.
+   Get-FileHash -Path "path_to_binary" -Algorithm SHA256
+
+The checksums are extracted from Mozilla's official Nightly manifest during the automated build process.
