@@ -22,19 +22,20 @@ echo.
 :timer_loop
 if !timer! LEQ 0 goto end
 echo Saliendo por defecto (opcion 5) en !timer! segundos...
-choice /c 12345 /t 1 /d 5 /n
-set opt=%errorlevel%
 
-:: Si el usuario presiono 1, 2, 3 o 4, vamos a la accion.
-if %opt%==1 goto normal_update
-if %opt%==2 goto force_all
-if %opt%==3 goto choose_package
-if %opt%==4 goto set_secrets
-if %opt%==5 (
+:: Truco: usamos el 6 como opcion invisible para el timeout
+choice /c 123456 /t 1 /d 6 /n
+set res=%errorlevel%
+
+if %res%==6 (
     set /a timer-=1
     goto main_menu_no_cls
 )
-goto end
+
+if %res%==5 goto end
+
+set opt=%res%
+goto handle_choice
 
 :main_menu_no_cls
 cls
@@ -52,11 +53,18 @@ echo ========================================================
 echo.
 goto timer_loop
 
+:handle_choice
+if %opt%==1 goto normal_update
+if %opt%==2 goto force_all
+if %opt%==3 goto choose_package
+if %opt%==4 goto set_secrets
+goto end
+
 :normal_update
 echo.
 echo ^>^>^> Iniciando actualizacion automatica normal...
 call update_all.bat
-pause
+timeout /t 5
 set timer=15
 goto main_menu
 
@@ -64,7 +72,7 @@ goto main_menu
 echo.
 echo ^>^>^> Iniciando FORZADO de todos los paquetes...
 call update_all.bat -Force
-pause
+timeout /t 5
 set timer=15
 goto main_menu
 
@@ -77,13 +85,13 @@ echo.
 where gh >nul 2>nul
 if %errorlevel% neq 0 (
     echo [ERROR] GitHub CLI (gh) no esta instalado.
-    pause
+    timeout /t 5
     set timer=15
     goto main_menu
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ApiKey = Read-Host '>>> Pega tu Chocolatey API Key'; if (-not $ApiKey) { Write-Host '[ERROR]'; return }; $u = gh api user --jq .login 2>$null; if (-not $u) { Write-Host '[ERROR]'; return }; $ApiKey | gh secret set CHOCO_API_KEY; if ($LASTEXITCODE -eq 0) { Write-Host 'EXITO' } else { Write-Host 'ERROR' }"
-pause
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ApiKey = Read-Host '>>> Pega tu Chocolatey API Key'; if (-not $ApiKey) { Write-Host '[ERROR]'; return }; $u = gh api user --jq .login 2>$null; if (-not $u) { Write-Host '[ERROR]'; return }; $ApiKey | gh secret set CHOCO_API_KEY; if ($LASTEXITCODE -eq 0) { Write-Host '¡EXITO!' } else { Write-Host '¡ERROR!' }"
+timeout /t 5
 set timer=15
 goto main_menu
 
@@ -116,10 +124,10 @@ if /i "%pkg_opt%"=="B" set timer=15 & goto main_menu
 
 if defined pkg (
     echo.
-    echo ^>^>^> Forzando PUSH para: %pkg%
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Push-Location '%pkg%'; try { Get-ChildItem -Filter *.nupkg | Remove-Item -Force -ErrorAction SilentlyContinue; choco pack; $n = Get-ChildItem -Filter *.nupkg | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($n) { choco push $n.FullName --source https://push.chocolatey.org/ } } finally { Pop-Location } }"
+    echo ^>^>^> Forzando PUSH para: !pkg!
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Push-Location '!pkg!'; try { Get-ChildItem -Filter *.nupkg | Remove-Item -Force -ErrorAction SilentlyContinue; choco pack; $n = Get-ChildItem -Filter *.nupkg | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($n) { choco push $n.FullName --source https://push.chocolatey.org/ } } finally { Pop-Location } }"
     set pkg=
-    pause
+    timeout /t 5
     goto choose_package
 ) else (
     echo [ERROR] Seleccion invalida.
