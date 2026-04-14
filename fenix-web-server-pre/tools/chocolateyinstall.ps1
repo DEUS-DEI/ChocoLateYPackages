@@ -1,4 +1,4 @@
-﻿$packageName= 'fenix-web-server-beta'
+$packageName= 'fenix-web-server-pre'
 $toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
 $url = 'https://github.com/coreybutler/fenix/releases/download/3.0.0-rc.13/Fenix.Setup.3.0.0-rc.13.exe'
 $FileLocation = Join-Path $toolsDir 'fenix-web-server-beta.exe'
@@ -14,4 +14,4 @@ $packageArgs = @{
   validExitCodes= @(0)
   softwareName  = 'Fenix*'
 }
-Install-ChocolateyInstallPackage @packageArgs
+Install-ChocolateyPackage @packageArgs

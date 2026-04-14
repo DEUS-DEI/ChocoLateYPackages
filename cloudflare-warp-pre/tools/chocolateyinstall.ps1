@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $toolsDir = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $packageArgs = @{
-  packageName    = 'warp-beta'
+  packageName    = 'cloudflare-warp-pre'
   fileType       = 'msi'
   softwareName   = 'Cloudflare WARP*'
   url64          = 'https://downloads.cloudflareclient.com/v1/download/windows/beta'

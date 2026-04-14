@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
-    <id>thunderbird-daily</id>
+    <id>thunderbird-nightly</id>
     <version>105.0.1-alpha</version>
-    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/thunderbird-daily</packageSourceUrl>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/thunderbird-nightly</packageSourceUrl>
     <owners>DEUS-DEI</owners>
 
     <title>Thunderbird Daily</title>

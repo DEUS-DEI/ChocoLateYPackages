@@ -9,18 +9,18 @@ Todos los paquetes se revisan, empaquetan y despliegan automáticamente todos lo
 | Paquete | Nivel | Método de Descubrimiento | Estado Actual |
 | :--- | :---: | :--- | :---: |
 | `fenix-web-server` | 🟢 Lvl 3 | GitHub API (Stable releases) | ✅ Activo |
-| `fenix-web-server-beta` | 🟢 Lvl 3 | GitHub API (Pre-releases) | ✅ Activo |
-| `thunderbird-beta` | 🟢 Lvl 3 | **Smart Multi-Lang & Arch** (Mozilla API) | ✅ Activo |
-| `thunderbird-daily` | 🟢 Lvl 3 | **Smart Multi-Lang & Arch** (Mozilla API) | ✅ Activo |
-| `github-desktop-beta` | 🟢 Lvl 3 | GitHub Central Desktop API | ✅ Activo |
+| `fenix-web-server-pre` | 🟢 Lvl 3 | GitHub API (Pre-releases) | ✅ Activo |
+| `thunderbird-mozilla` | 🟢 Lvl 3 | **Smart Multi-Lang & Arch** (Mozilla API) | ✅ Activo |
+| `thunderbird-nightly` | 🟢 Lvl 3 | **Smart Multi-Lang & Arch** (Mozilla API) | ✅ Activo |
+| `github-desktop-pre` | 🟢 Lvl 3 | GitHub Central Desktop API | ✅ Activo |
 | `nicepage` | 🟢 Lvl 3 | Web Scraping (HTML Parsing) | ✅ Activo |
-| `warp-beta` | 🟢 Lvl 3 | Cloudflare Technical Scraping | ✅ Activo |
+| `cloudflare-warp-pre` | 🟢 Lvl 3 | Cloudflare Technical Scraping | ✅ Activo |
 | `flarectl` | 💀 Descontinuado | *Sustituido por herramientas oficiales* | ⛔ Archivada |
 
 ## 🧠 Características Inteligentes Implementadas
 
-*   **Detección de Idioma y Bits**: Los paquetes de Thunderbird detectan automáticamente el idioma (`es-MX`, etc.) y la arquitectura (`x64`/`x86`) de tu Windows.
-*   **Gestión de Seguridad (Checksums)**: El sistema descarga y valida los hashes SHA256 directamente desde los servidores oficiales al momento de instalar.
+*   **Detección de Idioma y Bits**: Los paquetes de Thunderbird detectan automáticamente el idioma (`es-MX`, etc.) y la arquitectura (`win64`/`win32`) de tu Windows.
+*   **Gestión de Seguridad (Checksums)**: El sistema embebe los hashes SHA256 dentro del paquete durante el proceso de empaquetado, garantizando la validación sin descargas externas inseguras.
 *   **Orquestador Central (`update_all.bat`)**: Un único script controla todo el ciclo de vida: búsqueda, actualización de Nuspec, empaquetado, limpieza y subida (push).
 *   **Limpieza Automática**: El repositorio se mantiene siempre limpio, eliminando ejecutables y archivos temporales después de procesarlos.
 

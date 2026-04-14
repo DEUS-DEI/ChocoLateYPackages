@@ -1,4 +1,4 @@
-﻿$packageName= 'github-desktop-beta'
+$packageName= 'github-desktop-pre'
 $toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
 $url = 'https://desktop.githubusercontent.com/releases/3.5.7-c5e06544/GitHubDesktopSetup-x64.exe'
 $FileLocation = Join-Path $toolsDir 'github-desktop-beta.exe'
@@ -13,4 +13,4 @@ $packageArgs = @{
   validExitCodes= @(0)
   softwareName  = 'GitHub Desktop*'
 }
-Install-ChocolateyInstallPackage @packageArgs
+Install-ChocolateyPackage @packageArgs

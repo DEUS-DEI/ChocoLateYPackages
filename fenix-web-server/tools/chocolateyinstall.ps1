@@ -17,4 +17,4 @@ $packageArgs = @{
   validExitCodes= @(0)
   softwareName  = 'Fenix*'
 }
-Install-ChocolateyInstallPackage @packageArgs
+Install-ChocolateyPackage @packageArgs

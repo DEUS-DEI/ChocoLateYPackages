@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
-    <id>warp-beta</id>
+    <id>cloudflare-warp-pre</id>
     <version>2026.3.13</version>
-    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/warp-beta</packageSourceUrl>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/cloudflare-warp-pre</packageSourceUrl>
     <owners>DEUS-DEI</owners>
 
     <title>Cloudflare WARP</title>
