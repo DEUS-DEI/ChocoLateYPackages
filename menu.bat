@@ -26,13 +26,8 @@ echo Saliendo por defecto (opción 5) en !timer! segundos...
 choice /c 12345 /t 1 /d 5 /n
 set opt=%errorlevel%
 
-:: Si el usuario presionó algo del 1 al 4, vamos a la acción.
-:: Si devolvió 5, puede ser por timeout o por presionar 5.
 if %opt% LSS 5 goto handle_choice
 if %opt%==5 (
-    :: Si el usuario presiona 5, salimos. Pero Choice /t 1 /d 5 siempre devuelve 5.
-    :: Usamos un truco: Si no se presionó una tecla, seguimos el loop.
-    :: Lamentablemente Batch puro es limitado aquí. Usaremos un pequeño script PS para el menú con timer.
     set /a timer-=1
     cls
     echo ========================================================
@@ -73,9 +68,30 @@ pause
 goto main_menu
 
 :set_secrets
+cls
+echo ========================================================
+echo   CONFIGURADOR DE SECRETOS GITHUB (CHOCO_API_KEY)
+echo ========================================================
 echo.
-echo >>> Abriendo configurador de secretos de GitHub...
-call set_github_secrets.bat
+where gh >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [ERROR] GitHub CLI (gh) no está instalado.
+    echo Descárgalo en: https://cli.github.com/
+    pause
+    goto main_menu
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$ApiKey = Read-Host '>>> Pega tu Chocolatey API Key'; ^
+    if (-not $ApiKey) { Write-Host '[ERROR] No se ingreso ninguna llave.' -ForegroundColor Red; return }; ^
+    Write-Host '`n>>> Verificando autenticación...' -ForegroundColor Gray; ^
+    $u = gh api user --jq .login 2>$null; ^
+    if (-not $u) { Write-Host '[ERROR] No has iniciado sesion en GitHub CLI.' -ForegroundColor Red; return }; ^
+    Write-Host '>>> Usuario: '$u -ForegroundColor Green; ^
+    Write-Host '>>> Subiendo secreto...'; ^
+    $ApiKey | gh secret set CHOCO_API_KEY; ^
+    if ($LASTEXITCODE -eq 0) { Write-Host '¡EXITO! Secreto guardado.' -ForegroundColor Green } else { Write-Host '[ERROR] Falló la subida.' -ForegroundColor Red }"
+
 pause
 goto main_menu
 
