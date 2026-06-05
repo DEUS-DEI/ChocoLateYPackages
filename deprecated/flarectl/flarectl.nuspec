@@ -5,7 +5,7 @@
     <version>0.47.1</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/flarectl</packageSourceUrl>
     <owners>DEUS-DEI</owners>
-    <title>[Deprecated] flarectl, Cloudflare CLI.</title>
+    <title>[DEPRECATED] flarectl, Cloudflare CLI</title>
     <authors>Cloudflare</authors>
     <projectUrl>https://www.cloudflare.com/es-es/dns/</projectUrl>
     <iconUrl>https://www.cloudflare.com/static/07c330059a6e7ba8289566756ba405aa/dns-hero-illustration.svg</iconUrl>
@@ -16,26 +16,15 @@
     <docsUrl>https://support.cloudflare.com/hc/en-us/articles/360000841472</docsUrl>
     <bugTrackerUrl>https://github.com/cloudflare/cloudflare-go/issues</bugTrackerUrl>
     <tags>flarectl cloudflare cli tool deprecated discontinued</tags>
-    <summary>If you need to add multiple sites (10+) to Cloudflare at once, you can do so via the Cloudflare API. You can also add domains using flarectl, Cloudflare's official CLI.</summary>
+    <summary>Deprecated package that now installs cloudflared as a maintained Cloudflare CLI alternative.</summary>
+    <dependencies>
+      <dependency id="cloudflared" />
+    </dependencies>
     <description>
-    **DEPRECATED:** We are officially discontinuing updates for this Chocolatey package. The developers at Cloudflare have placed `flarectl` into maintenance mode and are moving toward a new unified CLI named `cf` (in technical preview), alongside `Wrangler` for edge compute. Because of this deprecation, Cloudflare no longer distributes pre-compiled Windows executable binaries for `flarectl` on their GitHub releases. If you need to use this specific legacy tool going forward, you must compile it from source manually using the Go programming language.
+This package is deprecated and no longer receives updates.
 
-    Adding Multiple Sites to Cloudflare via Automation
-	 If you need to add multiple sites (10+) to Cloudflare at once, you can do so via the Cloudflare API. Adding multiple sites can be useful when you:
-		Have multiple domains mapping back to a single, canonical domain - e.g. domains in different countries (.com.au, .co.uk, etc) that you want to have protected by Cloudflare
-		Are an agency or IT consultancy, and manage multiple domains on behalf of your customers (note: you should consider the Cloudflare Partner program)
-		You're moving an existing set of sites over to Cloudflare
-	Using the API will allow you to add multiple sites quickly and efficiently, especially if you are already familiar with how to change your name-servers or add a DNS record.
-
-	Add domains via flarectl (Cloudflare's CLI tool)
-	You can also add domains using flarectl, Cloudflare's official CLI
-	You'll need to set your API credentials first:
-		export CF_API_EMAIL=you@example.com
-		export CF_API_KEY=abc123def456ghi789
-	... and then run the following command in flarectl:
-		for domain in $(cat domains.txt); do flarectl zone create --zone=$domain --jumpstart=false; done
-	After this, you can get the name-servers for each domain via "flarectl zone list":
-		for domain in $(cat domains.txt); do flarectl zone info --zone=$domain; done</description>
+Cloudflare has moved away from maintaining flarectl binaries for Windows.
+Installing this package will install `cloudflared` as a maintained Cloudflare CLI alternative.</description>
     <releaseNotes>https://github.com/cloudflare/cloudflare-go/releases</releaseNotes>
   </metadata>
 </package>
