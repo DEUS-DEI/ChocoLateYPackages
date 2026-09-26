@@ -18,14 +18,20 @@ function global:au_GetLatest {
   $tags = git ls-remote --tags --refs $repository 'refs/tags/v0.*'
   if ($LASTEXITCODE -ne 0) { throw 'git ls-remote failed' }
 
-  $version = $tags | ForEach-Object { if ($_ -match 'refs/tags/v(?<version>0\.\d+\.\d+)$') { [version]$Matches.version } } |
-    Sort-Object -Descending | Select-Object -First 1
-  if (-not $version) { throw 'No v0.x tag found' }
+  $versions = $tags | ForEach-Object { if ($_ -match 'refs/tags/v(?<version>0\.\d+\.\d+)$') { [version]$Matches.version } } |
+    Sort-Object -Descending | Select-Object -First 5
 
-  @{
-    Version = "$version"
-    URL64   = "$repository/releases/download/v$version/flarectl_$($version)_windows_amd64.tar.gz"
+  # A tag whose release has no Windows archive (e.g. a failed release job) falls back to the previous one
+  foreach ($version in $versions) {
+    $url = "$repository/releases/download/v$version/flarectl_$($version)_windows_amd64.tar.gz"
+    try {
+      Invoke-WebRequest -Uri $url -Method Head -UseBasicParsing | Out-Null
+      return @{ Version = "$version"; URL64 = $url }
+    } catch {
+      Write-Warning "flarectl $version has no Windows archive: $url"
+    }
   }
+  throw 'No recent v0.x release with a Windows archive found'
 }
 
 Update-Package -ChecksumFor 64

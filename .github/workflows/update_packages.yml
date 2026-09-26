@@ -27,7 +27,7 @@ jobs:
       contents: write # Permiso para que el bot pueda hacer push
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Chocolatey-AU
         shell: powershell

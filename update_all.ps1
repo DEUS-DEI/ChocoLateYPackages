@@ -117,6 +117,9 @@ foreach ($dir in $packageDirs) {
             # otherwise (forced) pack it now
             $nupkgs = @(Get-ChildItem -Path *.nupkg)
             if (-not $nupkgs) {
+                if (Test-Path "$name.json") {
+                    Write-Host "[AVISO] $name usa streams de AU: -Force solo re-empaqueta el stream que esta ahora en la carpeta ($($row.Anterior))." -ForegroundColor Yellow
+                }
                 Invoke-Tool choco pack --limit-output
                 if ($LASTEXITCODE -ne 0) { throw "choco pack fallo (codigo $LASTEXITCODE)" }
                 $nupkgs = @(Get-ChildItem -Path *.nupkg)
@@ -126,14 +129,35 @@ foreach ($dir in $packageDirs) {
             if ($NoPush) {
                 $row.Estado = 'Empaquetado'
             } else {
-                $pushFailed = $false
+                $pushed = @(); $notPushed = @()
                 foreach ($nupkg in $nupkgs) {
                     $pushArgs = @('push', $nupkg.FullName, '--source', $pushSource, '--limit-output')
                     if ($env:CHOCO_API_KEY) { $pushArgs += @('--api-key', $env:CHOCO_API_KEY) }
                     Invoke-Tool choco @pushArgs
-                    if ($LASTEXITCODE -ne 0) { $pushFailed = $true }
+                    $version = $nupkg.BaseName.Substring($name.Length + 1)
+                    if ($LASTEXITCODE -eq 0) { $pushed += $version } else { $notPushed += $version }
                 }
-                $row.Estado = if ($pushFailed) { 'Push fallido' } elseif ($updated) { 'Actualizado' } else { 'Forzado' }
+
+                if (-not $notPushed) {
+                    $row.Estado = if ($updated) { 'Actualizado' } else { 'Forzado' }
+                } elseif (-not $pushed) {
+                    $row.Estado = 'Push fallido'
+                } else {
+                    # Some AU streams were published and others were not: keep the published ones and
+                    # roll back the failed streams in the streams file, so only they are retried
+                    $row.Estado = 'Push parcial'
+                    $row.Nueva = $pushed -join ', '
+                    $streamsFile = "$name.json"
+                    if (Test-Path $streamsFile) {
+                        $before = Get-Content -Path (Join-Path $snapshot $streamsFile) -Raw | ConvertFrom-Json
+                        $after = Get-Content -Path $streamsFile -Raw | ConvertFrom-Json
+                        foreach ($stream in $after.PSObject.Properties) {
+                            if ($notPushed -contains $stream.Value) { $stream.Value = $before.($stream.Name) }
+                        }
+                        $after | ConvertTo-Json | Set-Content -Path $streamsFile -Encoding UTF8
+                    }
+                    Write-Host "[ERROR] $name : publicado $($pushed -join ', '); fallo $($notPushed -join ', ') (se reintentara)." -ForegroundColor Red
+                }
             }
         }
     } catch {
@@ -184,7 +208,7 @@ if ($NoPush -or $NoGit) {
     Write-Host '>>> Git Sync omitido (-NoPush / -NoGit).' -ForegroundColor Gray
 } else {
     # Forced pushes count too (e.g. a fix version edited by hand), but only if their folder has changes
-    $published = @($report | Where-Object { $_.Estado -eq 'Actualizado' -or
+    $published = @($report | Where-Object { $_.Estado -in 'Actualizado', 'Push parcial' -or
         ($_.Estado -eq 'Forzado' -and (Invoke-Tool git -C $PSScriptRoot status --porcelain $_.Paquete)) })
     $gitOk = $true
     if ($published) {
@@ -208,5 +232,5 @@ if ($NoPush -or $NoGit) {
     }
 }
 
-$failed = @($report | Where-Object Estado -In 'Error', 'Push fallido')
+$failed = @($report | Where-Object Estado -In 'Error', 'Push fallido', 'Push parcial')
 exit $(if ($failed) { 1 } else { 0 })
