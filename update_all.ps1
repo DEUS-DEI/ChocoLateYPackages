@@ -188,8 +188,10 @@ function Sync-GitRemote([bool] $HasNewCommit) {
     # If the remote moved on meanwhile (e.g. another run), rebase onto it and retry once.
     $ahead = Invoke-Tool git -C $PSScriptRoot rev-list --count '@{u}..HEAD' 2>$null
     if ($LASTEXITCODE -ne 0) {
-        # No upstream branch: only publish the branch if this run committed something to it
-        if (-not $HasNewCommit) { return $true }
+        # No upstream branch: publish it only if it carries automated commits (from this run or from a
+        # previous one whose push failed) that are not on any remote yet
+        $pending = @(Invoke-Tool git -C $PSScriptRoot log HEAD --not --remotes --format=%s) -like 'chore: automated update of*'
+        if (-not ($HasNewCommit -or $pending)) { return $true }
         $branch = Invoke-Tool git -C $PSScriptRoot symbolic-ref --short -q HEAD
         if (-not $branch) { Write-Host '[ERROR] HEAD desconectado (detached): no se puede hacer push.' -ForegroundColor Red; return $false }
         Invoke-Tool git -C $PSScriptRoot push --set-upstream origin $branch | Out-Host
