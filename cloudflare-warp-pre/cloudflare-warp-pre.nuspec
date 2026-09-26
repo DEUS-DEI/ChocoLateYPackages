@@ -5,29 +5,27 @@
     <version>2026.3.13</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/cloudflare-warp-pre</packageSourceUrl>
     <owners>DEUS-DEI</owners>
-
-    <title>Cloudflare WARP</title>
+    <title>Cloudflare WARP (Beta)</title>
     <authors>Cloudflare</authors>
     <projectUrl>https://one.one.one.one/beta</projectUrl>
     <iconUrl>https://theme.zdassets.com/theme_assets/9172443/9cb2c72a3ac2e360bdfa66ce0910a9549f9f28ba.svg</iconUrl>
-    <copyright>2022 Cloudflare, Inc.</copyright>
+    <copyright>Cloudflare, Inc.</copyright>
     <licenseUrl>https://www.cloudflare.com/application/terms/</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
-    <projectSourceUrl>https://install.appcenter.ms/orgs/cloudflare/apps/1.1.1.1-windows/distribution_groups/beta</projectSourceUrl>
     <docsUrl>https://developers.cloudflare.com/warp-client/</docsUrl>
-    
-	
-    
     <tags>cloudflare warp beta vpn dns security privacy admin gui</tags>
     <summary>The Cloudflare WARP client allows individuals and organizations to have a faster, more secure, and more private experience online.</summary>
-    <description>**DISCLAIMER: This package provides the "Beta" releases of the Cloudflare WARP client. It differs from the standard `warp` package by installing early-access software. Use this if you want to test upcoming features.**
-
-Cloudflare WARP client
+    <description><![CDATA[**DISCLAIMER: This package provides the "Beta" releases of the Cloudflare WARP client. It differs from the standard `warp` package by installing early-access software. Use this if you want to test upcoming features.**
 
 The Cloudflare WARP client allows individuals and organizations to have a faster, more secure, and more private experience online. The WARP client sits between your device and the Internet, and has several connection modes to better suit different needs.
-Cloudflare WARP is in part powered by 1.1.1.1, the world’s fastest DNS resolver.
-When visiting sites or going to a new location on the Internet, you should see fast DNS lookups.
-WARP, however, is built to trade some throughput for enhanced privacy, by encrypting all traffic both to and from your device.</description>
-    <releaseNotes>https://install.appcenter.ms/orgs/cloudflare/apps/1.1.1.1-windows/distribution_groups/beta</releaseNotes>
+
+Cloudflare WARP is in part powered by 1.1.1.1, the world's fastest DNS resolver. When visiting sites or going to a new location on the Internet, you should see fast DNS lookups. WARP, however, is built to trade some throughput for enhanced privacy, by encrypting all traffic both to and from your device.
+
+## Notes
+
+- Requires 64-bit Windows 10 version 1909 (build 18363) or newer.
+- The MSI installation log is written to `%TEMP%\cloudflare-warp-pre.<version>.MsiInstall.log`.
+]]></description>
+    <releaseNotes>https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/beta-releases/</releaseNotes>
   </metadata>
 </package>

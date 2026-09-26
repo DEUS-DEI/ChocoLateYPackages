@@ -5,42 +5,42 @@
     <version>105.0.1-alpha</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/thunderbird-nightly</packageSourceUrl>
     <owners>DEUS-DEI</owners>
-
-    <title>Thunderbird Daily</title>
+    <title>Thunderbird Daily (Nightly)</title>
     <authors>Mozilla</authors>
     <projectUrl>https://www.thunderbird.net/en-US/</projectUrl>
     <iconUrl>https://www.thunderbird.net/media/img/thunderbird/logos/daily.png</iconUrl>
-    <copyright>MZLA Technologies Corporation, a subsidiary of Mozilla Foundation. Portions of this content are ©1998–2022 by individual contributors</copyright>
+    <copyright>MZLA Technologies Corporation, a subsidiary of Mozilla Foundation. Portions of this content are (c) 1998-2026 by individual contributors</copyright>
     <licenseUrl>https://www.mozilla.org/en-US/about/legal/terms/thunderbird/</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://hg.mozilla.org/comm-central</projectSourceUrl>
     <docsUrl>https://support.mozilla.org/en-US/products/thunderbird</docsUrl>
-    
-	
     <bugTrackerUrl>https://bugzilla.mozilla.org/describecomponents.cgi?product=Thunderbird</bugTrackerUrl>
-    <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/releases/</releaseNotes>
     <tags>mozilla thunderbird nightly email calendar communication privacy admin gui foss</tags>
-    <summary>Thunderbird is a free email application that’s easy to set up and customize - and it’s loaded with great features!</summary>
-    <description>
-      **DISCLAIMER: This package provides the "Daily" (Nightly/Alpha) builds of Mozilla Thunderbird. It differs from the standard `thunderbird` package by installing the actively developed, bleeding-edge testing version. Use this if you want to test upcoming features. It is not intended for production environments.**
+    <summary>Thunderbird is a free email application that's easy to set up and customize - and it's loaded with great features!</summary>
+    <description><![CDATA[**DISCLAIMER: This package provides the "Daily" (Nightly/Alpha) builds of Mozilla Thunderbird. It differs from the standard `thunderbird` package by installing the actively developed, bleeding-edge testing version. Use this if you want to test upcoming features. It is not intended for production environments.**
 
-      Make Email Easier.
-      Thunderbird is a free email application that’s easy to set up and customize - and it’s loaded with great features!
+Make Email Easier. Thunderbird is a free email application that's easy to set up and customize - and it's loaded with great features!
 
-      Tailored for all your needs
-      Thunderbird makes email better for you, bringing together speed, privacy and the latest technologies. Focus on what matters and forget about complexity.
+## Features
 
-      Secure and Private
-      Multiple features, such as built-in Do Not Track and remote content blocking, work together to ensure your safety and privacy, so you can have peace of mind.
+- **Tailored for all your needs**: Thunderbird makes email better for you, bringing together speed, privacy and the latest technologies.
+- **Secure and private**: built-in Do Not Track and remote content blocking work together to ensure your safety and privacy.
+- **Highly customizable**: with add-ons (extensions and themes) you can change the look and feel of Thunderbird in an instant.
+- **Calendar**: organize your schedule and life's important events in a calendar that's fully integrated with your Thunderbird email.
 
-      Highly Customizable
-      With Add-ons (Extensions and Themes) and many more features you can change the look and feel of Thunderbird in an instant.
+## Versioning
 
-      Calendar
-      Organize your life — it’s about time!
-      Organize your schedule and life’s important events in a calendar that’s fully integrated with your Thunderbird email.
-      Manage multiple calendars, create your daily to do list, invite friends to events, and subscribe to public calendars. 
-    </description>
-    
+Each package version pins one nightly build (the last segment is the build date, `yyyyMMddHH`), so the embedded checksums always match the downloaded installer.
+
+## Package Parameters
+
+By default the package installs the language of Windows (display language, then regional format; e.g. `es-MX`, or `de` for `de-DE`) and falls back to `en-US` when Mozilla does not publish that language. The architecture follows the OS (`--x86` forces 32-bit).
+
+- `/Language:<tag>` - Thunderbird language to install, e.g. `/Language:es-ES`.
+- `/Arch:<win32|win64>` - Force the installer architecture.
+
+Example: `choco install thunderbird-nightly --pre --params "'/Language:es-MX'"`
+]]></description>
+    <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/releases/</releaseNotes>
   </metadata>
 </package>

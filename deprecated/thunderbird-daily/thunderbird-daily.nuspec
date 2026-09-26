@@ -3,6 +3,7 @@
   <metadata>
     <id>thunderbird-daily</id>
     <version>999.0.0</version>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/thunderbird-daily</packageSourceUrl>
     <title>[DEPRECATED] Mozilla Thunderbird Nightly (Daily)</title>
     <authors>Mozilla</authors>
     <owners>DEUS-DEI</owners>

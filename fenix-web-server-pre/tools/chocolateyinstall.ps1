@@ -1,20 +1,16 @@
-$packageName= 'fenix-web-server-pre'
-$toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://github.com/coreybutler/fenix/releases/download/3.0.0-rc.13/Fenix.Setup.3.0.0-rc.13.exe'
-$FileLocation = Join-Path $toolsDir "$packageName.exe"
+$ErrorActionPreference = 'Stop'
 
-# Step 1: Download the installer with checksum verification
-Get-ChocolateyWebFile -PackageName $packageName `
-                      -Url $url -FileFullPath $FileLocation `
-                      -Checksum '6f2ca055f95a181ea2d9a133a31c1d9b881e894e7c57780a6a3dc529a54e076e' `
-                      -ChecksumType 'sha256'
-
-# Step 2: Run the locally downloaded installer (no secondary download)
+# Install-ChocolateyPackage downloads the installer to Chocolatey's cache (never into the package
+# folder, where Chocolatey would create a shim that re-runs the setup), verifies it and runs it.
 $packageArgs = @{
-  packageName   = $packageName
-  fileType      = 'exe'
-  file          = $FileLocation
-  silentArgs    = "/S"
-  validExitCodes= @(0)
+  packageName    = $env:ChocolateyPackageName
+  fileType       = 'exe'
+  url            = 'https://github.com/coreybutler/fenix/releases/download/3.0.0-rc.13/Fenix.Setup.3.0.0-rc.13.exe'
+  checksum       = '6f2ca055f95a181ea2d9a133a31c1d9b881e894e7c57780a6a3dc529a54e076e'
+  checksumType   = 'sha256'
+  softwareName   = 'Fenix*'
+  silentArgs     = '/S'
+  validExitCodes = @(0)
 }
-Install-ChocolateyInstallPackage @packageArgs
+
+Install-ChocolateyPackage @packageArgs

@@ -5,7 +5,6 @@
     <version>8.4.0</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/nicepage</packageSourceUrl>
     <owners>DEUS-DEI</owners>
-
     <title>Nicepage</title>
     <authors>Artisteer, Ltd</authors>
     <projectUrl>https://nicepage.com</projectUrl>
@@ -13,22 +12,13 @@
     <copyright>2022 Nicepage Free Website Builder Software</copyright>
     <licenseUrl>https://nicepage.com/Agreement</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
-
     <docsUrl>https://nicepage.com/doc</docsUrl>
-
-
-
     <tags>nicepage website-builder design html5 landing-page site-builder admin gui freeware</tags>
     <summary>Nicepage Free Website Builder Software</summary>
-    <description>
-      Nicepage Free Website Builder Software
-      Ultimate Freehand. Web Design 3.0
-      Create stunning
-      websites and themes
+    <description><![CDATA[Nicepage Free Website Builder Software. Ultimate Freehand. Web Design 3.0.
 
-      Website Builder Software. Mobile-Friendly. No Coding
-      WordPress, Joomla, HTML5, Windows, Mac OS and Online
-    </description>
+Create stunning websites and themes: website builder software, mobile-friendly, no coding. Available for WordPress, Joomla, HTML5, Windows, Mac OS and online.
+]]></description>
     <releaseNotes>https://nicepage.com/doc/c/release-notes</releaseNotes>
   </metadata>
 </package>

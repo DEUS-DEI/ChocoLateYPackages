@@ -1,18 +1,17 @@
 VERIFICATION
 ============
 
-This package is automatically updated by the Chocolatey AU (Automatic Update) framework.
-The process ensures the binary integrity by embedding the SHA256 checksum during the packaging phase.
+This package is automatically updated by the Chocolatey-AU (Automatic Update) framework.
+The installer is not embedded: it is downloaded from the official source at install time and
+verified against the SHA256 checksum embedded in the package when it was created.
 
 Package ID: github-desktop-pre
-Update Mechanism: Automated (DEUS-DEI/ChocoLateYPackages)
+Update Mechanism: Automated (DEUS-DEI/ChocoLateYPackages, github-desktop-pre/update.ps1)
 
 HOW TO VERIFY THE BINARY:
 -------------------------
-1. The downloader URL used is:
-   https://central.github.com/api/deployments/desktop/desktop/latest?version=beta&os=windows
+1. The download URL is in tools\chocolateyinstall.ps1. It is taken from GitHub's beta channel API:
+   https://central.github.com/api/deployments/desktop/desktop/latest?env=beta&os=windows&arch=x64
 
-2. You can manually download the file and verify its SHA256 checksum against the one provided in the 'chocolateyinstall.ps1' using:
+2. Download the file and compare its SHA256 checksum with the one in tools\chocolateyinstall.ps1:
    Get-FileHash -Path "path_to_binary" -Algorithm SHA256
-
-The checksum is verified at the time of creation by the automated system to match the official GitHub distribution.

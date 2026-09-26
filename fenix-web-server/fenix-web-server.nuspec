@@ -5,7 +5,6 @@
     <version>2.0.0</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/fenix-web-server</packageSourceUrl>
     <owners>DEUS-DEI</owners>
-
     <title>Fenix Web Server</title>
     <authors>Ecor Ventures LLC</authors>
     <projectUrl>https://preview.fenixwebserver.com</projectUrl>
@@ -15,35 +14,20 @@
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/coreybutler/fenix</projectSourceUrl>
     <docsUrl>https://docs.fenixwebserver.com/</docsUrl>
-    
-	
-    <bugTrackerUrl>https://github.com/author/fenix-docs/issues</bugTrackerUrl>
+    <bugTrackerUrl>https://github.com/coreybutler/fenix/issues</bugTrackerUrl>
     <tags>fenix web-server webserver development localhost static-sites admin gui foss</tags>
-    <summary> A desktop web server. for smart devs. Develop locally. Demo publicly. Done effortlessly.</summary>
-    <description>
-A desktop web server
-for smart devs
-Develop locally. Demo publicly. Done effortlessly. 
+    <summary>A desktop web server for smart devs. Develop locally. Demo publicly. Done effortlessly.</summary>
+    <description><![CDATA[A desktop web server for smart devs. Develop locally. Demo publicly. Done effortlessly.
 
-Work smarter with Fenix
-Visual web servers
-Create and manage web servers with a beautiful GUI
+## Features
 
-Persist multiple servers
-Save server settings for instant recall later on
-
-One-click sharing
-Create a secure public link to share your local work with colleagues and clients
-
-Realtime Configuration
-Update server settings with simple toggles
-
-Intuitive CLI / API
-Automate server creation and configuration programmatically
-
-Remote Imports
-Import code from the cloud directly into Fenix
-    </description>
+- **Visual web servers**: create and manage web servers with a beautiful GUI.
+- **Persist multiple servers**: save server settings for instant recall later on.
+- **One-click sharing**: create a secure public link to share your local work with colleagues and clients.
+- **Realtime configuration**: update server settings with simple toggles.
+- **Intuitive CLI / API**: automate server creation and configuration programmatically.
+- **Remote imports**: import code from the cloud directly into Fenix.
+]]></description>
     <releaseNotes>https://github.com/coreybutler/fenix/releases</releaseNotes>
   </metadata>
 </package>

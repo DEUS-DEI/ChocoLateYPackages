@@ -1,5 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
+rem Trabajar siempre desde la carpeta del repositorio, se lance desde donde se lance
+cd /d "%~dp0"
+
+rem Si CHOCO_API_KEY esta definida se usa; si no, la clave guardada con "choco apikey add"
+set "apikey="
+if defined CHOCO_API_KEY set "apikey=--api-key=%CHOCO_API_KEY%"
 
 echo ========================================================
 echo   Gestor de Paquetes Deprecados / Descontinuados
@@ -27,7 +33,7 @@ REM  originales y no tienen sucesor. El nuspec ya tiene el
 REM  mensaje de discontinuacion. Solo se re-empaquetan y suben
 REM  si la version actual NO coincide con la de chocolatey.org.
 REM
-REM  flarectl  --> Cloudflare dejó de distribuir binarios Win
+REM  flarectl  --> Cloudflare dejo de distribuir binarios Win
 REM ============================================================
 set discontinued=flarectl
 
@@ -36,12 +42,13 @@ echo --------------------------------------------------------
 for %%p in (%bridges%) do (
     echo.
     echo --- Bridge: %%p ---
-    cd deprecated\%%p
-    choco pack
+    pushd "deprecated\%%p"
+    del /f /q *.nupkg 2>nul
+    choco pack --limit-output
     if !errorlevel! equ 0 (
         echo Empaquetado con exito. Intentando subir...
         for %%n in (*.nupkg) do (
-            choco push %%n --source="https://push.chocolatey.org/"
+            choco push "%%n" --source="https://push.chocolatey.org/" !apikey!
             if !errorlevel! equ 0 (
                 echo [OK] %%p subido correctamente.
             ) else (
@@ -53,7 +60,7 @@ for %%p in (%bridges%) do (
     ) else (
         echo [ERROR] Fallo al empaquetar %%p
     )
-    cd ..\..
+    popd
 )
 
 echo.
@@ -62,12 +69,13 @@ echo --------------------------------------------------------
 for %%p in (%discontinued%) do (
     echo.
     echo --- Descontinuado: %%p ---
-    cd deprecated\%%p
-    choco pack
+    pushd "deprecated\%%p"
+    del /f /q *.nupkg 2>nul
+    choco pack --limit-output
     if !errorlevel! equ 0 (
         echo Empaquetado con exito. Intentando subir version final...
         for %%n in (*.nupkg) do (
-            choco push %%n --source="https://push.chocolatey.org/"
+            choco push "%%n" --source="https://push.chocolatey.org/" !apikey!
             if !errorlevel! equ 0 (
                 echo [OK] %%p - version final publicada correctamente.
             ) else (
@@ -78,7 +86,7 @@ for %%p in (%discontinued%) do (
     ) else (
         echo [ERROR] Fallo al empaquetar %%p
     )
-    cd ..\..
+    popd
 )
 
 echo.

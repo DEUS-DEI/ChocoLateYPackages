@@ -1,20 +1,29 @@
-$packageName= 'fenix-web-server'
-$toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://github.com/coreybutler/fenix/releases/download/v2.0.0/fenix-windows-2.0.0.zip'
+$ErrorActionPreference = 'Stop'
 
-# Step 1: Download the ZIP and extract it (proper Chocolatey pattern)
-Install-ChocolateyZipPackage -PackageName  $packageName `
-                             -Url          $url `
-                             -UnzipLocation $toolsDir `
-                             -Checksum     '9b4871180f912464b6683f8bdd843184df58c0e6f970703c304334fd5ddca24e' `
-                             -ChecksumType 'sha256'
-
-# Step 2: Run the EXE extracted from the ZIP (no secondary download)
-$installerArgs = @{
-  packageName   = $packageName
-  fileType      = 'exe'
-  file          = (Get-ChildItem -Path $toolsDir -Filter "*.exe" -Recurse | Select-Object -First 1).FullName
-  silentArgs    = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-'
-  validExitCodes= @(0)
+# The ZIP only contains the setup program. It is extracted to a temporary folder instead of the
+# package folder, where Chocolatey would create a shim that re-runs the setup.
+$packageArgs = @{
+  packageName   = $env:ChocolateyPackageName
+  url           = 'https://github.com/coreybutler/fenix/releases/download/v2.0.0/fenix-windows-2.0.0.zip'
+  checksum      = '9b4871180f912464b6683f8bdd843184df58c0e6f970703c304334fd5ddca24e'
+  checksumType  = 'sha256'
+  unzipLocation = Join-Path $env:TEMP "$($env:ChocolateyPackageName)\$($env:ChocolateyPackageVersion)"
 }
-Install-ChocolateyInstallPackage @installerArgs
+
+Install-ChocolateyZipPackage @packageArgs
+
+try {
+  $installer = Get-ChildItem -Path $packageArgs['unzipLocation'] -Filter '*.exe' -Recurse | Select-Object -First 1
+  if (-not $installer) { throw 'The setup program was not found inside the downloaded ZIP.' }
+
+  $installArgs = @{
+    packageName    = $env:ChocolateyPackageName
+    fileType       = 'exe'
+    file           = $installer.FullName
+    silentArgs     = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-'
+    validExitCodes = @(0)
+  }
+  Install-ChocolateyInstallPackage @installArgs
+} finally {
+  Remove-Item -Path $packageArgs['unzipLocation'] -Recurse -Force -ErrorAction SilentlyContinue
+}

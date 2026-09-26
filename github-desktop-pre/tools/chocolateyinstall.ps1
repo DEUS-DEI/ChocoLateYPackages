@@ -1,20 +1,16 @@
-$packageName= 'github-desktop-pre'
-$toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://desktop.githubusercontent.com/releases/3.5.7-c5e06544/GitHubDesktopSetup-x64.exe'
-$FileLocation = Join-Path $toolsDir "$packageName.exe"
+$ErrorActionPreference = 'Stop'
 
-# Step 1: Download the installer with checksum verification
-Get-ChocolateyWebFile -PackageName $packageName `
-                      -Url $url -FileFullPath $FileLocation `
-                      -Checksum '9d03150cc9ce518f9ebe655050761ae06834b3a8959b0c898395abcb22038e11' `
-                      -ChecksumType 'sha256'
-
-# Step 2: Run the locally downloaded installer (no secondary download)
+# Install-ChocolateyPackage downloads the installer to Chocolatey's cache (never into the package
+# folder, where Chocolatey would create a shim that re-runs the setup), verifies it and runs it.
 $packageArgs = @{
-  packageName   = $packageName
-  fileType      = 'exe'
-  file          = $FileLocation
-  silentArgs    = "-s"
-  validExitCodes= @(0)
+  packageName    = $env:ChocolateyPackageName
+  fileType       = 'exe'
+  url64bit       = 'https://desktop.githubusercontent.com/releases/3.5.7-c5e06544/GitHubDesktopSetup-x64.exe'
+  checksum64     = '9d03150cc9ce518f9ebe655050761ae06834b3a8959b0c898395abcb22038e11'
+  checksumType64 = 'sha256'
+  softwareName   = 'GitHub Desktop*'
+  silentArgs     = '-s'
+  validExitCodes = @(0)
 }
-Install-ChocolateyInstallPackage @packageArgs
+
+Install-ChocolateyPackage @packageArgs
