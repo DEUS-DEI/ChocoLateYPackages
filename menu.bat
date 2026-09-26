@@ -69,8 +69,17 @@ echo.
 set "pkg_opt="
 set /p "pkg_opt=Seleccione el numero del paquete: "
 if not defined pkg_opt goto choose_package
-if /i "%pkg_opt%"=="B" goto main_menu
-echo %pkg_opt%| findstr /r "^[0-9][0-9]*$" >nul || goto invalid_package
+rem La entrada se valida solo con expansion retardada: su contenido nunca se interpreta como comando.
+rem Se quitan los digitos; si queda algo, no es un numero.
+setlocal EnableDelayedExpansion
+set "rest=!pkg_opt!"
+for %%d in (0 1 2 3 4 5 6 7 8 9) do set "rest=!rest:%%d=!"
+set "kind=num"
+if defined rest set "kind=bad"
+if /i "!pkg_opt!"=="B" set "kind=back"
+for %%k in (!kind!) do endlocal & set "kind=%%k"
+if "%kind%"=="back" goto main_menu
+if not "%kind%"=="num" goto invalid_package
 set "pkg="
 call set "pkg=%%pkg_%pkg_opt%%%"
 if not defined pkg goto invalid_package
