@@ -6,3 +6,5 @@
 *.jpg
 *.msi
 *.info
+# Package icons are hosted in this repo (Chocolatey requires maintainer-controlled icons)
+!icons/*.png
