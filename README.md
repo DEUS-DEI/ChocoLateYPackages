@@ -79,7 +79,7 @@ Uso:
 | `.\menu.bat` | Panel interactivo |
 | `.\update_all.bat` | Actualiza y publica todo lo que tenga versión nueva |
 | `.\update_all.bat -Package nicepage -Force` | Re-empaqueta y sube un paquete aunque no haya versión nueva |
-| `.\update_all.bat -NoPush` | Solo actualiza y empaqueta (deja los `.nupkg` para revisarlos) |
+| `.\update_all.bat -NoPush` | Solo empaqueta para revisar: deja los `.nupkg` y restaura los archivos, así la siguiente ejecución normal publica la versión nueva |
 | `.\update_all.bat -NoGit` | Publica en Chocolatey sin hacer commit/push en Git |
 | `cd nicepage` y `powershell -File update.ps1` | Prueba un solo paquete con AU |
 

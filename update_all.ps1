@@ -15,7 +15,8 @@
     Pack and push the packages even when there is no new upstream version.
 
 .PARAMETER NoPush
-    Update and pack only: nothing is pushed to Chocolatey or Git and the .nupkg files are kept.
+    Update and pack only: nothing is pushed to Chocolatey or Git. The .nupkg files are kept for review
+    and the package files are restored, so the next normal run still publishes the new version.
 
 .PARAMETER NoGit
     Push to Chocolatey but do not commit/push the changes to Git.
@@ -85,11 +86,11 @@ foreach ($dir in $packageDirs) {
     $hasSnapshot = $false
     Push-Location $dir.FullName
     try {
+        Remove-Item -Path *.nupkg -ErrorAction SilentlyContinue  # leftovers of a -NoPush run
         Remove-Item -Path $snapshot -Recurse -Force -ErrorAction SilentlyContinue
         Copy-Item -Path $dir.FullName -Destination $snapshot -Recurse -Force  # -Force: hidden files too
         $hasSnapshot = $true
 
-        Remove-Item -Path *.nupkg -ErrorAction SilentlyContinue
         # AU hooks are global functions: a package must not inherit the hooks of the previous one
         Remove-Item -Path Function:\au_BeforeUpdate, Function:\au_AfterUpdate -ErrorAction SilentlyContinue
 
@@ -165,10 +166,16 @@ foreach ($dir in $packageDirs) {
     } finally {
         if (-not $NoPush) { Remove-Item -Path *.nupkg -ErrorAction SilentlyContinue }
         Pop-Location
-        if ($hasSnapshot -and -not $NoPush -and $row.Estado -in 'Error', 'Push fallido') {
-            Get-ChildItem -Path $dir.FullName -Force | Remove-Item -Recurse -Force
+        # -NoPush publishes nothing, so its changes are always rolled back (only the .nupkg files are kept
+        # for review): otherwise the next run would find the new version in the nuspec and never push it
+        if ($hasSnapshot -and ($NoPush -or $row.Estado -in 'Error', 'Push fallido')) {
+            Get-ChildItem -Path $dir.FullName -Force | Where-Object Extension -NE '.nupkg' | Remove-Item -Recurse -Force
             Copy-Item -Path (Join-Path $snapshot '*') -Destination $dir.FullName -Recurse -Force
-            Write-Host "[ERROR] $name no se publico: se restauraron sus archivos para reintentarlo en la proxima ejecucion." -ForegroundColor Red
+            if ($row.Estado -in 'Error', 'Push fallido') {
+                Write-Host "[ERROR] $name no se publico: se restauraron sus archivos para reintentarlo en la proxima ejecucion." -ForegroundColor Red
+            } elseif ($row.Estado -eq 'Empaquetado') {
+                Write-Host "[INFO] -NoPush: .nupkg de $name listo para revisar; sus archivos se restauraron y la proxima ejecucion lo publicara." -ForegroundColor Gray
+            }
         }
         Remove-Item -Path $snapshot -Recurse -Force -ErrorAction SilentlyContinue
         # Installers downloaded by AU to calculate checksums (can be hundreds of MB)
