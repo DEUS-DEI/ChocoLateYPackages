@@ -1,8 +1,8 @@
 name: Auto Update Packages
 
 on:
-#  schedule:
-#    - cron: '0 5 * * *' # Corre todos los dias a las 5:00 AM (UTC)
+  schedule:
+    - cron: '47 4 * * *' # Todos los dias a las 04:47 UTC (thunderbird-nightly publica como maximo una vez por semana)
   workflow_dispatch: # Boton "Run workflow" en GitHub
     inputs:
       packages:

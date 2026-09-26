@@ -8,35 +8,25 @@ set "apikey="
 if defined CHOCO_API_KEY set "apikey=--api-key=%CHOCO_API_KEY%"
 
 echo ========================================================
-echo   Gestor de Paquetes Deprecados / Descontinuados
+echo   Gestor de Paquetes Deprecados (bridges)
 echo ========================================================
 echo.
 
 REM ============================================================
-REM  CATEGORIA 1: BRIDGES DE TRANSICION (ID Renombrado)
-REM  Estos paquetes fueron renombrados para cumplir las normas
-REM  de nomenclatura de Chocolatey. Se publica v999.0.0 para
-REM  que los usuarios existentes actualicen al nuevo ID.
+REM  BRIDGES DE TRANSICION (ID retirado)
+REM  Se publica v999.0.0 (solo el nuspec, <files />) con una
+REM  dependencia del paquete nuevo, para que los usuarios
+REM  existentes actualicen automaticamente al nuevo ID.
 REM
-REM  fenix-web-server-beta  --> fenix-web-server-pre
+REM  fenix-web-server-beta  --> fenix-web-server (pre-releases)
+REM  fenix-web-server-pre   --> fenix-web-server (pre-releases)
 REM  github-desktop-beta    --> github-desktop-pre
 REM  thunderbird-beta       --> thunderbird-mozilla
 REM  thunderbird-daily      --> thunderbird-nightly
 REM ============================================================
-set bridges=fenix-web-server-beta github-desktop-beta thunderbird-beta thunderbird-daily
+set bridges=fenix-web-server-beta fenix-web-server-pre github-desktop-beta thunderbird-beta thunderbird-daily
 
-REM ============================================================
-REM  CATEGORIA 2: DESCONTINUADOS (Software ya no mantenido)
-REM  Estos paquetes fueron abandonados por sus desarrolladores
-REM  originales y no tienen sucesor. El nuspec ya tiene el
-REM  mensaje de discontinuacion. Solo se re-empaquetan y suben
-REM  si la version actual NO coincide con la de chocolatey.org.
-REM
-REM  flarectl  --> Cloudflare dejo de distribuir binarios Win
-REM ============================================================
-set discontinued=flarectl
-
-echo [PASO 1] Procesando bridges de transicion (renombrados)...
+echo Procesando bridges de transicion...
 echo --------------------------------------------------------
 for %%p in (%bridges%) do (
     echo.
@@ -51,36 +41,10 @@ for %%p in (%bridges%) do (
             if !errorlevel! equ 0 (
                 echo [OK] %%p subido correctamente.
             ) else (
-                echo [WARN] %%p fallo el push - puede requerir intervencion manual del moderador.
-                echo        Contactar: https://community.chocolatey.org/packages/%%p/contact
+                echo [WARN] %%p fallo el push - puede que la version ya exista o requiera un moderador.
+                echo        Contactar: https://community.chocolatey.org/packages/%%p/ContactAdmins
             )
-            del /f /q %%n 2>nul
-        )
-    ) else (
-        echo [ERROR] Fallo al empaquetar %%p
-    )
-    popd
-)
-
-echo.
-echo [PASO 2] Procesando paquetes DESCONTINUADOS...
-echo --------------------------------------------------------
-for %%p in (%discontinued%) do (
-    echo.
-    echo --- Descontinuado: %%p ---
-    pushd "deprecated\%%p"
-    del /f /q *.nupkg 2>nul
-    choco pack --limit-output
-    if !errorlevel! equ 0 (
-        echo Empaquetado con exito. Intentando subir version final...
-        for %%n in (*.nupkg) do (
-            choco push "%%n" --source="https://push.chocolatey.org/" !apikey!
-            if !errorlevel! equ 0 (
-                echo [OK] %%p - version final publicada correctamente.
-            ) else (
-                echo [INFO] %%p ya tiene la version correcta en linea o requiere moderador.
-            )
-            del /f /q %%n 2>nul
+            del /f /q "%%n" 2>nul
         )
     ) else (
         echo [ERROR] Fallo al empaquetar %%p
@@ -94,14 +58,16 @@ echo   Proceso finalizado.
 echo ========================================================
 echo.
 echo NOTAS IMPORTANTES:
-echo  - Si un BRIDGE fallo con 403: el paquete viejo ya tiene
-echo    una version en linea. Debes pedir al moderador que
-echo    haga "Unlist" de la version antigua en chocolatey.org.
-echo    URL del formulario: https://community.chocolatey.org/packages/{id}/contact
-echo.
-echo  - Los paquetes ACTIVOS (no deprecated) se gestionan
-echo    exclusivamente mediante update_all.bat
-echo.
+echo  - Publica cada bridge DESPUES de que se apruebe la version
+echo    del paquete destino de la que depende (si no, la
+echo    verificacion automatica no puede instalarlo).
+echo  - Si el validador marca CPMR0024 (beta/pre en el ID),
+echo    responde en la revision que es la deprecacion de un ID
+echo    ya existente, siguiendo la guia oficial:
+echo    https://docs.chocolatey.org/en-us/community-repository/maintainers/deprecate-a-chocolatey-package/
+echo  - Cuando el bridge este aprobado, oculta (unlist) todas
+echo    las versiones anteriores del ID deprecado.
+echo  - Los paquetes ACTIVOS se gestionan con update_all.bat
 echo  - Estado de moderacion: https://ch0.co/moderation
 echo ========================================================
 pause

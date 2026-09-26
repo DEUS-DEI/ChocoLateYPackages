@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>fenix-web-server</id>
-    <version>2.0.0.20260926</version>
+    <version>2.0.0</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/fenix-web-server</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>Fenix Web Server</title>
@@ -26,6 +26,11 @@
 - **Realtime configuration**: update server settings with simple toggles.
 - **Intuitive CLI / API**: automate server creation and configuration programmatically.
 - **Remote imports**: import code from the cloud directly into Fenix.
+
+## Versions
+
+- Stable releases (currently 2.x) install with `choco install fenix-web-server`.
+- Pre-releases (3.x betas / release candidates) are published as prerelease versions of this same package: `choco install fenix-web-server --pre`. They replace the former `fenix-web-server-pre` package.
 ]]></description>
     <releaseNotes>https://github.com/coreybutler/fenix/releases</releaseNotes>
   </metadata>

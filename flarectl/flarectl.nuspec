@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>flarectl</id>
+    <version>0.45.0</version>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/flarectl</packageSourceUrl>
+    <owners>DEUS-DEI</owners>
+    <title>flarectl - Cloudflare CLI</title>
+    <authors>Cloudflare</authors>
+    <projectUrl>https://github.com/cloudflare/cloudflare-go</projectUrl>
+    <copyright>Copyright (c) 2015-2022, Cloudflare. All rights reserved.</copyright>
+    <licenseUrl>https://github.com/cloudflare/cloudflare-go/blob/v0/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/cloudflare/cloudflare-go/tree/v0/cmd/flarectl</projectSourceUrl>
+    <docsUrl>https://github.com/cloudflare/cloudflare-go/blob/v0/cmd/flarectl/README.md</docsUrl>
+    <bugTrackerUrl>https://github.com/cloudflare/cloudflare-go/issues</bugTrackerUrl>
+    <tags>flarectl cloudflare cli dns firewall zones api foss</tags>
+    <summary>A CLI application for interacting with a Cloudflare account, powered by cloudflare-go.</summary>
+    <description><![CDATA[flarectl is a command-line application for interacting with a Cloudflare account (zones, DNS records, firewall rules, users...). It is built from the `cmd/flarectl` folder of the v0 line of [cloudflare-go](https://github.com/cloudflare/cloudflare-go).
+
+## Usage
+
+Authenticate with either an API Token or an API Key before running commands:
+
+- API Token: set the `CF_API_TOKEN` environment variable.
+- API Key: set the `CF_API_KEY` and `CF_API_EMAIL` environment variables.
+
+Then run `flarectl --help` to list the available commands.
+
+## Notes
+
+- 64-bit Windows only. `flarectl.exe` is extracted to the package folder and made available on the PATH through a Chocolatey shim.
+]]></description>
+    <releaseNotes>https://github.com/cloudflare/cloudflare-go/blob/v0/CHANGELOG.md</releaseNotes>
+  </metadata>
+  <files>
+    <!-- Only the install script is packaged (not update.ps1) -->
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

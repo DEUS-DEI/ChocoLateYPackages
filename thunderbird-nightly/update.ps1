@@ -41,6 +41,15 @@ function global:au_GetLatest {
   $buildInfo  = Invoke-RestMethod -Uri "$nightlyRoot/latest-comm-central/thunderbird-$appVersion.en-US.win64.json"
   $buildTime  = [datetime]::ParseExact([string]$buildInfo.buildid, 'yyyyMMddHHmmss', [cultureinfo]::InvariantCulture)
 
+  # Publish at most one nightly per week (or as soon as the version number changes), so the
+  # moderation queue is not flooded with a new package version every day
+  $current = ([xml](Get-Content -Path '.\thunderbird-nightly.nuspec' -Raw)).package.metadata.version
+  if ($current -match '^(?<main>\d+\.\d+)\.1\.(?<stamp>\d{10})-alpha$' -and $Matches.main -eq ($appVersion -replace 'a\d+$') -and
+      [datetime]::ParseExact($Matches.stamp, 'yyyyMMddHH', [cultureinfo]::InvariantCulture) -gt $buildTime.AddDays(-7)) {
+    Write-Host "Thunderbird Daily $current is less than a week older than build $($buildInfo.buildid): skipped"
+    return 'ignore'
+  }
+
   @{
     # 159.0a1 built 2026-09-25 10:19 -> 159.0.1.2026092510-alpha: every nightly build gets its own version
     Version     = '{0}.1.{1:yyyyMMddHH}-alpha' -f ($appVersion -replace 'a\d+$'), $buildTime

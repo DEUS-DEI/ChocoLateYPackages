@@ -113,21 +113,27 @@ foreach ($dir in $packageDirs) {
                 Where-Object { -not (Test-Path (Join-Path 'tools' $_)) } | Sort-Object -Unique)
             if ($missing) { throw "Faltan archivos generados por update.ps1 ($($missing -join ', ')): no se publica un paquete roto." }
 
-            # AU already packed the package when it updated it; otherwise (forced) pack it now
-            $nupkg = Get-ChildItem -Path *.nupkg | Select-Object -First 1
-            if (-not $nupkg) {
+            # AU already packed the package when it updated it (one .nupkg per updated stream);
+            # otherwise (forced) pack it now
+            $nupkgs = @(Get-ChildItem -Path *.nupkg)
+            if (-not $nupkgs) {
                 Invoke-Tool choco pack --limit-output
                 if ($LASTEXITCODE -ne 0) { throw "choco pack fallo (codigo $LASTEXITCODE)" }
-                $nupkg = Get-ChildItem -Path *.nupkg | Select-Object -First 1
+                $nupkgs = @(Get-ChildItem -Path *.nupkg)
             }
+            $row.Nueva = ($nupkgs | ForEach-Object { $_.BaseName.Substring($name.Length + 1) }) -join ', '
 
             if ($NoPush) {
                 $row.Estado = 'Empaquetado'
             } else {
-                $pushArgs = @('push', $nupkg.FullName, '--source', $pushSource, '--limit-output')
-                if ($env:CHOCO_API_KEY) { $pushArgs += @('--api-key', $env:CHOCO_API_KEY) }
-                Invoke-Tool choco @pushArgs
-                $row.Estado = if ($LASTEXITCODE -ne 0) { 'Push fallido' } elseif ($updated) { 'Actualizado' } else { 'Forzado' }
+                $pushFailed = $false
+                foreach ($nupkg in $nupkgs) {
+                    $pushArgs = @('push', $nupkg.FullName, '--source', $pushSource, '--limit-output')
+                    if ($env:CHOCO_API_KEY) { $pushArgs += @('--api-key', $env:CHOCO_API_KEY) }
+                    Invoke-Tool choco @pushArgs
+                    if ($LASTEXITCODE -ne 0) { $pushFailed = $true }
+                }
+                $row.Estado = if ($pushFailed) { 'Push fallido' } elseif ($updated) { 'Actualizado' } else { 'Forzado' }
             }
         }
     } catch {
