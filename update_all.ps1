@@ -86,7 +86,7 @@ foreach ($dir in $packageDirs) {
     Push-Location $dir.FullName
     try {
         Remove-Item -Path $snapshot -Recurse -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path $dir.FullName -Destination $snapshot -Recurse
+        Copy-Item -Path $dir.FullName -Destination $snapshot -Recurse -Force  # -Force: hidden files too
         $hasSnapshot = $true
 
         Remove-Item -Path *.nupkg -ErrorAction SilentlyContinue
@@ -159,10 +159,18 @@ Write-Host '========================================================'
 $report | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 
 # --- GIT SYNC: only packages that reached Chocolatey (unpublished ones were restored above) ---
-function Sync-GitRemote {
+function Sync-GitRemote([bool] $HasNewCommit) {
     # Pushes every local commit, including one left behind by a previous run whose push failed.
     # If the remote moved on meanwhile (e.g. another run), rebase onto it and retry once.
     $ahead = Invoke-Tool git -C $PSScriptRoot rev-list --count '@{u}..HEAD' 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        # No upstream branch: only publish the branch if this run committed something to it
+        if (-not $HasNewCommit) { return $true }
+        $branch = Invoke-Tool git -C $PSScriptRoot symbolic-ref --short -q HEAD
+        if (-not $branch) { Write-Host '[ERROR] HEAD desconectado (detached): no se puede hacer push.' -ForegroundColor Red; return $false }
+        Invoke-Tool git -C $PSScriptRoot push --set-upstream origin $branch | Out-Host
+        return ($LASTEXITCODE -eq 0)
+    }
     if (-not ($ahead -as [int])) { return $true }
     Invoke-Tool git -C $PSScriptRoot push | Out-Host
     if ($LASTEXITCODE -ne 0) {
@@ -188,7 +196,7 @@ if ($NoPush -or $NoGit) {
         if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $PSScriptRoot commit --only -m $message @paths }
         $gitOk = ($LASTEXITCODE -eq 0)
     }
-    if ($gitOk) { $gitOk = Sync-GitRemote }
+    if ($gitOk) { $gitOk = Sync-GitRemote -HasNewCommit ($published.Count -gt 0) }
 
     if (-not $gitOk) {
         Write-Host '[ERROR] Git Sync fallo: los paquetes ya estan en Chocolatey; revisa el commit/push pendiente (se reintenta en la proxima ejecucion).' -ForegroundColor Red

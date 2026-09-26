@@ -69,20 +69,21 @@ echo.
 set "pkg_opt="
 set /p "pkg_opt=Seleccione el numero del paquete: "
 if not defined pkg_opt goto choose_package
-rem La entrada se valida solo con expansion retardada: su contenido nunca se interpreta como comando.
-rem Se quitan los digitos; si queda algo, no es un numero.
+rem La entrada solo se usa con expansion retardada, que nunca la interpreta como comando:
+rem se quitan los digitos (si queda algo, no es un numero) y se busca el paquete sin re-expandirla.
 setlocal EnableDelayedExpansion
 set "rest=!pkg_opt!"
-for %%d in (0 1 2 3 4 5 6 7 8 9) do set "rest=!rest:%%d=!"
-set "kind=num"
-if defined rest set "kind=bad"
-if /i "!pkg_opt!"=="B" set "kind=back"
-for %%k in (!kind!) do endlocal & set "kind=%%k"
-if "%kind%"=="back" goto main_menu
-if not "%kind%"=="num" goto invalid_package
-set "pkg="
-call set "pkg=%%pkg_%pkg_opt%%%"
-if not defined pkg goto invalid_package
+for %%d in (0 1 2 3 4 5 6 7 8 9) do if defined rest set "rest=!rest:%%d=!"
+set "sel="
+if /i "!pkg_opt!"=="B" (
+    set "sel=back"
+) else if not defined rest (
+    for %%n in ("!pkg_opt!") do set "sel=!pkg_%%~n!"
+)
+for %%s in ("!sel!") do endlocal & set "sel=%%~s"
+if "%sel%"=="back" goto main_menu
+if not defined sel goto invalid_package
+set "pkg=%sel%"
 
 echo.
 echo ^>^>^> Forzando actualizacion + push para: %pkg%
