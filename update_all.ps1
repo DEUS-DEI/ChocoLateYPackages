@@ -78,8 +78,17 @@ foreach ($dir in $packageDirs) {
     Write-Host "`n>>> Procesando: $name" -ForegroundColor Cyan
 
     $row = [pscustomobject]@{ Paquete = $name; Anterior = '?'; Nueva = '?'; Estado = 'Error' }
+    $updated = $false
+    # Snapshot of the package folder: if the new version is not published, AU's changes are rolled back
+    # so the next run detects the update again (edits made before this run are part of the snapshot)
+    $snapshot = Join-Path ([System.IO.Path]::GetTempPath()) "au-snapshot-$name"
+    $hasSnapshot = $false
     Push-Location $dir.FullName
     try {
+        Remove-Item -Path $snapshot -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path $dir.FullName -Destination $snapshot -Recurse
+        $hasSnapshot = $true
+
         Remove-Item -Path *.nupkg -ErrorAction SilentlyContinue
         # AU hooks are global functions: a package must not inherit the hooks of the previous one
         Remove-Item -Path Function:\au_BeforeUpdate, Function:\au_AfterUpdate -ErrorAction SilentlyContinue
@@ -113,9 +122,6 @@ foreach ($dir in $packageDirs) {
                 if ($env:CHOCO_API_KEY) { $pushArgs += @('--api-key', $env:CHOCO_API_KEY) }
                 Invoke-Tool choco @pushArgs
                 $row.Estado = if ($LASTEXITCODE -ne 0) { 'Push fallido' } elseif ($updated) { 'Actualizado' } else { 'Forzado' }
-                if ($row.Estado -eq 'Push fallido') {
-                    Write-Host "[ERROR] Push fallido: los cambios de $name quedan sin commit. Reintenta con: update_all.bat -Force -Package $name" -ForegroundColor Red
-                }
             }
         }
     } catch {
@@ -123,6 +129,12 @@ foreach ($dir in $packageDirs) {
     } finally {
         if (-not $NoPush) { Remove-Item -Path *.nupkg -ErrorAction SilentlyContinue }
         Pop-Location
+        if ($hasSnapshot -and -not $NoPush -and $row.Estado -in 'Error', 'Push fallido') {
+            Get-ChildItem -Path $dir.FullName -Force | Remove-Item -Recurse -Force
+            Copy-Item -Path (Join-Path $snapshot '*') -Destination $dir.FullName -Recurse -Force
+            Write-Host "[ERROR] $name no se publico: se restauraron sus archivos para reintentarlo en la proxima ejecucion." -ForegroundColor Red
+        }
+        Remove-Item -Path $snapshot -Recurse -Force -ErrorAction SilentlyContinue
         # Installers downloaded by AU to calculate checksums (can be hundreds of MB)
         Remove-Item -Path (Join-Path $env:TEMP "chocolatey\$name") -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -134,23 +146,43 @@ Write-Host '                RESUMEN DE ACTUALIZACIONES'
 Write-Host '========================================================'
 $report | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 
-# --- GIT SYNC: only packages that reached Chocolatey (a failed push is retried on the next run) ---
+# --- GIT SYNC: only packages that reached Chocolatey (unpublished ones were restored above) ---
+function Sync-GitRemote {
+    # Pushes every local commit, including one left behind by a previous run whose push failed.
+    # If the remote moved on meanwhile (e.g. another run), rebase onto it and retry once.
+    $ahead = Invoke-Tool git -C $PSScriptRoot rev-list --count '@{u}..HEAD' 2>$null
+    if (-not ($ahead -as [int])) { return $true }
+    Invoke-Tool git -C $PSScriptRoot push | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Invoke-Tool git -C $PSScriptRoot pull --rebase --autostash | Out-Host
+        if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $PSScriptRoot push | Out-Host }
+    }
+    return ($LASTEXITCODE -eq 0)
+}
+
 $published = @($report | Where-Object Estado -EQ 'Actualizado')
 if ($NoPush -or $NoGit) {
     Write-Host '>>> Git Sync omitido (-NoPush / -NoGit).' -ForegroundColor Gray
-} elseif (-not $published) {
-    Write-Host '>>> No hay cambios que sincronizar en Git.' -ForegroundColor Gray
 } else {
-    Write-Host '>>> Sincronizando cambios con Git...' -ForegroundColor Cyan
-    $message = 'chore: automated update of ' + (($published | ForEach-Object { "$($_.Paquete) v$($_.Nueva)" }) -join ', ')
-    Invoke-Tool git -C $PSScriptRoot add @($published.Paquete)
-    if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $PSScriptRoot commit -m $message }
-    if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $PSScriptRoot push }
-    if ($LASTEXITCODE -eq 0) {
+    $gitOk = $true
+    if ($published) {
+        Write-Host '>>> Sincronizando cambios con Git...' -ForegroundColor Cyan
+        $paths = @($published.Paquete)
+        $message = 'chore: automated update of ' + (($published | ForEach-Object { "$($_.Paquete) v$($_.Nueva)" }) -join ', ')
+        # Commit only the published packages ("--only"), never other changes the user had already staged
+        Invoke-Tool git -C $PSScriptRoot add @paths
+        if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $PSScriptRoot commit --only -m $message @paths }
+        $gitOk = ($LASTEXITCODE -eq 0)
+    }
+    if ($gitOk) { $gitOk = Sync-GitRemote }
+
+    if (-not $gitOk) {
+        Write-Host '[ERROR] Git Sync fallo: los paquetes ya estan en Chocolatey; revisa el commit/push pendiente (se reintenta en la proxima ejecucion).' -ForegroundColor Red
+        $report.Add([pscustomobject]@{ Paquete = 'git'; Anterior = ''; Nueva = ''; Estado = 'Error' })
+    } elseif ($published) {
         Write-Host '>>> Git Sync completado.' -ForegroundColor Green
     } else {
-        Write-Host '[ERROR] Git Sync fallo.' -ForegroundColor Red
-        $report.Add([pscustomobject]@{ Paquete = 'git'; Anterior = ''; Nueva = ''; Estado = 'Error' })
+        Write-Host '>>> No hay cambios que sincronizar en Git.' -ForegroundColor Gray
     }
 }
 
