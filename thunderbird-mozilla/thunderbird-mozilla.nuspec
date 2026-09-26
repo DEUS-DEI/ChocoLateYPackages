@@ -8,7 +8,7 @@
     <title>Thunderbird (Beta)</title>
     <authors>Mozilla</authors>
     <projectUrl>https://www.thunderbird.net/en-US/download/beta</projectUrl>
-    <iconUrl>https://www.thunderbird.net/media/img/thunderbird/logos/beta.png</iconUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@89b9f59407dfddf00e3ba4ba2ac127404ae7d1f0/icons/thunderbird-mozilla.png</iconUrl>
     <copyright>MZLA Technologies Corporation, a subsidiary of Mozilla Foundation. Portions of this content are (c) 1998-2026 by individual contributors</copyright>
     <licenseUrl>https://www.mozilla.org/en-US/about/legal/terms/thunderbird/</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
@@ -39,4 +39,8 @@ Example: `choco install thunderbird-mozilla --pre --params "'/Language:es-MX'"`
 ]]></description>
     <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/104.0beta/releasenotes/</releaseNotes>
   </metadata>
+  <files>
+    <!-- Only the install/uninstall scripts are packaged (not update.ps1) -->
+    <file src="tools\**" target="tools" />
+  </files>
 </package>

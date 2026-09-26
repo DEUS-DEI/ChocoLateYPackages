@@ -4,21 +4,25 @@
     <id>thunderbird-beta</id>
     <version>999.0.0</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/thunderbird-beta</packageSourceUrl>
-    <title>[DEPRECATED] Mozilla Thunderbird Beta</title>
+    <title>[Deprecated] Mozilla Thunderbird Beta</title>
     <authors>Mozilla</authors>
     <owners>DEUS-DEI</owners>
     <projectUrl>https://www.thunderbird.net/en-US/thunderbird/beta/all/</projectUrl>
-    <iconUrl>https://www.thunderbird.net/media/img/thunderbird/logos/beta.png</iconUrl>
+    <licenseUrl>https://www.mozilla.org/en-US/about/legal/terms/thunderbird/</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>
-### IMPORTANT - NAME CHANGE
-This package has been renamed to **thunderbird-mozilla** to comply with Chocolatey's Package ID naming conventions.
-Installing this version will automatically install the new package as a dependency.
-    </description>
+    <description><![CDATA[## Deprecated
+
+This package ID has been retired. The same software is now published as **thunderbird-mozilla**, which is installed automatically as a dependency of this package, so existing installations keep receiving updates.
+
+You may safely uninstall this package (thunderbird-beta) after the upgrade.
+]]></description>
     <summary>Transitional package towards thunderbird-mozilla</summary>
+    <releaseNotes>999.0.0: package deprecated in favour of thunderbird-mozilla (installed as a dependency).</releaseNotes>
     <tags>deprecated thunderbird</tags>
     <dependencies>
-      <dependency id="thunderbird-mozilla" />
+      <!-- thunderbird-mozilla only publishes prerelease versions: a prerelease lower bound lets the dependency resolve -->
+      <dependency id="thunderbird-mozilla" version="104.0.0-beta3" />
     </dependencies>
   </metadata>
+  <files />
 </package>

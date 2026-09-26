@@ -8,17 +8,25 @@
     <title>Nicepage</title>
     <authors>Artisteer, Ltd</authors>
     <projectUrl>https://nicepage.com</projectUrl>
-    <iconUrl>https://csite.nicepage.com/Images/logo-w.png</iconUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@89b9f59407dfddf00e3ba4ba2ac127404ae7d1f0/icons/nicepage.png</iconUrl>
     <copyright>2022 Nicepage Free Website Builder Software</copyright>
     <licenseUrl>https://nicepage.com/Agreement</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <docsUrl>https://nicepage.com/doc</docsUrl>
-    <tags>nicepage website-builder design html5 landing-page site-builder admin gui freeware</tags>
+    <tags>nicepage website-builder design html5 landing-page site-builder admin gui freemium trial</tags>
     <summary>Nicepage Free Website Builder Software</summary>
     <description><![CDATA[Nicepage Free Website Builder Software. Ultimate Freehand. Web Design 3.0.
 
 Create stunning websites and themes: website builder software, mobile-friendly, no coding. Available for WordPress, Joomla, HTML5, Windows, Mac OS and online.
+
+## Licensing
+
+Nicepage is commercial freemium software. Creating the required Nicepage account starts a 7-day trial of the Premium features; after it (or when a paid subscription expires) the app switches to the Free Starter Plan, which is limited to 2 projects. See https://nicepage.com/pricing for the paid plans.
 ]]></description>
     <releaseNotes>https://nicepage.com/doc/c/release-notes</releaseNotes>
   </metadata>
+  <files>
+    <!-- Only the install/uninstall scripts are packaged (not update.ps1) -->
+    <file src="tools\**" target="tools" />
+  </files>
 </package>

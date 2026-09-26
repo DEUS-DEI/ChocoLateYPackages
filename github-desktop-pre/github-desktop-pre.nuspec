@@ -8,7 +8,7 @@
     <title>GitHub Desktop (Beta)</title>
     <authors>GitHub</authors>
     <projectUrl>https://desktop.github.com/beta/</projectUrl>
-    <iconUrl>https://desktop.github.com/images/desktop-icon.svg</iconUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@89b9f59407dfddf00e3ba4ba2ac127404ae7d1f0/icons/github-desktop-pre.png</iconUrl>
     <copyright>GitHub, Inc.</copyright>
     <licenseUrl>https://github.com/desktop/desktop/blob/development/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
@@ -36,4 +36,8 @@ Focus on what matters instead of fighting with Git. Whether you're new to Git or
 ]]></description>
     <releaseNotes>https://desktop.github.com/release-notes/?env=beta</releaseNotes>
   </metadata>
+  <files>
+    <!-- Only the install/uninstall scripts are packaged (not update.ps1) -->
+    <file src="tools\**" target="tools" />
+  </files>
 </package>

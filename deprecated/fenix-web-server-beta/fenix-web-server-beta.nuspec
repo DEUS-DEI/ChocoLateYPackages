@@ -4,22 +4,25 @@
     <id>fenix-web-server-beta</id>
     <version>999.0.0</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/fenix-web-server-beta</packageSourceUrl>
-    <title>[DEPRECATED] Fenix Web Server Beta</title>
+    <title>[Deprecated] Fenix Web Server Beta</title>
     <authors>Ecor Ventures LLC</authors>
     <owners>DEUS-DEI</owners>
     <projectUrl>https://preview.fenixwebserver.com</projectUrl>
-    <iconUrl>https://raw.githubusercontent.com/coreybutler/fenix/master/src/media/img/logo.png</iconUrl>
+    <licenseUrl>https://github.com/coreybutler/fenix/blob/master/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>
-### IMPORTANT - NAME CHANGE
-This package has been renamed to **fenix-web-server-pre** to comply with Chocolatey's Package ID naming conventions.
-Installing this version will automatically install the new package as a dependency.
-You may safely uninstall this package (fenix-web-server-beta) after the migration.
-    </description>
+    <description><![CDATA[## Deprecated
+
+This package ID has been retired. The same software is now published as **fenix-web-server-pre**, which is installed automatically as a dependency of this package, so existing installations keep receiving updates.
+
+You may safely uninstall this package (fenix-web-server-beta) after the upgrade.
+]]></description>
     <summary>Transitional package towards fenix-web-server-pre</summary>
+    <releaseNotes>999.0.0: package deprecated in favour of fenix-web-server-pre (installed as a dependency).</releaseNotes>
     <tags>deprecated fenix</tags>
     <dependencies>
-      <dependency id="fenix-web-server-pre" />
+      <!-- fenix-web-server-pre only publishes prerelease versions: a prerelease lower bound lets the dependency resolve -->
+      <dependency id="fenix-web-server-pre" version="3.0.0-beta13" />
     </dependencies>
   </metadata>
+  <files />
 </package>

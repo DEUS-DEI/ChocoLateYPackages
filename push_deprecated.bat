@@ -20,11 +20,10 @@ REM  que los usuarios existentes actualicen al nuevo ID.
 REM
 REM  fenix-web-server-beta  --> fenix-web-server-pre
 REM  github-desktop-beta    --> github-desktop-pre
-REM  warp-beta              --> cloudflare-warp-pre
 REM  thunderbird-beta       --> thunderbird-mozilla
 REM  thunderbird-daily      --> thunderbird-nightly
 REM ============================================================
-set bridges=fenix-web-server-beta github-desktop-beta warp-beta thunderbird-beta thunderbird-daily
+set bridges=fenix-web-server-beta github-desktop-beta thunderbird-beta thunderbird-daily
 
 REM ============================================================
 REM  CATEGORIA 2: DESCONTINUADOS (Software ya no mantenido)

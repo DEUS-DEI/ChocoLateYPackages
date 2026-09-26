@@ -1,5 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
+# Fail instead of reporting a successful install that did nothing
+if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
+  throw 'Thunderbird requires Windows 10 or newer.'
+}
+
 $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $version  = '125.0b1'
 $baseUrl  = "https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$version"
@@ -13,9 +18,9 @@ $arch = if ($pp['Arch']) { $pp['Arch'] -replace '^win$', 'win32' }
 # tools\checksums.txt holds the Windows lines of Mozilla's SHA256SUMS: "<sha256>  <arch>/<lang>/Thunderbird Setup <version>.exe"
 $installers = Get-Content -Path (Join-Path $toolsDir 'checksums.txt') | ForEach-Object {
   if ($_ -match '^(?<hash>[0-9a-fA-F]{64})\s+(?<path>(?<arch>win32|win64)/(?<lang>[^/]+)/Thunderbird Setup .+\.exe)$') {
-    [pscustomobject]@{ Hash = $Matches.hash; Path = $Matches.path; Arch = $Matches.arch; Lang = $Matches.lang }
+    New-Object PSObject -Property @{ Hash = $Matches.hash; Path = $Matches.path; Arch = $Matches.arch; Lang = $Matches.lang }
   }
-} | Where-Object Arch -EQ $arch
+} | Where-Object { $_.Arch -eq $arch }
 
 # Preferred language: /Language, then the Windows display and regional languages, then en-US.
 # Mozilla uses both full tags (es-MX, pt-BR) and bare languages (de, fr, ja), so for each tag try
@@ -24,8 +29,8 @@ $requested = @($pp['Language'], (Get-UICulture).Name, (Get-Culture).Name, 'en-US
 $installer = $null
 foreach ($tag in $requested) {
   $base = $tag.Split('-')[0]
-  $installer = @($installers | Where-Object Lang -EQ $tag) + @($installers | Where-Object Lang -EQ $base) +
-               @($installers | Where-Object Lang -Like "$base-*") | Select-Object -First 1
+  $installer = @($installers | Where-Object { $_.Lang -eq $tag }) + @($installers | Where-Object { $_.Lang -eq $base }) +
+               @($installers | Where-Object { $_.Lang -like "$base-*" }) | Select-Object -First 1
   if ($installer) { break }
 }
 if (-not $installer) { throw "No Thunderbird $version installer found for architecture '$arch'." }

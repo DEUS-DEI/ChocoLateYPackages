@@ -2,13 +2,15 @@ $ErrorActionPreference = 'Stop'
 
 $packageArgs = @{
   packageName    = $env:ChocolateyPackageName
-  softwareName   = 'Cloudflare WARP*'
+  softwareName   = 'Cloudflare One Client*'
   fileType       = 'msi'
   silentArgs     = '/qn /norestart'
   validExitCodes = @(0, 3010, 1605, 1614, 1641)
 }
 
+# Current betas register as "Cloudflare One Client", older ones as "Cloudflare WARP"
 [array]$key = Get-UninstallRegistryKey -SoftwareName $packageArgs['softwareName']
+if ($key.Count -eq 0) { [array]$key = Get-UninstallRegistryKey -SoftwareName 'Cloudflare WARP*' }
 
 if ($key.Count -eq 1) {
   # Uninstall-ChocolateyPackage runs "msiexec /x <silentArgs>" and ignores 'file' for MSI,

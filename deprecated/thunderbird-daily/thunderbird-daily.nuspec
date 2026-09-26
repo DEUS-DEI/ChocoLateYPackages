@@ -4,21 +4,25 @@
     <id>thunderbird-daily</id>
     <version>999.0.0</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/thunderbird-daily</packageSourceUrl>
-    <title>[DEPRECATED] Mozilla Thunderbird Nightly (Daily)</title>
+    <title>[Deprecated] Mozilla Thunderbird Nightly (Daily)</title>
     <authors>Mozilla</authors>
     <owners>DEUS-DEI</owners>
     <projectUrl>https://www.thunderbird.net/en-US/channel/</projectUrl>
-    <iconUrl>https://www.thunderbird.net/media/img/thunderbird/logos/daily.png</iconUrl>
+    <licenseUrl>https://www.mozilla.org/en-US/about/legal/terms/thunderbird/</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>
-### IMPORTANT - NAME CHANGE
-This package has been renamed to **thunderbird-nightly** to comply with Chocolatey's Package ID naming conventions.
-Installing this version will automatically install the new package as a dependency.
-    </description>
+    <description><![CDATA[## Deprecated
+
+This package ID has been retired. The same software is now published as **thunderbird-nightly**, which is installed automatically as a dependency of this package, so existing installations keep receiving updates.
+
+You may safely uninstall this package (thunderbird-daily) after the upgrade.
+]]></description>
     <summary>Transitional package towards thunderbird-nightly</summary>
+    <releaseNotes>999.0.0: package deprecated in favour of thunderbird-nightly (installed as a dependency).</releaseNotes>
     <tags>deprecated thunderbird</tags>
     <dependencies>
-      <dependency id="thunderbird-nightly" />
+      <!-- thunderbird-nightly only publishes prerelease versions: a prerelease lower bound lets the dependency resolve -->
+      <dependency id="thunderbird-nightly" version="105.0.1-alpha" />
     </dependencies>
   </metadata>
+  <files />
 </package>

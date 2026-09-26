@@ -8,12 +8,11 @@
     <title>Fenix Web Server (Pre-release)</title>
     <authors>Ecor Ventures LLC</authors>
     <projectUrl>https://preview.fenixwebserver.com</projectUrl>
-    <iconUrl>https://raw.githubusercontent.com/coreybutler/fenix/master/src/media/img/logo.png</iconUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@89b9f59407dfddf00e3ba4ba2ac127404ae7d1f0/icons/fenix-web-server.png</iconUrl>
     <copyright>Copyright (c) 2017 Ecor Ventures LLC</copyright>
     <licenseUrl>https://github.com/coreybutler/fenix/blob/master/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/coreybutler/fenix</projectSourceUrl>
-    <docsUrl>https://docs.fenixwebserver.com/</docsUrl>
     <bugTrackerUrl>https://github.com/coreybutler/fenix/issues</bugTrackerUrl>
     <tags>fenix web-server webserver development localhost static-sites beta admin gui foss</tags>
     <summary>A desktop web server for smart devs. Develop locally. Demo publicly. Done effortlessly.</summary>
@@ -32,4 +31,8 @@ A desktop web server for smart devs. Develop locally. Demo publicly. Done effort
 ]]></description>
     <releaseNotes>https://github.com/coreybutler/fenix/releases</releaseNotes>
   </metadata>
+  <files>
+    <!-- Only the install/uninstall scripts are packaged (not update.ps1) -->
+    <file src="tools\**" target="tools" />
+  </files>
 </package>

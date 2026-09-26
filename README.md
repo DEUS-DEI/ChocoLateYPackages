@@ -17,7 +17,6 @@ Los paquetes se revisan, empaquetan y publican bajo demanda (botón **Run workfl
 | `cloudflare-warp-pre` | 🟢 Lvl 3 | Feed JSON oficial de betas de Cloudflare | ✅ Activo |
 | `fenix-web-server-beta` | 🔀 Bridge | Redirige → `fenix-web-server-pre` | 🟡 v999.0.0 |
 | `github-desktop-beta` | 🔀 Bridge | Redirige → `github-desktop-pre` | 🟡 v999.0.0 |
-| `warp-beta` | 🔀 Bridge | Redirige → `cloudflare-warp-pre` | ⏳ Pendiente Moderador |
 | `thunderbird-beta` | 🔀 Bridge | Redirige → `thunderbird-mozilla` | ⏳ Pendiente Moderador |
 | `thunderbird-daily` | 🔀 Bridge | Redirige → `thunderbird-nightly` | ⏳ Pendiente Moderador |
 | `flarectl` | 💀 Discontinuado | *Cloudflare eliminó binarios Win* | ⛔ Archivado |
@@ -31,14 +30,14 @@ Los paquetes se revisan, empaquetan y publican bajo demanda (botón **Run workfl
 └── tools/
     ├── chocolateyinstall.ps1   # URL + checksum (AU los actualiza)
     ├── chocolateyuninstall.ps1
-    ├── checksums.txt           # Solo Thunderbird: checksums oficiales por idioma/arquitectura
-    └── VERIFICATION.txt
+    └── checksums.txt           # Solo Thunderbird: checksums oficiales por idioma/arquitectura
+icons/                        # Iconos de los paquetes (servidos por jsDelivr fijado a un commit)
 deprecated/                   # Bridges y paquetes descontinuados (push_deprecated.bat)
 update_all.ps1 / .bat         # Orquestador: actualiza, publica y sincroniza Git
 menu.bat                      # Panel de control interactivo
 ```
 
-Cualquier carpeta con un `update.ps1` se considera un paquete activo: no hay listas que mantener a mano.
+Cualquier carpeta con un `update.ps1` se considera un paquete activo: no hay listas que mantener a mano. Solo se empaqueta `tools\` (elemento `<files>` del nuspec), así que `update.ps1` no viaja en el `.nupkg`.
 
 ## 🧠 Características Inteligentes Implementadas
 
@@ -53,11 +52,14 @@ Cualquier carpeta con un `update.ps1` se considera un paquete activo: no hay lis
 
 Este repositorio sigue las guías de moderación de Chocolatey:
 
-1.  **Archivo de Verificación (`VERIFICATION.txt`)**: Cada paquete explica de dónde sale el instalador y cómo comprobar su checksum.
+1.  **Sin `VERIFICATION.txt` / `LICENSE.txt`**: solo se exigen cuando el binario va embebido en el paquete; aquí los instaladores se descargan con checksum (lo pidió un moderador en la revisión de `cloudflare-warp-pre`).
 2.  **Etiquetas Optimizadas**: Todos los paquetes incluyen etiquetas estandarizadas (`admin`, `gui`, `foss`, etc.).
-3.  **Metadatos Precisos**: `packageSourceUrl` en todos los paquetes (también los bridges), `bugTrackerUrl` y `releaseNotes` reales.
+3.  **Metadatos Precisos**: `packageSourceUrl` en todos los paquetes (también los bridges), `bugTrackerUrl` y `releaseNotes` reales. La descripción de Nicepage indica que es software freemium con periodo de prueba.
 4.  **Scripts de Desinstalación Robustos**: Buscan la entrada en el registro de Windows, soportan rutas con espacios (`C:\Program Files\...`) y los argumentos propios del desinstalador; los MSI se desinstalan por su código de producto.
-5.  **Fallo Explícito**: Si el sistema no cumple los requisitos (p. ej. WARP en Windows < 10 1909) la instalación falla con un mensaje claro en lugar de "instalarse" sin hacer nada.
+5.  **Fallo Explícito**: Si el sistema no cumple los requisitos (Windows 10, o 10 1909 para WARP) la instalación falla con un mensaje claro en lugar de "instalarse" sin hacer nada.
+6.  **Iconos propios**: PNG de 256 px alojados en `icons/` y servidos por jsDelivr fijado a un commit (Chocolatey prohíbe `raw.githubusercontent.com` y exige que el mantenedor controle el icono).
+7.  **Compatibles con PowerShell v2**: los scripts que se ejecutan al instalar evitan sintaxis de PowerShell 3+ (requisito de la revisión de moderadores).
+8.  **Deprecación según la guía oficial**: los bridges llevan `[Deprecated]` en el título, `<files />`, sin icono y con dependencia con versión mínima.
 
 ## 🛠️ Cómo mantener este repo
 
@@ -80,6 +82,10 @@ Uso:
 | `cd nicepage` y `powershell -File update.ps1` | Prueba un solo paquete con AU |
 
 En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede configurar desde la opción 4 de `menu.bat`).
+
+> **Arreglos de un paquete ya aprobado sin versión nueva del software**: usa la notación de *fix version* (`2.0.0` → `2.0.0.20260926`) en el nuspec y publícalo con `update_all.bat -Force -Package <id>`. Así está preparado `fenix-web-server`, cuyo upstream sigue en 2.0.0.
+
+> **Nuevos iconos**: añade el PNG a `icons/`, haz commit y usa `https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@<commit>/icons/<id>.png`.
 
 ---
 *Mantenido con ❤️ y automatización nivel Dios.*
