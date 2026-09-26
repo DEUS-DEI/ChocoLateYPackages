@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 # Fail instead of reporting a successful install that did nothing
 if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
@@ -6,7 +6,7 @@ if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
 }
 
 $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$version  = '125.0b1'
+$version  = '157.0b4'
 $baseUrl  = "https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$version"
 
 # Package parameters: /Language:es-MX  /Arch:win32

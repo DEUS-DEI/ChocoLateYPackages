@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>thunderbird-mozilla</id>
-    <version>104.0-beta3</version>
+    <version>157.0-beta4</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/thunderbird-mozilla</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>Thunderbird (Beta)</title>
@@ -37,7 +37,7 @@ By default the package installs the language of Windows (display language, then 
 
 Example: `choco install thunderbird-mozilla --pre --params "'/Language:es-MX'"`
 ]]></description>
-    <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/104.0beta/releasenotes/</releaseNotes>
+    <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/157.0beta/releasenotes/</releaseNotes>
   </metadata>
   <files>
     <!-- Only the install/uninstall scripts are packaged (not update.ps1) -->

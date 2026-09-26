@@ -1,10 +1,10 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 # Updated by Chocolatey-AU. Stable 2.x releases ship a ZIP with an Inno Setup installer inside;
 # 3.x pre-releases ship an NSIS setup program.
 $download = @{
-  url          = 'https://github.com/coreybutler/fenix/releases/download/v2.0.0/fenix-windows-2.0.0.zip'
-  checksum     = '9b4871180f912464b6683f8bdd843184df58c0e6f970703c304334fd5ddca24e'
+  url          = 'https://github.com/coreybutler/fenix/releases/download/3.0.0-rc.13/Fenix.Setup.3.0.0-rc.13.exe'
+  checksum     = '6f2ca055f95a181ea2d9a133a31c1d9b881e894e7c57780a6a3dc529a54e076e'
   checksumType = 'sha256'
 }
 

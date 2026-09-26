@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 # Fail instead of reporting a successful install that did nothing
 if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
@@ -6,8 +6,8 @@ if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
 }
 
 $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$version  = '151.0a1'
-$baseUrl  = 'https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central'
+$version  = '159.0a1'
+$baseUrl  = 'https://ftp.mozilla.org/pub/thunderbird/nightly/2026/09'
 
 # Package parameters: /Language:es-MX  /Arch:win32
 $pp   = Get-PackageParameters
