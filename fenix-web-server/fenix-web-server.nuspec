@@ -2,48 +2,40 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>fenix-web-server</id>
-    <version>2.0.0</version>
+    <version>3.0.0-rc13</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/fenix-web-server</packageSourceUrl>
     <owners>DEUS-DEI</owners>
-
     <title>Fenix Web Server</title>
     <authors>Ecor Ventures LLC</authors>
     <projectUrl>https://preview.fenixwebserver.com</projectUrl>
-    <iconUrl>https://raw.githubusercontent.com/coreybutler/fenix/master/src/media/img/logo.png</iconUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@89b9f59407dfddf00e3ba4ba2ac127404ae7d1f0/icons/fenix-web-server.png</iconUrl>
     <copyright>Copyright (c) 2017 Ecor Ventures LLC</copyright>
     <licenseUrl>https://github.com/coreybutler/fenix/blob/master/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/coreybutler/fenix</projectSourceUrl>
-    <docsUrl>https://docs.fenixwebserver.com/</docsUrl>
-    
-	
-    <bugTrackerUrl>https://github.com/author/fenix-docs/issues</bugTrackerUrl>
+    <bugTrackerUrl>https://github.com/coreybutler/fenix/issues</bugTrackerUrl>
     <tags>fenix web-server webserver development localhost static-sites admin gui foss</tags>
-    <summary> A desktop web server. for smart devs. Develop locally. Demo publicly. Done effortlessly.</summary>
-    <description>
-A desktop web server
-for smart devs
-Develop locally. Demo publicly. Done effortlessly. 
+    <summary>A desktop web server for smart devs. Develop locally. Demo publicly. Done effortlessly.</summary>
+    <description><![CDATA[A desktop web server for smart devs. Develop locally. Demo publicly. Done effortlessly.
 
-Work smarter with Fenix
-Visual web servers
-Create and manage web servers with a beautiful GUI
+## Features
 
-Persist multiple servers
-Save server settings for instant recall later on
+- **Visual web servers**: create and manage web servers with a beautiful GUI.
+- **Persist multiple servers**: save server settings for instant recall later on.
+- **One-click sharing**: create a secure public link to share your local work with colleagues and clients.
+- **Realtime configuration**: update server settings with simple toggles.
+- **Intuitive CLI / API**: automate server creation and configuration programmatically.
+- **Remote imports**: import code from the cloud directly into Fenix.
 
-One-click sharing
-Create a secure public link to share your local work with colleagues and clients
+## Versions
 
-Realtime Configuration
-Update server settings with simple toggles
-
-Intuitive CLI / API
-Automate server creation and configuration programmatically
-
-Remote Imports
-Import code from the cloud directly into Fenix
-    </description>
+- Stable releases (currently 2.x) install with `choco install fenix-web-server`.
+- Pre-releases (3.x betas / release candidates) are published as prerelease versions of this same package: `choco install fenix-web-server --pre`. They replace the former `fenix-web-server-pre` package.
+]]></description>
     <releaseNotes>https://github.com/coreybutler/fenix/releases</releaseNotes>
   </metadata>
+  <files>
+    <!-- Only the install/uninstall scripts are packaged (not update.ps1) -->
+    <file src="tools\**" target="tools" />
+  </files>
 </package>

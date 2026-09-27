@@ -1,55 +1,53 @@
-$packageName = 'thunderbird-nightly'
-$toolsDir    = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$version     = '151.0a1' # This will be updated by AU
+﻿$ErrorActionPreference = 'Stop'
 
-# Detect System Language & Architecture
-$lang = (Get-Culture).Name
-$arch = if ([Environment]::Is64BitOperatingSystem) { "win64" } else { "win32" }
-
-$packageParameters = Get-PackageParameters
-if ($packageParameters['Language']) { $lang = $packageParameters['Language'] }
-if ($packageParameters['Arch']) { $arch = $packageParameters['Arch'] }
-
-$baseUrl = "https://ftp.mozilla.org/pub/thunderbird/nightly/latest-comm-central-l10n"
-$fileName = "thunderbird-$version.$lang.$arch.installer.exe"
-$url = "$baseUrl/$fileName"
-
-# Get Checksum from local file (embedded during update/pack)
-$checksum = ''
-$checksumsFile = Join-Path $toolsDir "checksums.txt"
-
-if (Test-Path $checksumsFile) {
-    # El archivo de daily tiene un formato: algunshasum algorithm filename
-    # O a veces es una lista de hashes. Buscamos la linea que contenga el nombre del archivo.
-    $checksumLine = Get-Content $checksumsFile | Select-String -Pattern "(\w+)\s+sha256\s+$fileName"
-    if ($checksumLine) {
-        $checksum = $checksumLine.Matches.Groups[1].Value
-    } else {
-        Write-Warning ">>> Idioma '$lang' no encontrado para Thunderbird Nightly. Reintentando con 'en-US'..."
-        $lang = 'en-US'
-        $fileName = "thunderbird-$version.$lang.$arch.installer.exe"
-        $url = "$baseUrl/$fileName"
-        $checksumLine = Get-Content $checksumsFile | Select-String -Pattern "(\w+)\s+sha256\s+$fileName"
-        if ($checksumLine) {
-            $checksum = $checksumLine.Matches.Groups[1].Value
-        }
-    }
+# Fail instead of reporting a successful install that did nothing
+if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
+  throw 'Thunderbird Daily requires Windows 10 or newer.'
 }
 
-if (-not $checksum) {
-    Write-Error "No se pudo encontrar el checksum para el idioma $lang y arquitectura $arch en el archivo local."
-    throw "Instalacion abortada por falta de integridad."
+$toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$version  = '159.0a1'
+$baseUrl  = 'https://ftp.mozilla.org/pub/thunderbird/nightly/2026/09'
+
+# Package parameters: /Language:es-MX  /Arch:win32
+$pp   = Get-PackageParameters
+$arch = if ($pp['Arch']) { $pp['Arch'] -replace '^win$', 'win32' }
+        elseif ((Get-OSArchitectureWidth -Compare 64) -and $env:chocolateyForceX86 -ne 'true') { 'win64' }
+        else { 'win32' }
+
+# tools\checksums.txt holds the sha256 of every installer of this nightly build, taken from Mozilla's
+# manifests: "<sha256>  <build folder>/thunderbird-<version>.<lang>.<arch>.installer.exe"
+$installers = Get-Content -Path (Join-Path $toolsDir 'checksums.txt') | ForEach-Object {
+  if ($_ -match '^(?<hash>[0-9a-fA-F]{64})\s+(?<path>\S+/thunderbird-.+?\.(?<lang>[A-Za-z-]+)\.(?<arch>win32|win64)\.installer\.exe)$') {
+    New-Object PSObject -Property @{ Hash = $Matches.hash; Path = $Matches.path; Arch = $Matches.arch; Lang = $Matches.lang }
+  }
+} | Where-Object { $_.Arch -eq $arch }
+
+# Preferred language: /Language, then the Windows display and regional languages, then en-US.
+# Mozilla uses both full tags (es-MX, pt-BR) and bare languages (de, fr, ja), so for each tag try
+# the exact tag, its base language and any variant of that language.
+$requested = @($pp['Language'], (Get-UICulture).Name, (Get-Culture).Name, 'en-US') | Where-Object { $_ }
+$installer = $null
+foreach ($tag in $requested) {
+  $base = $tag.Split('-')[0]
+  $installer = @($installers | Where-Object { $_.Lang -eq $tag }) + @($installers | Where-Object { $_.Lang -eq $base }) +
+               @($installers | Where-Object { $_.Lang -like "$base-*" }) | Select-Object -First 1
+  if ($installer) { break }
+}
+if (-not $installer) { throw "No Thunderbird Daily $version installer found for architecture '$arch'." }
+if ($installer.Lang.Split('-')[0] -ne $requested[0].Split('-')[0]) {
+  Write-Warning "Language '$($requested[0])' is not available for Thunderbird Daily $version; installing '$($installer.Lang)'."
 }
 
 $packageArgs = @{
-  packageName   = $packageName
-  fileType      = 'exe'
-  url           = $url
-  checksum      = $checksum
-  checksumType  = 'sha256'
-  silentArgs    = '-ms'
-  validExitCodes= @(0)
+  packageName    = $env:ChocolateyPackageName
+  fileType       = 'exe'
+  url            = "$baseUrl/$($installer.Path)"
+  checksum       = $installer.Hash
+  checksumType   = 'sha256'
+  softwareName   = 'Thunderbird Daily*'
+  silentArgs     = '-ms'
+  validExitCodes = @(0)
 }
 
 Install-ChocolateyPackage @packageArgs
-

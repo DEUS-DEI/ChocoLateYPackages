@@ -1,20 +1,16 @@
-$packageName= 'nicepage'
-$toolsDir   = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
-$url = 'https://get.nicepage.com/Nicepage-8.4.0-full.exe'
-$FileLocation = Join-Path $toolsDir 'nicepage.exe'
+﻿$ErrorActionPreference = 'Stop'
 
-# Step 1: Download the installer with checksum verification
-Get-ChocolateyWebFile -PackageName $packageName `
-                      -Url $url -FileFullPath $FileLocation `
-                      -Checksum 'D9EB11DEF197D5C6D36EBF9A56302D6891E7A03F02F6D89C5126D9554926E21E' `
-                      -ChecksumType 'sha256'
-
-# Step 2: Run the locally downloaded installer
+# Install-ChocolateyPackage downloads the installer to Chocolatey's cache (never into the package
+# folder, where Chocolatey would create a shim that re-runs the setup), verifies it and runs it.
 $packageArgs = @{
-  packageName   = $packageName
-  fileType      = 'exe'
-  file          = $FileLocation
-  silentArgs    = '/S'
-  validExitCodes= @(0)
+  packageName    = $env:ChocolateyPackageName
+  fileType       = 'exe'
+  url            = 'https://get.nicepage.com/Nicepage-8.7.0-full.exe'
+  checksum       = '2041363ae1002b8c30e00d66a09b25129e9bdd4cf5571b84822bffb964935b60'
+  checksumType   = 'sha256'
+  softwareName   = 'Nicepage*'
+  silentArgs     = '/S'
+  validExitCodes = @(0)
 }
-Install-ChocolateyInstallPackage @packageArgs
+
+Install-ChocolateyPackage @packageArgs

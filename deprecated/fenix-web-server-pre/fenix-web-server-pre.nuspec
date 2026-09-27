@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
-    <id>fenix-web-server-beta</id>
+    <id>fenix-web-server-pre</id>
     <version>999.0.0</version>
-    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/fenix-web-server-beta</packageSourceUrl>
-    <title>[Deprecated] Fenix Web Server Beta</title>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/fenix-web-server-pre</packageSourceUrl>
+    <title>[Deprecated] Fenix Web Server (Pre-release)</title>
     <authors>Ecor Ventures LLC</authors>
     <owners>DEUS-DEI</owners>
     <projectUrl>https://preview.fenixwebserver.com</projectUrl>
@@ -14,7 +14,7 @@
 
 This package ID has been retired. Fenix pre-releases are now published as prerelease versions of **fenix-web-server** (`choco install fenix-web-server --pre`), which is installed automatically as a dependency of this package, so existing installations keep receiving updates.
 
-You may safely uninstall this package (fenix-web-server-beta) after the upgrade.
+You may safely uninstall this package (fenix-web-server-pre) after the upgrade.
 ]]></description>
     <summary>Transitional package towards fenix-web-server</summary>
     <releaseNotes>999.0.0: package deprecated in favour of fenix-web-server (pre-releases), installed as a dependency.</releaseNotes>

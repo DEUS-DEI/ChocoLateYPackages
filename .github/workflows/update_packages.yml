@@ -1,46 +1,56 @@
 name: Auto Update Packages
 
 on:
-#  schedule:
-#    - cron: '0 5 * * *' # Corre todos los días a las 5:00 AM (UTC)
-  workflow_dispatch: # Te permite agregar un botón en GitHub para correrlo cuando quieras
+  schedule:
+    - cron: '47 4 * * *' # Todos los dias a las 04:47 UTC (thunderbird-nightly publica como maximo una vez por semana)
+  workflow_dispatch: # Boton "Run workflow" en GitHub
+    inputs:
+      packages:
+        description: 'Paquetes a procesar, separados por comas (vacio = todos)'
+        required: false
+        default: ''
+      force:
+        description: 'Forzar pack + push aunque no haya version nueva'
+        type: boolean
+        default: false
+
+# Nunca dos ejecuciones a la vez: ambas intentarian subir la misma version
+concurrency:
+  group: update-packages
+  cancel-in-progress: false
 
 jobs:
   update-repo:
     runs-on: windows-latest
+    timeout-minutes: 60
     permissions:
       contents: write # Permiso para que el bot pueda hacer push
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
-      - name: Install Chocolatey Automatic Updater (AU)
+      - name: Install Chocolatey-AU
         shell: powershell
-        run: |
-          Install-Module au -Scope CurrentUser -Force
+        run: Install-Module Chocolatey-AU -Scope CurrentUser -Force
 
-      - name: Set Chocolatey API Key
-        shell: powershell
-        run: |
-          choco apikey add -k ${{ secrets.CHOCO_API_KEY }} -s https://push.chocolatey.org/
-
-      - name: Run Update Script
-        shell: cmd
-        run: |
-          update_all.bat
-
-      - name: Commit and Push Changes (Sync)
+      - name: Configure Git identity
         shell: powershell
         run: |
           git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add .
-          
-          # Verificamos si quedaron cambios pendientes después del script
-          $changes = git status --porcelain
-          if ($changes) {
-            git commit -m "chore: Auto-update package versions via AU"
-            git push
-          } else {
-            Write-Host "Revisión completada: El repositorio ya está sincronizado."
-          }
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      # update_all.ps1 actualiza, sube a Chocolatey y hace commit + push solo de lo publicado.
+      # Termina con codigo 1 si algun paquete fallo, para que el workflow se marque en rojo.
+      - name: Update, push to Chocolatey and sync Git
+        shell: powershell
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Evita el limite de 60 peticiones/hora de la API de GitHub
+          PACKAGES: ${{ inputs.packages }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          $params = @{}
+          if ($env:PACKAGES) { $params.Package = $env:PACKAGES }
+          if ($env:FORCE -eq 'true') { $params.Force = $true }
+          .\update_all.ps1 @params
+          exit $LASTEXITCODE

@@ -3,21 +3,26 @@
   <metadata>
     <id>github-desktop-beta</id>
     <version>999.0.0</version>
-    <title>[DEPRECATED] GitHub Desktop Beta</title>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/github-desktop-beta</packageSourceUrl>
+    <title>[Deprecated] GitHub Desktop Beta</title>
     <authors>GitHub, Inc.</authors>
     <owners>DEUS-DEI</owners>
     <projectUrl>https://desktop.github.com/</projectUrl>
-    <iconUrl>https://desktop.github.com/images/desktop-icon.svg</iconUrl>
+    <licenseUrl>https://github.com/desktop/desktop/blob/development/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>
-### IMPORTANT - NAME CHANGE
-This package has been renamed to **github-desktop-pre** to comply with Chocolatey's Package ID naming conventions.
-Installing this version will automatically install the new package as a dependency.
-    </description>
+    <description><![CDATA[## Deprecated
+
+This package ID has been retired. The same software is now published as **github-desktop-pre**, which is installed automatically as a dependency of this package, so existing installations keep receiving updates.
+
+You may safely uninstall this package (github-desktop-beta) after the upgrade.
+]]></description>
     <summary>Transitional package towards github-desktop-pre</summary>
+    <releaseNotes>999.0.0: package deprecated in favour of github-desktop-pre (installed as a dependency).</releaseNotes>
     <tags>deprecated github</tags>
     <dependencies>
-      <dependency id="github-desktop-pre" />
+      <!-- github-desktop-pre only publishes prerelease versions: a prerelease lower bound lets the dependency resolve -->
+      <dependency id="github-desktop-pre" version="3.0.6-beta2" />
     </dependencies>
   </metadata>
+  <files />
 </package>
