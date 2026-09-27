@@ -100,10 +100,10 @@ Install-Module PSScriptAnalyzer -Scope CurrentUser   # solo la primera vez
 Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
 ```
 
-**PowerShell v2 no lo comprueba el analizador.** Los scripts de `tools/` se ejecutan al instalar y tienen que funcionar en PowerShell v2 (punto 7 de arriba), pero PSScriptAnalyzer solo sabe comprobar la sintaxis desde la 3.0 (con `2.0` no comprueba nada y no avisa), así que los cero avisos no lo garantizan. Esta búsqueda aparte no debe encontrar nada; cada patrón es algo que no existe en v2 (`[ordered]`, `-in`/`-notin`, `$PSItem`, `$using:`, `$PSScriptRoot` fuera de módulos, `Where-Object Nombre -eq ...`, `::new()`, `class` y los cmdlets de la 3.0 en adelante):
+**PowerShell v2 no lo comprueba el analizador.** Los scripts de `tools/` se ejecutan al instalar y tienen que funcionar en PowerShell v2 (punto 7 de arriba), pero PSScriptAnalyzer solo sabe comprobar la sintaxis desde la 3.0 (con `2.0` no comprueba nada y no avisa), así que los cero avisos no lo garantizan. Esta búsqueda aparte no debe encontrar nada; cada patrón es algo que no existe en v2 (`[ordered]`, `[pscustomobject]`, `-in`/`-notin`, `$PSItem`, `$using:`, `$PSScriptRoot` fuera de módulos, `Where-Object Nombre -eq ...`, `::new()`, `class`, `#requires -Version 3` o más, `Get-Content -Raw`, `-NoNewline` y los cmdlets de la 3.0 en adelante). **No es exhaustiva**: busca lo más común, y que no encuentre nada no garantiza que el script funcione en v2; eso solo lo asegura probarlo con PowerShell v2.
 
 ```powershell
-Select-String -Path .\*\tools\*.ps1 -Pattern '\[ordered\]', '\$PSItem\b', '\s-(not)?in\s', '::new\(', '\$using:', '^\s*class\s', '\$PSScriptRoot', 'Where-Object\s+\w+\s+-\w', 'Invoke-WebRequest', 'Invoke-RestMethod', 'ConvertFrom-Json', 'ConvertTo-Json', 'Get-CimInstance'
+Select-String -Path .\*\tools\*.ps1 -Pattern '\[ordered\]', '\[pscustomobject\]', '\$PSItem\b', '\s-(not)?in\s', '::new\(', '\$using:', '^\s*class\s', '\$PSScriptRoot', 'Where-Object\s+\w+\s+-\w', 'Invoke-WebRequest', 'Invoke-RestMethod', 'ConvertFrom-Json', 'ConvertTo-Json', 'Get-CimInstance', '#requires\s+-version\s+[3-9]', 'Get-Content\b.*\s-Raw\b', '-NoNewline\b'
 ```
 
 ---
