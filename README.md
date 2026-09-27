@@ -91,5 +91,14 @@ En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede confi
 
 > **Nuevos iconos**: añade el PNG a `icons/`, haz commit y usa `https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@<commit>/icons/<id>.png`.
 
+### Análisis estático (PSScriptAnalyzer)
+
+`PSScriptAnalyzerSettings.psd1` guarda la configuración del analizador: cada regla desactivada explica por qué no aplica y además se comprueba que la sintaxis funcione en Windows PowerShell 5.1. Desde la raíz del repo debe dar **cero avisos**:
+
+```powershell
+Install-Module PSScriptAnalyzer -Scope CurrentUser   # solo la primera vez
+Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
+```
+
 ---
 *Mantenido con ❤️ y automatización nivel Dios.*
