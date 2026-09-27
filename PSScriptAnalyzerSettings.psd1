@@ -24,6 +24,9 @@
 
         # The scripts are run with Windows PowerShell 5.1 (update_all.bat, menu.bat and the GitHub workflow
         # call "powershell"); 7.0 keeps them valid in pwsh too.
+        # The install scripts in */tools/ must also run on PowerShell v2 (README, point 7). This rule cannot
+        # check that: its lowest target is 3.0, and '2.0' is silently ignored. The README has a separate
+        # Select-String check for the v3+ constructs to avoid in tools/.
         PSUseCompatibleSyntax            = @{
             Enable         = $true
             TargetVersions = @('5.1', '7.0')

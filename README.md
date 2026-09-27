@@ -100,5 +100,11 @@ Install-Module PSScriptAnalyzer -Scope CurrentUser   # solo la primera vez
 Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
 ```
 
+**PowerShell v2 no lo comprueba el analizador.** Los scripts de `tools/` se ejecutan al instalar y tienen que funcionar en PowerShell v2 (punto 7 de arriba), pero PSScriptAnalyzer solo sabe comprobar la sintaxis desde la 3.0 (con `2.0` no comprueba nada y no avisa), así que los cero avisos no lo garantizan. Esta búsqueda aparte no debe encontrar nada; cada patrón es algo que no existe en v2 (`[ordered]`, `-in`/`-notin`, `$PSItem`, `$using:`, `$PSScriptRoot` fuera de módulos, `Where-Object Nombre -eq ...`, `::new()`, `class` y los cmdlets de la 3.0 en adelante):
+
+```powershell
+Select-String -Path .\*\tools\*.ps1 -Pattern '\[ordered\]', '\$PSItem\b', '\s-(not)?in\s', '::new\(', '\$using:', '^\s*class\s', '\$PSScriptRoot', 'Where-Object\s+\w+\s+-\w', 'Invoke-WebRequest', 'Invoke-RestMethod', 'ConvertFrom-Json', 'ConvertTo-Json', 'Get-CimInstance'
+```
+
 ---
 *Mantenido con ❤️ y automatización nivel Dios.*
