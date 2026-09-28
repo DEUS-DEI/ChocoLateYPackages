@@ -8,6 +8,10 @@
     at the end, commits and pushes to Git only the packages that were published successfully (a
     failed push is retried on the next run instead of being recorded as done).
 
+    If a version was published but its Git commit was lost (e.g. the CI runner failed to push), AU
+    skips it because it already exists in the Chocolatey feed. The script detects that case, updates
+    the package files without pushing again and commits them (state 'Registrado').
+
 .PARAMETER Package
     Only process these packages (folder names, comma separated). Default: all active packages.
 
@@ -16,7 +20,8 @@
 
 .PARAMETER NoPush
     Update and pack only: nothing is pushed to Chocolatey or Git. The .nupkg files are kept for review
-    and the package files are restored, so the next normal run still publishes the new version.
+    and the package files are restored, so when there is a new version the next normal run still
+    publishes it (a package packed only because of -Force is not published by a normal run).
 
 .PARAMETER NoGit
     Push to Chocolatey but do not commit/push the changes to Git.
@@ -42,7 +47,16 @@ $pushSource = 'https://push.chocolatey.org/'
 Write-Host '========================================================'
 Write-Host 'AU Maestro: Actualizacion, Push y Git Sync'
 Write-Host '========================================================'
-if ($Force) { Write-Host '>>> MODO FORZADO: se empaquetan y suben los paquetes aunque no haya version nueva.' -ForegroundColor Yellow }
+if ($Force) {
+    $forceAction = if ($NoPush) { 'se empaquetan (sin publicar)' } else { 'se empaquetan y suben' }
+    Write-Host ">>> MODO FORZADO: $forceAction los paquetes aunque no haya version nueva." -ForegroundColor Yellow
+}
+
+# Chocolatey-AU reads the nuspec with Get-Item -Path, which treats [ and ] as wildcards: in such a folder
+# every package would fail (or, before this check, no package was found at all and the run "succeeded")
+if ($PSScriptRoot -match '[\[\]]') {
+    throw "La ruta del repositorio contiene '[' o ']' ($PSScriptRoot): Chocolatey-AU no la soporta. Clona el repositorio en una ruta sin corchetes."
+}
 
 function Invoke-Tool {
     # choco/git write progress and warnings to stderr; with 'Stop' Windows PowerShell can turn that
@@ -64,6 +78,7 @@ if (Get-Module -ListAvailable -Name Chocolatey-AU) {
 
 # Active packages = folders with an update.ps1 (deprecated packages live in .\deprecated)
 $packageDirs = @(Get-ChildItem -Path $PSScriptRoot -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'update.ps1') })
+if (-not $packageDirs) { throw "No se encontro ningun paquete (carpetas con update.ps1) en $PSScriptRoot" }
 if ($Package) {
     # powershell -File passes "a,b" as a single string
     $Package = @($Package -split ',' | ForEach-Object Trim | Where-Object { $_ })
@@ -100,12 +115,35 @@ foreach ($dir in $packageDirs) {
         # update.ps1 returns the AUPackage object (or 'ignore') as its last output
         $result = & .\update.ps1 | Select-Object -Last 1
         $updated = ($result -isnot [string]) -and $result.Updated
-        if ($updated) {
+
+        # The new version is already in the Chocolatey feed but not in this repo: it was published by a run
+        # whose Git commit was lost (on CI the runner is discarded). AU skips it on every run, so update the
+        # files ignoring the feed and record them in Git without pushing to Chocolatey again.
+        $registered = $false
+        if (-not ($updated -or $Force) -and $result -isnot [string] -and
+            ($result.Result -match 'already exists in the Chocolatey community feed')) {
+            Write-Host ">>> $name v$($result.RemoteVersion) ya esta en Chocolatey pero no en el repositorio: se actualizan sus archivos para registrarla en Git (sin volver a publicarla)." -ForegroundColor Yellow
+            # Chocolatey-AU takes -NoCheckChocoVersion from this global (update.ps1 calls Update-Package itself)
+            Set-Variable -Name au_NoCheckChocoVersion -Value $true -Scope Global
+            try {
+                $result = & .\update.ps1 | Select-Object -Last 1
+            } finally {
+                # AU reads au_* globals as parameter defaults: the next package must not inherit it
+                Remove-Variable -Name au_NoCheckChocoVersion -Scope Global -ErrorAction SilentlyContinue
+            }
+            $registered = ($result -isnot [string]) -and $result.Updated
+            if (-not $registered) { throw "no se pudieron actualizar los archivos de la version ya publicada ($($result.RemoteVersion))." }
+        }
+
+        if ($updated -or $registered) {
             $row.Nueva = $result.RemoteVersion
             Write-Host ">>> Actualizacion detectada: $name v$($row.Anterior) -> v$($row.Nueva)" -ForegroundColor Green
         }
 
-        if (-not ($updated -or $Force)) {
+        if ($registered) {
+            Remove-Item -Path *.nupkg -ErrorAction SilentlyContinue  # already published: nothing to push
+            $row.Estado = 'Registrado'
+        } elseif (-not ($updated -or $Force)) {
             $row.Estado = 'Al dia'
         } else {
             # Files generated by update.ps1 (e.g. Thunderbird's checksums.txt) must exist before packing
@@ -173,8 +211,12 @@ foreach ($dir in $packageDirs) {
             Copy-Item -Path (Join-Path $snapshot '*') -Destination $dir.FullName -Recurse -Force
             if ($row.Estado -in 'Error', 'Push fallido') {
                 Write-Host "[ERROR] $name no se publico: se restauraron sus archivos para reintentarlo en la proxima ejecucion." -ForegroundColor Red
-            } elseif ($row.Estado -eq 'Empaquetado') {
+            } elseif ($row.Estado -eq 'Empaquetado' -and $updated) {
                 Write-Host "[INFO] -NoPush: .nupkg de $name listo para revisar; sus archivos se restauraron y la proxima ejecucion lo publicara." -ForegroundColor Gray
+            } elseif ($row.Estado -eq 'Empaquetado') {
+                Write-Host "[INFO] -NoPush: .nupkg forzado de $name ($($row.Nueva)) listo para revisar; no hay version nueva, asi que una ejecucion normal no lo publicara (usa -Force sin -NoPush)." -ForegroundColor Gray
+            } elseif ($row.Estado -eq 'Registrado') {
+                Write-Host "[INFO] -NoPush: los archivos de $name se restauraron; una ejecucion sin -NoPush registrara en Git la version ya publicada." -ForegroundColor Gray
             }
         }
         Remove-Item -Path $snapshot -Recurse -Force -ErrorAction SilentlyContinue
@@ -217,7 +259,7 @@ if ($NoPush -or $NoGit) {
     Write-Host '>>> Git Sync omitido (-NoPush / -NoGit).' -ForegroundColor Gray
 } else {
     # Forced pushes count too (e.g. a fix version edited by hand), but only if their folder has changes
-    $published = @($report | Where-Object { $_.Estado -in 'Actualizado', 'Push parcial' -or
+    $published = @($report | Where-Object { $_.Estado -in 'Actualizado', 'Push parcial', 'Registrado' -or
         ($_.Estado -eq 'Forzado' -and (Invoke-Tool git -C $PSScriptRoot status --porcelain $_.Paquete)) })
     $gitOk = $true
     if ($published) {
@@ -232,7 +274,9 @@ if ($NoPush -or $NoGit) {
     if ($gitOk) { $gitOk = Sync-GitRemote -HasNewCommit ($published.Count -gt 0) }
 
     if (-not $gitOk) {
-        Write-Host '[ERROR] Git Sync fallo: los paquetes ya estan en Chocolatey; revisa el commit/push pendiente (se reintenta en la proxima ejecucion).' -ForegroundColor Red
+        # A local clone keeps the commit and pushes it next time; on CI the commit is lost with the runner,
+        # and the next run records the published version again (state 'Registrado')
+        Write-Host '[ERROR] Git Sync fallo: los paquetes ya estan en Chocolatey; revisa el commit/push pendiente (la proxima ejecucion lo reintenta o, si el commit se perdio, registra de nuevo la version publicada).' -ForegroundColor Red
         $report.Add([pscustomobject]@{ Paquete = 'git'; Anterior = ''; Nueva = ''; Estado = 'Error' })
     } elseif ($published) {
         Write-Host '>>> Git Sync completado.' -ForegroundColor Green
