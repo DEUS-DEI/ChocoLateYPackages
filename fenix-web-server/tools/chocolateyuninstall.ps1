@@ -7,7 +7,9 @@ $packageArgs = @{
   validExitCodes = @(0)
 }
 
-[array]$key = Get-UninstallRegistryKey -SoftwareName $packageArgs['softwareName']
+# Get-UninstallRegistryKey returns $null when nothing matches: @() and the filter always give an array
+# (possibly empty) whose Count also works on PowerShell v2
+$key = @(Get-UninstallRegistryKey -SoftwareName $packageArgs['softwareName'] | Where-Object { $_ })
 
 # Fenix 2.x (stable) and 3.x (pre-release) can be installed side by side: keep the entry of the
 # major version this package installed

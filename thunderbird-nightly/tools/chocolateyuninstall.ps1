@@ -8,8 +8,13 @@ $packageArgs = @{
   validExitCodes = @(0)
 }
 
-# Depending on the build, Daily registers as "Thunderbird Daily ..." or just "Daily ..."
-[array]$key = 'Thunderbird Daily*', 'Daily *' | ForEach-Object { Get-UninstallRegistryKey -SoftwareName $_ }
+# Depending on the build, Daily registers as "Thunderbird Daily ..." or just "Daily ...". Every
+# Get-UninstallRegistryKey call reads the whole Uninstall registry, so read it once for both names.
+# The helper returns $null when nothing matches: the filter drops it (with two lookups that $null
+# counted as a second match, and Daily was never uninstalled), and @() always gives an array whose
+# Count also works on PowerShell v2.
+$key = @(Get-UninstallRegistryKey -SoftwareName '*Daily*' |
+  Where-Object { $_ -and ($_.DisplayName -like 'Thunderbird Daily*' -or $_.DisplayName -like 'Daily *') })
 
 if ($key.Count -eq 1) {
   # The uninstall command may be quoted or not, contain spaces ("C:\Program Files\...") and carry
