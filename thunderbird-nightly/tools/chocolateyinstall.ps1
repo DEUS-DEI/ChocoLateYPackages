@@ -11,7 +11,14 @@ $baseUrl  = 'https://ftp.mozilla.org/pub/thunderbird/nightly/2026/09'
 
 # Package parameters: /Language:es-MX  /Arch:win32
 $pp   = Get-PackageParameters
-$arch = if ($pp['Arch']) { $pp['Arch'] -replace '^win$', 'win32' }
+$arch = if ($pp['Arch']) {
+          # Mozilla's names (win64, win32 and the old win) plus the usual aliases (x64, amd64, 64, x86, 32)
+          switch -regex ($pp['Arch']) {
+            '^(win)?(32|x86|i?386)$|^win$'  { 'win32'; break }
+            '^(win)?(64|x64|amd64|x86_64)$' { 'win64'; break }
+            default { throw "Invalid /Arch '$($pp['Arch'])'. Use win64 or win32." }
+          }
+        }
         elseif ((Get-OSArchitectureWidth -Compare 64) -and $env:chocolateyForceX86 -ne 'true') { 'win64' }
         else { 'win32' }
 
@@ -35,7 +42,8 @@ foreach ($tag in $requested) {
   if ($installer) { break }
 }
 if (-not $installer) { throw "No Thunderbird Daily $version installer found for architecture '$arch'." }
-if ($installer.Lang.Split('-')[0] -ne $requested[0].Split('-')[0]) {
+# Also warn when an explicit /Language gets a variant (es-CO -> es-AR); the automatic choice stays quiet
+if ($installer.Lang.Split('-')[0] -ne $requested[0].Split('-')[0] -or ($pp['Language'] -and $installer.Lang -ne $pp['Language'])) {
   Write-Warning "Language '$($requested[0])' is not available for Thunderbird Daily $version; installing '$($installer.Lang)'."
 }
 
