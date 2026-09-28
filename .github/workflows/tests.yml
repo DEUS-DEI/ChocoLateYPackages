@@ -1,0 +1,44 @@
+name: Tests
+
+# Pruebas en Windows real: cmd.exe, Windows PowerShell 5.1 y los helpers de Chocolatey del runner.
+# No publica nada: choco es un falso (tests/fakes/FakeChoco.cs), no hay secretos y Git solo sube a un
+# repositorio temporal. Nunca ejecuta update_all.ps1 contra Chocolatey ni el workflow de publicacion.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      # La imagen trae Pester 3.4, que no entiende la sintaxis de Pester 5
+      - name: Install Pester and PSScriptAnalyzer
+        shell: powershell
+        run: |
+          Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force
+
+      - name: PSScriptAnalyzer (cero avisos)
+        shell: powershell
+        run: |
+          Import-Module PSScriptAnalyzer -RequiredVersion 1.25.0
+          $findings = @(Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1)
+          $findings | Format-Table RuleName, ScriptName, Line, Message -AutoSize | Out-String -Width 200 | Write-Host
+          if ($findings) { exit 1 }
+
+      - name: Pester
+        shell: powershell
+        run: |
+          Import-Module Pester -RequiredVersion 5.7.1
+          $config = New-PesterConfiguration
+          $config.Run.Path = '.\tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
