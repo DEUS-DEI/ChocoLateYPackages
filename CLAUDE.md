@@ -20,6 +20,8 @@ y como mantenerlo.
 ## Antes de subir
 - `Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1`: cero avisos. Una regla solo se
   apaga con un comentario que diga por que no aplica.
+- `Invoke-Pester .\tests` (Pester 5, Windows PowerShell 5.1): todo en verde. Usa un `choco` falso y no publica nada
+  (`tests/README.md`); cualquier prueba nueva tiene que seguir sin tocar Chocolatey, GitHub ni el sistema.
 - Las funciones `au_GetLatest` y `au_SearchReplace` las llama Chocolatey-AU con su firma; no cambiarlas de forma.
   `au_GetLatest` debe devolver solo lo que AU espera (nada de `Write-Output` extra).
 

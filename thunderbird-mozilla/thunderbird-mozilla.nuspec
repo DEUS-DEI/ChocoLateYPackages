@@ -33,10 +33,14 @@ Make Email Easier. Thunderbird is a free email application that's easy to set up
 By default the package installs the language of Windows (display language, then regional format; e.g. `es-MX`, or `de` for `de-DE`) and falls back to `en-US` when Mozilla does not publish that language. The architecture follows the OS (`--x86` forces 32-bit).
 
 - `/Language:<tag>` - Thunderbird language to install, e.g. `/Language:es-ES`.
-- `/Arch:<win32|win64>` - Force the installer architecture.
+- `/Arch:<win64|win32>` - Force the installer architecture (`x64`, `amd64`, `64`, `x86` and `32` are accepted too; any other value fails).
 
 Example: `choco install thunderbird-mozilla --pre --params "'/Language:es-MX'"`
 ]]></description>
+    <dependencies>
+      <!-- Get-PackageParameters, used by chocolateyinstall.ps1, is built into Chocolatey since 0.10.8 -->
+      <dependency id="chocolatey" version="0.10.8" />
+    </dependencies>
     <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/157.0beta/releasenotes/</releaseNotes>
   </metadata>
   <files>

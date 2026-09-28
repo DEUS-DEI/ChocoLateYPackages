@@ -36,6 +36,7 @@ icons/                        # Iconos de los paquetes (servidos por jsDelivr fi
 deprecated/                   # Bridges de IDs retirados (push_deprecated.bat)
 update_all.ps1 / .bat         # Orquestador: actualiza, publica y sincroniza Git
 menu.bat                      # Panel de control interactivo
+tests/                        # Pruebas Pester en Windows (tests/README.md)
 ```
 
 Cualquier carpeta con un `update.ps1` se considera un paquete activo: no hay listas que mantener a mano. Solo se empaqueta `tools\` (elemento `<files>` del nuspec), así que `update.ps1` no viaja en el `.nupkg`.
@@ -79,8 +80,9 @@ Uso:
 | `.\menu.bat` | Panel interactivo |
 | `.\update_all.bat` | Actualiza y publica todo lo que tenga versión nueva |
 | `.\update_all.bat -Package nicepage -Force` | Re-empaqueta y sube un paquete aunque no haya versión nueva |
-| `.\update_all.bat -NoPush` | Solo empaqueta para revisar: deja los `.nupkg` y restaura los archivos, así la siguiente ejecución normal publica la versión nueva |
+| `.\update_all.bat -NoPush` | Solo empaqueta para revisar: deja los `.nupkg` y restaura los archivos, así la siguiente ejecución normal publica la versión nueva (si la hay: un paquete que solo se empaquetó por `-Force` no se publica) |
 | `.\update_all.bat -NoGit` | Publica en Chocolatey sin hacer commit/push en Git |
+| `.\push_deprecated.bat` | Publica los bridges de `deprecated/`. Termina con código 1 si falla algún empaquetado o push; `--no-pause` no espera una tecla al final |
 | `cd nicepage` y `powershell -File update.ps1` | Prueba un solo paquete con AU |
 
 En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede configurar desde la opción 4 de `menu.bat`).
@@ -88,6 +90,8 @@ En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede confi
 > **Arreglos de un paquete ya aprobado sin versión nueva del software**: usa la notación de *fix version* (`2.0.0` → `2.0.0.20260926`). En `fenix-web-server` se declara en `$packageFixes` de su `update.ps1`, así que AU la publica solo en la siguiente ejecución.
 
 > **Streams (`fenix-web-server`)**: cada ejecución publica por separado la versión estable y la prerelease. Si solo se publica una, la otra se reintenta en la siguiente ejecución. `-Force` re-empaqueta únicamente el stream que está en ese momento en la carpeta.
+
+> **Versión publicada sin commit en Git** (p. ej. el runner no pudo hacer push): AU la salta porque ya existe en Chocolatey. `update_all.ps1` lo detecta, actualiza los archivos sin volver a publicarla y hace el commit (estado `Registrado`).
 
 > **Nuevos iconos**: añade el PNG a `icons/`, haz commit y usa `https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@<commit>/icons/<id>.png`.
 
@@ -103,7 +107,17 @@ Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
 **PowerShell v2 no lo comprueba el analizador.** Los scripts de `tools/` se ejecutan al instalar y tienen que funcionar en PowerShell v2 (punto 7 de arriba), pero PSScriptAnalyzer solo sabe comprobar la sintaxis desde la 3.0 (con `2.0` no comprueba nada y no avisa), así que los cero avisos no lo garantizan. Esta búsqueda aparte no debe encontrar nada; cada patrón es algo que no existe en v2 (`[ordered]`, `[pscustomobject]`, `-in`/`-notin`, `$PSItem`, `$using:`, `$PSScriptRoot` fuera de módulos, `Where-Object Nombre -eq ...`, `::new()`, `class`, `#requires -Version 3` o más, `Get-Content -Raw`, `-NoNewline` y los cmdlets de la 3.0 en adelante). **No es exhaustiva**: busca lo más común, y que no encuentre nada no garantiza que el script funcione en v2; eso solo lo asegura probarlo con PowerShell v2.
 
 ```powershell
-Select-String -Path .\*\tools\*.ps1 -Pattern '\[ordered\]', '\[pscustomobject\]', '\$PSItem\b', '\s-(not)?in\s', '::new\(', '\$using:', '^\s*class\s', '\$PSScriptRoot', 'Where-Object\s+\w+\s+-\w', 'Invoke-WebRequest', 'Invoke-RestMethod', 'ConvertFrom-Json', 'ConvertTo-Json', 'Get-CimInstance', '#requires\s+-version\s+[3-9]', 'Get-Content\b.*\s-Raw\b', '-NoNewline\b'
+Select-String -Path .\*\tools\*.ps1 -Pattern '\[ordered\]', '\[pscustomobject\]', '\$PSItem\b', '\s-(not)?in\s', '::new\(', '\$using:', '^\s*class\s', '\$PSScriptRoot', 'Where-Object\s+\w+\s+-\w', 'Invoke-WebRequest', 'Invoke-RestMethod', 'ConvertFrom-Json', 'ConvertTo-Json', 'Get-CimInstance', '#requires\s+-version\s+[3-9]', 'Get-Content\b.*\s-Raw\b', '-NoNewline\b', '\[array\]\s*\$\w+\s*=.*Get-UninstallRegistryKey'
+```
+
+El último patrón busca `[array]$x = Get-UninstallRegistryKey ...`: el helper devuelve `$null` cuando no encuentra nada, y en v2 `$null` no tiene `.Count`. Se usa `@(Get-UninstallRegistryKey ... | Where-Object { $_ })`, que siempre es un array.
+
+### Pruebas en Windows (Pester)
+
+`tests/` prueba en Windows lo que el análisis estático no ve: los `.bat` en `cmd.exe`, `update_all.ps1` en Windows PowerShell 5.1 y los scripts de `tools/` con los helpers reales de Chocolatey. No publica nada (usa un `choco` falso) y no necesita administrador. Corre en cada PR (workflow `Tests`); en local:
+
+```powershell
+Invoke-Pester .\tests -Output Detailed   # Pester 5; ver tests/README.md
 ```
 
 ---

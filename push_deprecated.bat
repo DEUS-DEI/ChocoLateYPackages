@@ -1,11 +1,12 @@
 @echo off
-setlocal enabledelayedexpansion
-rem Trabajar siempre desde la carpeta del repositorio, se lance desde donde se lance
-cd /d "%~dp0"
+rem Sin expansion retardada: con ella una "!" en la ruta del repositorio rompe el cambio de carpeta
+setlocal
+rem Trabajar siempre desde la carpeta del repositorio, se lance desde donde se lance. pushd (y no cd /d)
+rem tambien funciona desde una ruta UNC. Si falla, se para: nunca empaquetar en la carpeta de quien lo llama.
+pushd "%~dp0" || (echo [ERROR] No se pudo entrar en "%~dp0". & pause & exit /b 1)
 
-rem Si CHOCO_API_KEY esta definida se usa; si no, la clave guardada con "choco apikey add"
-set "apikey="
-if defined CHOCO_API_KEY set "apikey=--api-key=%CHOCO_API_KEY%"
+rem Uso: push_deprecated.bat [--no-pause]   Codigo de salida: 0 si todo se publico, 1 si algo fallo.
+set "failed=0"
 
 echo ========================================================
 echo   Gestor de Paquetes Deprecados (bridges)
@@ -24,37 +25,15 @@ REM  github-desktop-beta    --> github-desktop-pre
 REM  thunderbird-beta       --> thunderbird-mozilla
 REM  thunderbird-daily      --> thunderbird-nightly
 REM ============================================================
-set bridges=fenix-web-server-beta fenix-web-server-pre github-desktop-beta thunderbird-beta thunderbird-daily
+set "bridges=fenix-web-server-beta fenix-web-server-pre github-desktop-beta thunderbird-beta thunderbird-daily"
 
 echo Procesando bridges de transicion...
 echo --------------------------------------------------------
-for %%p in (%bridges%) do (
-    echo.
-    echo --- Bridge: %%p ---
-    pushd "deprecated\%%p"
-    del /f /q *.nupkg 2>nul
-    choco pack --limit-output
-    if !errorlevel! equ 0 (
-        echo Empaquetado con exito. Intentando subir...
-        for %%n in (*.nupkg) do (
-            choco push "%%n" --source="https://push.chocolatey.org/" !apikey!
-            if !errorlevel! equ 0 (
-                echo [OK] %%p subido correctamente.
-            ) else (
-                echo [WARN] %%p fallo el push - puede que la version ya exista o requiera un moderador.
-                echo        Contactar: https://community.chocolatey.org/packages/%%p/ContactAdmins
-            )
-            del /f /q "%%n" 2>nul
-        )
-    ) else (
-        echo [ERROR] Fallo al empaquetar %%p
-    )
-    popd
-)
+for %%p in (%bridges%) do call :bridge %%p
 
 echo.
 echo ========================================================
-echo   Proceso finalizado.
+if "%failed%"=="0" (echo   Proceso finalizado.) else (echo   Proceso finalizado CON ERRORES.)
 echo ========================================================
 echo.
 echo NOTAS IMPORTANTES:
@@ -70,4 +49,47 @@ echo    las versiones anteriores del ID deprecado.
 echo  - Los paquetes ACTIVOS se gestionan con update_all.bat
 echo  - Estado de moderacion: https://ch0.co/moderation
 echo ========================================================
-pause
+if /i not "%~1"=="--no-pause" pause
+popd
+exit /b %failed%
+
+rem Empaqueta y publica un bridge. Nunca trabaja fuera de deprecated\<id>.
+:bridge
+echo.
+echo --- Bridge: %~1 ---
+if not exist "deprecated\%~1\%~1.nuspec" (echo [ERROR] Falta deprecated\%~1\%~1.nuspec & set "failed=1" & exit /b 1)
+pushd "deprecated\%~1" || (echo [ERROR] No se pudo entrar en deprecated\%~1 & set "failed=1" & exit /b 1)
+del /f /q *.nupkg 2>nul
+choco pack --limit-output
+rem "if errorlevel 1" solo ve codigos >= 1: un choco que revienta sale con uno negativo (0xE0434352)
+if errorlevel 1 (set "rc=1") else if errorlevel 0 (set "rc=0") else set "rc=1"
+if "%rc%"=="1" (
+    echo [ERROR] Fallo al empaquetar %~1
+    set "failed=1"
+    del /f /q *.nupkg 2>nul
+    popd
+    exit /b 1
+)
+echo Empaquetado con exito. Intentando subir...
+for %%n in (*.nupkg) do call :push "%%n" "%~1"
+popd
+exit /b 0
+
+rem Publica un .nupkg (%1) del bridge %2 y lo borra
+:push
+rem Si CHOCO_API_KEY esta definida se usa; si no, la clave guardada con "choco apikey add"
+if defined CHOCO_API_KEY (
+    choco push "%~1" --source="https://push.chocolatey.org/" --api-key="%CHOCO_API_KEY%"
+) else (
+    choco push "%~1" --source="https://push.chocolatey.org/"
+)
+if errorlevel 1 (set "rc=1") else if errorlevel 0 (set "rc=0") else set "rc=1"
+if "%rc%"=="1" (
+    echo [WARN] %~2 fallo el push - puede que la version ya exista o requiera un moderador.
+    echo        Contactar: https://community.chocolatey.org/packages/%~2/ContactAdmins
+    set "failed=1"
+) else (
+    echo [OK] %~2 subido correctamente.
+)
+del /f /q "%~1" 2>nul
+exit /b 0

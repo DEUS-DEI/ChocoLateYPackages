@@ -8,9 +8,13 @@ $packageArgs = @{
   validExitCodes = @(0, 3010, 1605, 1614, 1641)
 }
 
-# Current betas register as "Cloudflare One Client", older ones as "Cloudflare WARP"
-[array]$key = Get-UninstallRegistryKey -SoftwareName $packageArgs['softwareName']
-if ($key.Count -eq 0) { [array]$key = Get-UninstallRegistryKey -SoftwareName 'Cloudflare WARP*' }
+# Current betas register as "Cloudflare One Client", older ones as "Cloudflare WARP": the current name wins.
+# Every Get-UninstallRegistryKey call reads the whole Uninstall registry, so read it once for both names;
+# 'Cloudflare*' also matches other products (e.g. cloudflared), hence the filters. The helper returns $null
+# when nothing matches: @() and the filter always give an array whose Count also works on PowerShell v2.
+$all = @(Get-UninstallRegistryKey -SoftwareName 'Cloudflare*' | Where-Object { $_ })
+$key = @($all | Where-Object { $_.DisplayName -like $packageArgs['softwareName'] })
+if ($key.Count -eq 0) { $key = @($all | Where-Object { $_.DisplayName -like 'Cloudflare WARP*' }) }
 
 if ($key.Count -eq 1) {
   # Uninstall-ChocolateyPackage runs "msiexec /x <silentArgs>" and ignores 'file' for MSI,

@@ -1,13 +1,12 @@
 @echo off
 setlocal
 title AU Maestro - Panel de Control
-rem Trabajar siempre desde la carpeta del repositorio, se lance desde donde se lance
-cd /d "%~dp0"
+rem Trabajar siempre desde la carpeta del repositorio, se lance desde donde se lance (pushd, y no cd /d,
+rem tambien funciona desde una ruta UNC). Las opciones llaman a .\update_all.bat relativo a esta carpeta.
+pushd "%~dp0" || (echo [ERROR] No se pudo entrar en "%~dp0". & pause & exit /b 1)
 
 :main_menu
 set "timer=15"
-
-:countdown
 cls
 echo ========================================================
 echo           PANEL DE CONTROL - AU MAESTRO
@@ -21,16 +20,12 @@ echo [5] Salir (Cerrar)
 echo.
 echo ========================================================
 echo.
-if %timer% LEQ 0 goto end
 echo Saliendo por defecto (opcion 5) en %timer% segundos...
 
-rem "0" es una opcion invisible que se elige sola al pasar 1 segundo: permite mostrar la cuenta atras
-choice /c 123450 /t 1 /d 0 /n >nul
+rem Una sola espera: cada choice.exe nuevo descarta las teclas pulsadas antes de arrancar, asi que una
+rem cuenta atras que lo relanzaba cada segundo perdia pulsaciones
+choice /c 12345 /t %timer% /d 5 /n >nul
 set "res=%errorlevel%"
-if "%res%"=="6" (
-    set /a timer-=1
-    goto countdown
-)
 if "%res%"=="1" goto normal_update
 if "%res%"=="2" goto force_all
 if "%res%"=="3" goto choose_package
@@ -40,14 +35,14 @@ goto end
 :normal_update
 echo.
 echo ^>^>^> Iniciando actualizacion automatica normal...
-call "%~dp0update_all.bat"
+call .\update_all.bat
 timeout /t 15
 goto main_menu
 
 :force_all
 echo.
 echo ^>^>^> Iniciando FORZADO de todos los paquetes...
-call "%~dp0update_all.bat" -Force
+call .\update_all.bat -Force
 timeout /t 15
 goto main_menu
 
@@ -64,11 +59,13 @@ for /d %%D in (*) do if exist "%%D\update.ps1" (
     call set "pkg_%%count%%=%%D"
     call echo [%%count%%] %%D
 )
-echo [B] Volver al menu principal
+echo [B] o Enter: Volver al menu principal
 echo.
 set "pkg_opt="
 set /p "pkg_opt=Seleccione el numero del paquete: "
-if not defined pkg_opt goto choose_package
+rem Entrada vacia, o fin de la entrada si llega por una tuberia: volver al menu (repetir la pregunta
+rem seria un bucle sin fin al 100% de CPU)
+if not defined pkg_opt goto main_menu
 rem La entrada solo se usa con expansion retardada, que nunca la interpreta como comando:
 rem se quitan los digitos (si queda algo, no es un numero) y se busca el paquete sin re-expandirla.
 setlocal EnableDelayedExpansion
@@ -87,7 +84,7 @@ set "pkg=%sel%"
 
 echo.
 echo ^>^>^> Forzando actualizacion + push para: %pkg%
-call "%~dp0update_all.bat" -Force -Package %pkg%
+call .\update_all.bat -Force -Package %pkg%
 timeout /t 15
 goto choose_package
 
@@ -119,4 +116,5 @@ goto main_menu
 echo.
 echo Saliendo...
 timeout /t 2 >nul
+popd
 exit /b
