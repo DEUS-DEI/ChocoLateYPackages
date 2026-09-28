@@ -76,11 +76,22 @@ function Install-FakeChoco {
     $exe = Join-Path $Directory 'choco.exe'
     Add-Type -TypeDefinition $source -Language CSharp -OutputAssembly $exe -OutputType ConsoleApplication
     $path = "$Directory;$env:PATH"
-    $where = Invoke-TestProcess -FilePath (Join-Path $env:SystemRoot 'System32\where.exe') -Arguments 'choco' `
-        -WorkingDirectory $Directory -Environment @{ PATH = $path }
-    $first = @($where.Output -split "`r?`n" | Where-Object { $_ })[0]
-    if ($first -ne $exe) { throw "The fake choco is not the first one in PATH ($first): the tests could publish for real." }
+    Assert-FakeChocoFirst -Exe $exe -Path $path
     $path
+}
+
+function Assert-FakeChocoFirst {
+    # Throws unless $Exe is the first choco that a search of $Path finds. "where.exe choco" would search the
+    # current folder before PATH (and here that is the fake's own folder), so it would always find the fake
+    # first; "where.exe $PATH:choco" searches only the folders of the PATH variable, in order.
+    param(
+        [Parameter(Mandatory = $true)] [string] $Exe,
+        [Parameter(Mandatory = $true)] [string] $Path
+    )
+    $where = Invoke-TestProcess -FilePath (Join-Path $env:SystemRoot 'System32\where.exe') -Arguments '$PATH:choco' `
+        -WorkingDirectory (Split-Path -Parent $Exe) -Environment @{ PATH = $Path }
+    $first = @($where.Output -split "`r?`n" | Where-Object { $_ })[0]
+    if ($first -ne $Exe) { throw "The fake choco is not the first one in PATH ($first): the tests could publish for real." }
 }
 
 function Get-FakeLog {

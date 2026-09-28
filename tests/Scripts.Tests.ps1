@@ -34,6 +34,16 @@ BeforeAll {
     }
 }
 
+Describe 'test safety net' {
+    It 'refuses to run when another choco comes before the fake in PATH, even from the fake''s own folder' {
+        $fake = Join-Path $TestDrive 'bin\choco.exe'
+        $other = Join-Path $TestDrive 'other'
+        New-Item -ItemType Directory -Path $other -Force | Out-Null
+        Copy-Item -LiteralPath $fake -Destination $other
+        { Assert-FakeChocoFirst -Exe $fake -Path $script:FakePath } | Should -Not -Throw
+        { Assert-FakeChocoFirst -Exe $fake -Path "$other;$script:FakePath" } | Should -Throw '*not the first one in PATH*'
+    }
+}
 Describe 'push_deprecated.bat' {
     BeforeAll {
         $script:Bridges = @(Get-ChildItem -LiteralPath (Join-Path $script:Special 'deprecated') -Directory | ForEach-Object Name)
