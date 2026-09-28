@@ -18,14 +18,16 @@ $packageArgs = @{
   checksumType64 = 'sha256'
 }
 
-$archive = Get-ChocolateyWebFile @packageArgs
+# The whole folder (download included) is deleted afterwards, also when the download or its checksum fails:
+# flarectl.exe is all the package keeps, and otherwise every version leaves its .tar.gz behind
 try {
+  $archive = Get-ChocolateyWebFile @packageArgs
   Get-ChocolateyUnzip -FileFullPath $archive -Destination $gzDir | Out-Null
   $tar = Get-ChildItem -Path $gzDir -Filter '*.tar' | Select-Object -First 1
   if (-not $tar) { throw "No .tar file found inside $archive." }
   Get-ChocolateyUnzip -FileFullPath $tar.FullName -Destination $toolsDir | Out-Null
 } finally {
-  Remove-Item -Path $gzDir -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # Not built with Join-Path: update_all.ps1 reads every Join-Path on $toolsDir with a quoted file name as a

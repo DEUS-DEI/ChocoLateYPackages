@@ -236,13 +236,26 @@ Describe 'flarectl install (real download and extraction)' -Skip:$NoChocolatey {
         [System.IO.File]::WriteAllText((Join-Path $script:Tools 'chocolateyinstall.ps1'), $text)
     }
 
-    It 'extracts flarectl.exe into tools and leaves no .tar behind' {
+    It 'extracts flarectl.exe into tools and leaves no .tar or download behind' {
         Set-PackageEnvironment 'flarectl' '0.119.0'
         $env:ChocolateyPackageFolder = Split-Path -Parent $script:Tools
         Invoke-PackageScript (Join-Path $script:Tools 'chocolateyinstall.ps1') | Out-Null
         Join-Path $script:Tools 'flarectl.exe' | Should -Exist
         Get-Content -Path (Join-Path $script:Tools 'flarectl.exe') | Should -Be 'not a real program'
         @(Get-ChildItem -Path $script:Tools -Filter '*.tar').Count | Should -Be 0
-        Join-Path $env:TEMP 'flarectl\0.119.0\gz' | Should -Not -Exist
+        Join-Path $env:TEMP 'flarectl\0.119.0' | Should -Not -Exist
+    }
+
+    It 'deletes the download when its checksum does not match' {
+        $tools = Join-Path $TestDrive 'flarectl-bad\tools'
+        New-Item -ItemType Directory -Path $tools | Out-Null
+        $text = [System.IO.File]::ReadAllText((Join-Path $script:Tools 'chocolateyinstall.ps1'))
+        $text = $text -replace "(?m)^(\s*checksum64\s*=\s*)'.*'", "`${1}'$('0' * 64)'"
+        [System.IO.File]::WriteAllText((Join-Path $tools 'chocolateyinstall.ps1'), $text)
+        Set-PackageEnvironment 'flarectl' '0.119.0'
+        $env:ChocolateyPackageFolder = Split-Path -Parent $tools
+        { Invoke-PackageScript (Join-Path $tools 'chocolateyinstall.ps1') *> $null } | Should -Throw '*did not meet*'
+        Join-Path $tools 'flarectl.exe' | Should -Not -Exist
+        Join-Path $env:TEMP 'flarectl\0.119.0' | Should -Not -Exist
     }
 }
