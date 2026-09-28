@@ -169,7 +169,7 @@ function Update-Package {
     $current = ([xml](Get-Content -LiteralPath $nuspec -Raw)).package.metadata.version
     $noCheck = $NoCheckChocoVersion -or (Get-Variable -Name au_NoCheckChocoVersion -Scope Global -ValueOnly -ErrorAction SilentlyContinue)
     $package = [pscustomobject]@{ NuspecVersion = $current; RemoteVersion = $env:STUB_REMOTE_VERSION; Updated = $false; Result = @() }
-    if ([version]$env:STUB_REMOTE_VERSION -le [version]$current) { $package.Result += 'No new version found'; return $package }
+    if (-not $env:STUB_REMOTE_VERSION -or [version]$env:STUB_REMOTE_VERSION -le [version]$current) { $package.Result += 'No new version found'; return $package }
     if ($env:STUB_IN_FEED -eq '1' -and -not $noCheck) {
         $package.Result += 'New version is available but it already exists in the Chocolatey community feed (disable using $NoCheckChocoVersion):'
         return $package
@@ -263,6 +263,28 @@ Export-ModuleMember -Function Update-Package
         $run.Output | Should -Match 'una ejecucion normal no lo publicara'
         $run.Output | Should -Not -Match 'la proxima ejecucion lo publicara'
         Join-Path $script:UaRepo 'demo\demo.1.0.0.nupkg' | Should -Exist
+    }
+
+    It '-Force -NoPush packs every real package (its pre-pack check finds all the files the scripts need)' {
+        # The real package folders with their real update.ps1, run against the Chocolatey-AU stub with no new
+        # version: update_all.ps1 refuses to pack a package whose tools\*.ps1 reference a missing file
+        Remove-Item -LiteralPath $script:FakeLog -ErrorAction SilentlyContinue
+        $real = Join-Path $TestDrive 'real-packages'
+        New-Item -ItemType Directory -Path $real | Out-Null
+        Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'update_all.ps1') -Destination $real
+        $packages = @(Get-ChildItem -LiteralPath $script:RepoRoot -Directory |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'update.ps1') } | ForEach-Object Name)
+        foreach ($package in $packages) {
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot $package) -Destination $real -Recurse
+            Get-ChildItem -LiteralPath (Join-Path $real $package) -Filter '*.nupkg' | Remove-Item
+        }
+        $run = Invoke-UpdateAll -Arguments '-Force -NoPush' -Script (Join-Path $real 'update_all.ps1')
+        $run.Output | Should -Not -Match 'Faltan archivos'
+        $run.ExitCode | Should -Be 0 -Because "$($run.Output)$($run.Error)"
+        foreach ($package in $packages) {
+            @(Get-ChildItem -LiteralPath (Join-Path $real $package) -Filter '*.nupkg').Count | Should -Be 1 -Because $package
+        }
+        @(Get-FakeLog $script:FakeLog | Where-Object { $_ -match '\[push\]' }).Count | Should -Be 0
     }
 
     It 'a failed push restores the files and exits with 1' {

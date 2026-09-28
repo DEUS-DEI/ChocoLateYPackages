@@ -28,6 +28,8 @@ try {
   Remove-Item -Path $gzDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-if (-not (Test-Path -Path (Join-Path $toolsDir 'flarectl.exe'))) {
+# Not built with Join-Path: update_all.ps1 reads every Join-Path on $toolsDir with a quoted file name as a
+# file that update.ps1 must generate before packing, and flarectl.exe only exists after the install
+if (-not (Test-Path -Path "$toolsDir\flarectl.exe")) {
   throw 'flarectl.exe was not found in the downloaded archive.'
 }
