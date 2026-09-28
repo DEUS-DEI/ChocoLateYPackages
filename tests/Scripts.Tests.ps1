@@ -86,6 +86,30 @@ Describe 'push_deprecated.bat' {
         @(Get-FakeLog $script:FakeLog | Where-Object { $_ -match '\[push\]' }).Count | Should -Be 0
         Join-Path $script:Caller 'canary.nupkg' | Should -Exist
     }
+
+    # A crashed choco.exe exits with a negative code (unhandled .NET exception 0xE0434352, access violation
+    # 0xC0000005), which "if errorlevel 1" takes for success
+    It 'a push that exits with <Code> counts as a failure' -TestCases @(@{ Code = '-532462766' }, @{ Code = '-1073741819' }, @{ Code = '-1' }) {
+        param($Code)
+        Reset-Caller
+        $environment = Get-BaseEnvironment
+        $environment.FAKE_CHOCO_PUSH_EXIT = $Code
+        $run = Invoke-TestBatch -Script $script:PushDeprecated -Arguments '--no-pause' -WorkingDirectory $script:Caller -Environment $environment
+        $run.ExitCode | Should -Be 1
+        $run.Output | Should -Match 'CON ERRORES'
+        $run.Output | Should -Not -Match '\[OK\]'
+    }
+
+    It 'a pack that exits with <Code> counts as a failure and pushes nothing' -TestCases @(@{ Code = '-532462766' }, @{ Code = '-1' }) {
+        param($Code)
+        Reset-Caller
+        $environment = Get-BaseEnvironment
+        $environment.FAKE_CHOCO_PACK_EXIT = $Code
+        $run = Invoke-TestBatch -Script $script:PushDeprecated -Arguments '--no-pause' -WorkingDirectory $script:Caller -Environment $environment
+        $run.ExitCode | Should -Be 1
+        $run.Output | Should -Not -Match 'Empaquetado con exito'
+        @(Get-FakeLog $script:FakeLog | Where-Object { $_ -match '\[push\]' }).Count | Should -Be 0
+    }
 }
 
 Describe 'update_all.bat and menu.bat' {

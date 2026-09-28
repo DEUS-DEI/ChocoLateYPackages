@@ -61,7 +61,9 @@ if not exist "deprecated\%~1\%~1.nuspec" (echo [ERROR] Falta deprecated\%~1\%~1.
 pushd "deprecated\%~1" || (echo [ERROR] No se pudo entrar en deprecated\%~1 & set "failed=1" & exit /b 1)
 del /f /q *.nupkg 2>nul
 choco pack --limit-output
-if errorlevel 1 (
+rem "if errorlevel 1" solo ve codigos >= 1: un choco que revienta sale con uno negativo (0xE0434352)
+if errorlevel 1 (set "rc=1") else if errorlevel 0 (set "rc=0") else set "rc=1"
+if "%rc%"=="1" (
     echo [ERROR] Fallo al empaquetar %~1
     set "failed=1"
     del /f /q *.nupkg 2>nul
@@ -81,7 +83,8 @@ if defined CHOCO_API_KEY (
 ) else (
     choco push "%~1" --source="https://push.chocolatey.org/"
 )
-if errorlevel 1 (
+if errorlevel 1 (set "rc=1") else if errorlevel 0 (set "rc=0") else set "rc=1"
+if "%rc%"=="1" (
     echo [WARN] %~2 fallo el push - puede que la version ya exista o requiera un moderador.
     echo        Contactar: https://community.chocolatey.org/packages/%~2/ContactAdmins
     set "failed=1"
