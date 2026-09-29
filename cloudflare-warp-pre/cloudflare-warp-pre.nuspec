@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>cloudflare-warp-pre</id>
-    <version>2026.8.1955.1-pre</version>
+    <version>2026.8.2028.1-pre</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/cloudflare-warp-pre</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>Cloudflare WARP (Beta)</title>

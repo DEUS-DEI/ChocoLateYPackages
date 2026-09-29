@@ -6,7 +6,7 @@ if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
 }
 
 $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$version  = '157.0b4'
+$version  = '158.0b1'
 $baseUrl  = "https://download-installer.cdn.mozilla.net/pub/thunderbird/releases/$version"
 
 # Package parameters: /Language:es-MX  /Arch:win32

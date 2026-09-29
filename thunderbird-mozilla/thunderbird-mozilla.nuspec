@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>thunderbird-mozilla</id>
-    <version>157.0-beta4</version>
+    <version>158.0-beta1</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/thunderbird-mozilla</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>Thunderbird (Beta)</title>
@@ -41,7 +41,7 @@ Example: `choco install thunderbird-mozilla --pre --params "'/Language:es-MX'"`
       <!-- Get-PackageParameters, used by chocolateyinstall.ps1, is built into Chocolatey since 0.10.8 -->
       <dependency id="chocolatey" version="0.10.8" />
     </dependencies>
-    <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/157.0beta/releasenotes/</releaseNotes>
+    <releaseNotes>https://www.thunderbird.net/en-US/thunderbird/158.0beta/releasenotes/</releaseNotes>
   </metadata>
   <files>
     <!-- Only the install/uninstall scripts are packaged (not update.ps1) -->
