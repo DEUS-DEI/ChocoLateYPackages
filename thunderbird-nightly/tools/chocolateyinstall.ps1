@@ -7,7 +7,7 @@ if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
 
 $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $version  = '159.0a1'
-$baseUrl  = 'https://ftp.mozilla.org/pub/thunderbird/nightly/2026/09'
+$baseUrl  = 'https://ftp.mozilla.org/pub/thunderbird/nightly/2026/10'
 
 # Package parameters: /Language:es-MX  /Arch:win32
 $pp   = Get-PackageParameters
