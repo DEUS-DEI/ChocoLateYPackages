@@ -169,6 +169,8 @@ Describe 'Install scripts' -Skip:$NoChocolatey {
         Mock Install-ChocolateyInstallPackage { }
         # Fenix 2.x downloads a ZIP with the setup program inside: leave one where the script looks for it
         Mock Install-ChocolateyZipPackage { New-Item -ItemType File -Path (Join-Path $UnzipLocation 'setup.exe') -Force | Out-Null }
+        # Fenix 3.x starts a second PowerShell that accepts the notice of its setup program
+        Mock Start-Process { }
     }
 
     It '<Package>: one download from its embedded https URL, verified with sha256' -ForEach $Installers {
@@ -180,6 +182,21 @@ Describe 'Install scripts' -Skip:$NoChocolatey {
         Should -Invoke $command -Times 1 -Exactly -ParameterFilter {
             (($Url -like 'https://*' -and $Checksum -match '^[0-9a-fA-F]{64}$' -and $ChecksumType -eq 'sha256') -or
              ($Url64bit -like 'https://*' -and $Checksum64 -match '^[0-9a-fA-F]{64}$' -and $ChecksumType64 -eq 'sha256')) }
+    }
+
+    It 'fenix-web-server <Stream>: the helper that accepts the usage statistics notice is started <Times> time(s)' -ForEach @(
+        @{ Stream = '3.x (setup program)'; Url = 'https://example.org/Fenix.Setup.3.0.0-rc.13.exe'; Times = 1 },
+        @{ Stream = '2.x (ZIP)'; Url = 'https://example.org/fenix-windows-2.0.0.zip'; Times = 0 }) {
+        # The repository holds the stream AU updated last: the script of each stream is built from it
+        $tools = Join-Path $TestDrive "fenix-stream-$Times\tools"
+        New-Item -ItemType Directory -Path $tools -Force | Out-Null
+        $text = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'fenix-web-server\tools\chocolateyinstall.ps1'))
+        $text = $text -replace "(?m)^(\s*url\s*=\s*)'.*'", "`${1}'$Url'"
+        [System.IO.File]::WriteAllText((Join-Path $tools 'chocolateyinstall.ps1'), $text)
+        Set-PackageEnvironment 'fenix-web-server' '3.0.0-rc13'
+        Invoke-PackageScript (Join-Path $tools 'chocolateyinstall.ps1') | Out-Null
+        Should -Invoke Start-Process -Times $Times -Exactly -ParameterFilter {
+            $FilePath -like '*\powershell.exe' -and "$ArgumentList" -like "*$tools\AcceptUsageNotice.ps1*" }
     }
 
     It '<Package> /Arch:<Arch> installs <Expected>' -ForEach @(
@@ -206,6 +223,40 @@ Describe 'Install scripts' -Skip:$NoChocolatey {
         $warnings = Invoke-PackageScript (Join-Path $script:RepoRoot "$Package\tools\chocolateyinstall.ps1")
         $warnings | Should -BeLike "Language 'es-CO' is not available*"
         Should -Invoke Install-ChocolateyPackage -Times 1 -Exactly
+    }
+}
+
+Describe 'fenix-web-server: AcceptUsageNotice.ps1 (real message boxes)' {
+    # The Fenix 3.x setup program shows a notice that has to be accepted even with /S. The helper is tried
+    # against message boxes like that one, shown by another process (they close by themselves in a moment).
+    BeforeAll {
+        $script:PowerShellExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+        $script:NoticeHelper = Join-Path $script:RepoRoot 'fenix-web-server\tools\AcceptUsageNotice.ps1'
+        function script:Show-MessageBox([string] $Text, [string] $AnswerFile) {
+            $code = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('$Text', 'Fenix Setup', 'OKCancel') | Set-Content -Path '$AnswerFile'"
+            Start-Process -FilePath $script:PowerShellExe -WindowStyle Hidden -PassThru -ArgumentList "-NoProfile -Command `"$code`""
+        }
+        function script:Invoke-NoticeHelper([int] $TimeoutSeconds) {
+            Start-Process -FilePath $script:PowerShellExe -WindowStyle Hidden -PassThru -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$script:NoticeHelper`" -TimeoutSeconds $TimeoutSeconds"
+        }
+    }
+
+    It 'answers OK to the usage statistics notice and leaves another dialog of the setup alone' {
+        $answer = Join-Path $TestDrive 'notice.txt'
+        $other = Show-MessageBox -Text 'Error opening file for writing.' -AnswerFile (Join-Path $TestDrive 'other.txt')
+        $notice = Show-MessageBox -Text 'I understand this application collects non-personally identifiable usage statistics from time to time.' -AnswerFile $answer
+        try {
+            (Invoke-NoticeHelper -TimeoutSeconds 60).ExitCode | Should -Be 0
+            $notice.WaitForExit(15000) | Should -BeTrue
+            Get-Content -Path $answer | Should -Be 'OK'
+            $other.HasExited | Should -BeFalse
+        } finally {
+            foreach ($process in $other, $notice) { if (-not $process.HasExited) { $process.Kill() } }
+        }
+    }
+
+    It 'ends with exit code 1 when the notice never shows up' {
+        (Invoke-NoticeHelper -TimeoutSeconds 2).ExitCode | Should -Be 1
     }
 }
 

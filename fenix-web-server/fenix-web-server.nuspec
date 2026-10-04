@@ -31,6 +31,10 @@
 
 - Stable releases (currently 2.x) install with `choco install fenix-web-server`.
 - Pre-releases (3.x betas / release candidates) are published as prerelease versions of this same package: `choco install fenix-web-server --pre`. They replace the former `fenix-web-server-pre` package.
+
+## Usage statistics notice (3.x pre-releases)
+
+The Fenix 3.x setup program asks you to accept this notice, also in silent mode: *"I understand this application collects non-personally identifiable usage statistics from time to time. This information does not contain any data about you or your company. It is used to help Author.io improve, maintain, and support your development experience."* So that the install can run unattended, **this package accepts the notice for you**. Do not install the pre-release if you do not agree with it. The stable 2.x release shows no such notice.
 ]]></description>
     <releaseNotes>https://github.com/coreybutler/fenix/releases</releaseNotes>
   </metadata>

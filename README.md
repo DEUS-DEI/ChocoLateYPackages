@@ -63,6 +63,7 @@ Este repositorio sigue las guías de moderación de Chocolatey:
 7.  **Compatibles con PowerShell v2**: los scripts que se ejecutan al instalar evitan sintaxis de PowerShell 3+ (requisito de la revisión de moderadores).
 8.  **Deprecación según la guía oficial**: los bridges llevan `[Deprecated]` en el título, `<files />`, sin icono y con dependencia con versión mínima.
 9.  **Checksums que el validador puede leer (CPMR0073)**: el validador automático no ejecuta los scripts, así que el checksum de cada descarga va escrito en `chocolateyinstall.ps1` como literal (o en una variable que solo recibe literales). Un checksum elegido al instalar (`$installer.Hash`, `$tabla['checksum']`, un archivo en `tools\`) verifica igual el binario, pero el validador lo marca como «descarga sin checksum» y retiene la versión. Por eso los Thunderbird llevan un `switch` con el SHA256 de cada idioma/arquitectura, que `update.ps1` reescribe en cada versión. Lo vigila `tests/Packages.Tests.ps1`.
+10. **Instalación desatendida de verdad (Fenix 3.x)**: su instalador muestra, incluso con `/S`, un aviso que hay que aceptar («la aplicación recoge estadísticas de uso no personales») y no tiene parámetro para saltarlo, así que la instalación se quedaba esperando hasta agotar el tiempo. `fenix-web-server\tools\AcceptUsageNotice.ps1` responde OK a ese aviso (y solo a ese) mientras corre el instalador, y la descripción del paquete avisa de que instalar la prerelease lo acepta. Fenix 2.x no muestra ningún aviso.
 
 ## 🛠️ Cómo mantener este repo
 

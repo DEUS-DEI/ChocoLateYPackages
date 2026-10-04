@@ -3,7 +3,11 @@ if (-not (Get-Module Chocolatey-AU, AU)) { Import-Module Chocolatey-AU }
 
 # Package-only fixes of an upstream version that was already published (Chocolatey "fix version"
 # notation). Upstream is still at 2.0.0, so the corrected scripts are published as 2.0.0.20260926.
-$packageFixes = @{ '2.0.0' = '2.0.0.20260926' }
+# 3.0.0-rc13 could not be installed unattended (its setup waits at a notice even with /S): the package
+# that accepts the notice is published as 3.0.0-rc13-20261004. Not as 3.0.0.20261004-rc13, the usual fix
+# notation: a fourth number would sort it above 3.0.0-rc14 and above 3.0.0 itself, which then would never be
+# installed; a longer label sorts after rc13 and before rc14.
+$packageFixes = @{ '2.0.0' = '2.0.0.20260926'; '3.0.0-rc13' = '3.0.0-rc13-20261004' }
 
 function global:au_SearchReplace {
   @{
