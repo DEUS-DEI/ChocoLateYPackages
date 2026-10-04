@@ -44,6 +44,34 @@ Describe 'test safety net' {
         { Assert-FakeChocoFirst -Exe $fake -Path "$other;$script:FakePath" } | Should -Throw '*not the first one in PATH*'
     }
 }
+Describe 'deprecated bridges' {
+    # Tried with choco 2.7.4 against the community feed. When the package a bridge depends on only has
+    # prerelease versions, choco resolves that dependency if the bridge is a prerelease itself ("choco upgrade
+    # <old id>" and "choco upgrade all" then work without --pre) and never if the bridge is a stable version:
+    # "Unable to resolve dependency", whatever the lower bound of the dependency is.
+    BeforeDiscovery {
+        $script:BridgeFiles = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'deprecated\*\*.nuspec') |
+            ForEach-Object { @{ Bridge = $_.BaseName; Path = $_.FullName } })
+    }
+
+    It '<Bridge> follows the deprecation guide and can resolve its dependency' -ForEach $BridgeFiles {
+        $package = ([xml](Get-Content -LiteralPath $Path -Raw)).package
+        $package.metadata.id | Should -Be $Bridge
+        $package.metadata.title | Should -Match '^\[Deprecated\] '
+        $package.metadata.SelectSingleNode('*[local-name()="iconUrl"]') | Should -BeNullOrEmpty
+        $files = $package.SelectSingleNode('*[local-name()="files"]')
+        $files | Should -Not -BeNullOrEmpty -Because 'without <files /> choco packs every file of the folder'
+        $files.HasChildNodes | Should -BeFalse
+
+        $dependencies = @($package.metadata.dependencies.dependency)
+        $dependencies.Count | Should -Be 1
+        $dependencies[0].id | Should -Not -Be $Bridge
+        if ($dependencies[0].version -match '-') {
+            $package.metadata.version | Should -Match '-' -Because 'choco only resolves a prerelease dependency for a prerelease package'
+        }
+    }
+}
+
 Describe 'push_deprecated.bat' {
     BeforeAll {
         $script:Bridges = @(Get-ChildItem -LiteralPath (Join-Path $script:Special 'deprecated') -Directory | ForEach-Object Name)
@@ -61,7 +89,8 @@ Describe 'push_deprecated.bat' {
             $line | Should -Match ([regex]::Escape("cwd=[$script:Special\deprecated\"))
         }
         foreach ($bridge in $script:Bridges) {
-            $log -match "\[push\] \[$([regex]::Escape($bridge))\.999\.0\.0\.nupkg\] \[--source=https://push\.chocolatey\.org/\]" | Should -Not -BeNullOrEmpty
+            $version = ([xml](Get-Content -LiteralPath (Join-Path $script:Special "deprecated\$bridge\$bridge.nuspec") -Raw)).package.metadata.version
+            $log -match "\[push\] \[$([regex]::Escape("$bridge.$version"))\.nupkg\] \[--source=https://push\.chocolatey\.org/\]" | Should -Not -BeNullOrEmpty
         }
         Join-Path $script:Caller 'canary.nupkg' | Should -Exist
         @(Get-ChildItem -LiteralPath (Join-Path $script:Special 'deprecated') -Recurse -Filter '*.nupkg').Count | Should -Be 0

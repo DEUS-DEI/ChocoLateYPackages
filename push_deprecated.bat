@@ -15,9 +15,16 @@ echo.
 
 REM ============================================================
 REM  BRIDGES DE TRANSICION (ID retirado)
-REM  Se publica v999.0.0 (solo el nuspec, <files />) con una
-REM  dependencia del paquete nuevo, para que los usuarios
-REM  existentes actualicen automaticamente al nuevo ID.
+REM  Se publica una version PRERELEASE (999.0.1-deprecated: solo
+REM  el nuspec, <files />) con una dependencia del paquete nuevo,
+REM  para que los usuarios existentes actualicen automaticamente
+REM  al nuevo ID.
+REM
+REM  Prerelease y no estable: los paquetes destino solo publican
+REM  prereleases, y choco solo resuelve una dependencia prerelease
+REM  si el paquete que la pide tambien lo es (o con --pre). Con un
+REM  bridge estable, "choco upgrade" falla siempre con "Unable to
+REM  resolve dependency" (comprobado con choco 2.7.4).
 REM
 REM  fenix-web-server-beta  --> fenix-web-server (pre-releases)
 REM  fenix-web-server-pre   --> fenix-web-server (pre-releases)
@@ -40,6 +47,8 @@ echo NOTAS IMPORTANTES:
 echo  - Publica cada bridge DESPUES de que se apruebe la version
 echo    del paquete destino de la que depende (si no, la
 echo    verificacion automatica no puede instalarlo).
+echo  - Una version rechazada no se puede volver a subir: sube el
+echo    numero de version del nuspec (999.0.2-deprecated, ...).
 echo  - Si el validador marca CPMR0024 (beta/pre en el ID),
 echo    responde en la revision que es la deprecacion de un ID
 echo    ya existente, siguiendo la guia oficial:
