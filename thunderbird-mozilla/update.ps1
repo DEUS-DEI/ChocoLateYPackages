@@ -12,13 +12,52 @@ function global:au_SearchReplace {
   }
 }
 
-function global:au_BeforeUpdate {
-  # Embed only the Windows installer lines of Mozilla's SHA256SUMS manifest (~1600 lines -> ~130)
-  $pattern = '^[0-9a-f]{64}\s+win(32|64)/[^/]+/Thunderbird Setup ' + [regex]::Escape($Latest.AppVersion) + '\.exe$'
-  $lines   = [System.Net.WebClient]::new().DownloadString($Latest.ChecksumsUrl) -split '\r?\n' -match $pattern
-  if (-not ($lines -match ' win64/en-US/')) { throw "No Windows installers found in $($Latest.ChecksumsUrl)" }
+function Write-InstallScriptBlock([string] $Name, [string[]] $Lines) {
+  # Replaces the lines between "# <Name>" and "# </Name>" of the install script
+  $path = '.\tools\chocolateyinstall.ps1'
+  $text = @(Get-Content -Path $path -Encoding UTF8)
+  $from = [array]::IndexOf($text, "# <$Name>")
+  $to   = [array]::IndexOf($text, "# </$Name>")
+  if ($from -lt 0 -or $to -le $from) { throw "Block <$Name> not found in $path" }
+  Set-Content -Path $path -Value ($text[0..$from] + $Lines + $text[$to..($text.Count - 1)]) -Encoding UTF8
+}
 
-  Set-Content -Path '.\tools\checksums.txt' -Value $lines -Encoding Ascii
+function Write-InstallerTable([object[]] $Installers) {
+  # Writes the installers (Arch, Lang, Hash) into the install script as literals. A checksum looked up at
+  # install time (a table, a file in tools\) fails Chocolatey's package validator: rule CPMR0073 only
+  # accepts a checksum that it can read in the script, and the version stays held in moderation.
+  $Installers = @($Installers | Sort-Object -Property Arch, Lang)
+  $repeated   = @($Installers | Group-Object -Property Arch, Lang | Where-Object { $_.Count -gt 1 })
+  if ($repeated) { throw "Installers listed more than once: $($repeated.Name -join '; ')" }
+
+  $languages = foreach ($arch in $Installers.Arch | Select-Object -Unique) {
+    $names = @($Installers | Where-Object { $_.Arch -eq $arch } | ForEach-Object { "'$($_.Lang)'" })
+    "  $arch = @("
+    for ($i = 0; $i -lt $names.Count; $i += 12) {
+      $last = [Math]::Min($i + 11, $names.Count - 1)
+      '    ' + ($names[$i..$last] -join ', ') + $(if ($last -lt $names.Count - 1) { ',' })
+    }
+    '  )'
+  }
+  Write-InstallScriptBlock -Name 'languages' -Lines (@('$languages = @{') + $languages + '}')
+
+  $width     = ($Installers | ForEach-Object { "$($_.Arch)/$($_.Lang)".Length } | Measure-Object -Maximum).Maximum + 2
+  $checksums = $Installers | ForEach-Object { "  {0,-$width} {{ `$checksum = '{1}' }}" -f "'$($_.Arch)/$($_.Lang)'", $_.Hash }
+  $default   = "  {0,-$width} {{ throw `"No Thunderbird `$version installer found for '`$arch/`$language'.`" }}" -f 'default'
+  Write-InstallScriptBlock -Name 'checksums' -Lines (@('switch ("$arch/$language") {') + $checksums + $default + '}')
+}
+
+function global:au_BeforeUpdate {
+  # Only the Windows installers of Mozilla's SHA256SUMS manifest (~1600 lines -> ~130)
+  $pattern    = '^(?<hash>[0-9a-f]{64})\s+(?<arch>win32|win64)/(?<lang>[^/]+)/Thunderbird Setup ' + [regex]::Escape($Latest.AppVersion) + '\.exe$'
+  $installers = foreach ($line in [System.Net.WebClient]::new().DownloadString($Latest.ChecksumsUrl) -split '\r?\n') {
+    if ($line -match $pattern) { [pscustomobject]@{ Arch = $Matches.arch; Lang = $Matches.lang; Hash = $Matches.hash } }
+  }
+  if (-not ($installers | Where-Object { $_.Arch -eq 'win64' -and $_.Lang -eq 'en-US' })) {
+    throw "No Windows installers found in $($Latest.ChecksumsUrl)"
+  }
+
+  Write-InstallerTable -Installers $installers
 }
 
 function global:au_GetLatest {

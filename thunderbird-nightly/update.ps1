@@ -8,8 +8,44 @@ function global:au_SearchReplace {
     '.\tools\chocolateyinstall.ps1' = @{
       "(?i)(^\s*[$]version\s*=\s*)'.*'" = "`${1}'$($Latest.AppVersion)'"
       "(?i)(^\s*[$]baseUrl\s*=\s*)'.*'" = "`${1}'$($Latest.BaseUrl)'"
+      "(?i)(^\s*[$]build\s*=\s*)'.*'"   = "`${1}'$($Latest.BuildFolder)'"
     }
   }
+}
+
+function Write-InstallScriptBlock([string] $Name, [string[]] $Lines) {
+  # Replaces the lines between "# <Name>" and "# </Name>" of the install script
+  $path = '.\tools\chocolateyinstall.ps1'
+  $text = @(Get-Content -Path $path -Encoding UTF8)
+  $from = [array]::IndexOf($text, "# <$Name>")
+  $to   = [array]::IndexOf($text, "# </$Name>")
+  if ($from -lt 0 -or $to -le $from) { throw "Block <$Name> not found in $path" }
+  Set-Content -Path $path -Value ($text[0..$from] + $Lines + $text[$to..($text.Count - 1)]) -Encoding UTF8
+}
+
+function Write-InstallerTable([object[]] $Installers) {
+  # Writes the installers (Arch, Lang, Hash) into the install script as literals. A checksum looked up at
+  # install time (a table, a file in tools\) fails Chocolatey's package validator: rule CPMR0073 only
+  # accepts a checksum that it can read in the script, and the version stays held in moderation.
+  $Installers = @($Installers | Sort-Object -Property Arch, Lang)
+  $repeated   = @($Installers | Group-Object -Property Arch, Lang | Where-Object { $_.Count -gt 1 })
+  if ($repeated) { throw "Installers listed more than once: $($repeated.Name -join '; ')" }
+
+  $languages = foreach ($arch in $Installers.Arch | Select-Object -Unique) {
+    $names = @($Installers | Where-Object { $_.Arch -eq $arch } | ForEach-Object { "'$($_.Lang)'" })
+    "  $arch = @("
+    for ($i = 0; $i -lt $names.Count; $i += 12) {
+      $last = [Math]::Min($i + 11, $names.Count - 1)
+      '    ' + ($names[$i..$last] -join ', ') + $(if ($last -lt $names.Count - 1) { ',' })
+    }
+    '  )'
+  }
+  Write-InstallScriptBlock -Name 'languages' -Lines (@('$languages = @{') + $languages + '}')
+
+  $width     = ($Installers | ForEach-Object { "$($_.Arch)/$($_.Lang)".Length } | Measure-Object -Maximum).Maximum + 2
+  $checksums = $Installers | ForEach-Object { "  {0,-$width} {{ `$checksum = '{1}' }}" -f "'$($_.Arch)/$($_.Lang)'", $_.Hash }
+  $default   = "  {0,-$width} {{ throw `"No Thunderbird Daily `$version installer found for '`$arch/`$language'.`" }}" -f 'default'
+  Write-InstallScriptBlock -Name 'checksums' -Lines (@('switch ("$arch/$language") {') + $checksums + $default + '}')
 }
 
 function global:au_BeforeUpdate {
@@ -19,21 +55,27 @@ function global:au_BeforeUpdate {
   $client  = [System.Net.WebClient]::new()
   $release = [regex]::Escape($Latest.AppVersion)
 
-  $lines = foreach ($folder in "$($Latest.BuildFolder)-comm-central", "$($Latest.BuildFolder)-comm-central-l10n") {
-    $listing   = $client.DownloadString("$($Latest.BaseUrl)/$folder/")
+  $installers = foreach ($suffix in 'comm-central', 'comm-central-l10n') {
+    $folder    = "$($Latest.BaseUrl)/$($Latest.BuildFolder)-$suffix"
+    $listing   = $client.DownloadString("$folder/")
     $manifests = [regex]::Matches($listing, "thunderbird-$release\.[A-Za-z-]+\.win(32|64)\.checksums") | ForEach-Object Value | Sort-Object -Unique
 
     foreach ($manifest in $manifests) {
-      foreach ($line in $client.DownloadString("$($Latest.BaseUrl)/$folder/$manifest") -split '\r?\n') {
-        if ($line -match '^(?<hash>[0-9a-f]{64}) sha256 \d+ (?<file>\S+\.installer\.exe)$') {
-          '{0}  {1}/{2}' -f $Matches.hash, $folder, $Matches.file
+      foreach ($line in $client.DownloadString("$folder/$manifest") -split '\r?\n') {
+        # The install script builds the URL from these three values (see its $folder), so anything
+        # published under another name or in the other folder is left out
+        if ($line -match "^(?<hash>[0-9a-f]{64}) sha256 \d+ thunderbird-$release\.(?<lang>[A-Za-z-]+)\.(?<arch>win32|win64)\.installer\.exe$" -and
+            ($Matches.lang -eq 'en-US') -eq ($suffix -eq 'comm-central')) {
+          [pscustomobject]@{ Arch = $Matches.arch; Lang = $Matches.lang; Hash = $Matches.hash }
         }
       }
     }
   }
-  if (-not ($lines -match '\.en-US\.win64\.installer\.exe$')) { throw "en-US installer not found for build $($Latest.BuildFolder)" }
+  if (-not ($installers | Where-Object { $_.Arch -eq 'win64' -and $_.Lang -eq 'en-US' })) {
+    throw "en-US installer not found for build $($Latest.BuildFolder)"
+  }
 
-  Set-Content -Path '.\tools\checksums.txt' -Value $lines -Encoding Ascii
+  Write-InstallerTable -Installers $installers
 }
 
 function global:au_GetLatest {

@@ -29,9 +29,8 @@ GitHub Actions revisa, empaqueta y publica los paquetes **todos los días** (cro
 ├── update.ps1                # Chocolatey-AU: au_GetLatest / au_SearchReplace del paquete
 ├── <paquete>.json            # Solo fenix-web-server: versión publicada de cada stream (AU)
 └── tools/
-    ├── chocolateyinstall.ps1   # URL + checksum (AU los actualiza)
-    ├── chocolateyuninstall.ps1
-    └── checksums.txt           # Solo Thunderbird: checksums oficiales por idioma/arquitectura
+    ├── chocolateyinstall.ps1   # URL + checksum literales (AU los actualiza; Thunderbird lleva uno por idioma/arquitectura)
+    └── chocolateyuninstall.ps1
 icons/                        # Iconos de los paquetes (servidos por jsDelivr fijado a un commit)
 deprecated/                   # Bridges de IDs retirados (push_deprecated.bat)
 update_all.ps1 / .bat         # Orquestador: actualiza, publica y sincroniza Git
@@ -63,6 +62,7 @@ Este repositorio sigue las guías de moderación de Chocolatey:
 6.  **Iconos propios**: PNG de 256 px alojados en `icons/` y servidos por jsDelivr fijado a un commit (Chocolatey prohíbe `raw.githubusercontent.com` y exige que el mantenedor controle el icono).
 7.  **Compatibles con PowerShell v2**: los scripts que se ejecutan al instalar evitan sintaxis de PowerShell 3+ (requisito de la revisión de moderadores).
 8.  **Deprecación según la guía oficial**: los bridges llevan `[Deprecated]` en el título, `<files />`, sin icono y con dependencia con versión mínima.
+9.  **Checksums que el validador puede leer (CPMR0073)**: el validador automático no ejecuta los scripts, así que el checksum de cada descarga va escrito en `chocolateyinstall.ps1` como literal (o en una variable que solo recibe literales). Un checksum elegido al instalar (`$installer.Hash`, `$tabla['checksum']`, un archivo en `tools\`) verifica igual el binario, pero el validador lo marca como «descarga sin checksum» y retiene la versión. Por eso los Thunderbird llevan un `switch` con el SHA256 de cada idioma/arquitectura, que `update.ps1` reescribe en cada versión. Lo vigila `tests/Packages.Tests.ps1`.
 
 ## 🛠️ Cómo mantener este repo
 
@@ -92,6 +92,8 @@ En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede confi
 > **Streams (`fenix-web-server`)**: cada ejecución publica por separado la versión estable y la prerelease. Si solo se publica una, la otra se reintenta en la siguiente ejecución. `-Force` re-empaqueta únicamente el stream que está en ese momento en la carpeta.
 
 > **Versión publicada sin commit en Git** (p. ej. el runner no pudo hacer push): AU la salta porque ya existe en Chocolatey. `update_all.ps1` lo detecta, actualiza los archivos sin volver a publicarla y hace el commit (estado `Registrado`).
+
+> **Push rechazado con `403 (Forbidden)`**: la API key no suele ser la causa (compruébalo: los demás paquetes se publican en la misma ejecución). Chocolatey rechaza una versión nueva mientras una anterior del mismo paquete siga retenida en moderación y el paquete no tenga ninguna versión estable aprobada, que es el caso de los que solo publican prereleases. Abre `https://community.chocolatey.org/packages/<id>/<versión anterior>`: si dice *Waiting for Maintainer*, corrige lo que pide el validador y vuelve a subir **esa misma versión** (`choco pack` y `choco push` en la carpeta del paquete con el nuspec todavía en esa versión; `-Force` solo sirve si no hay una versión más nueva, porque si la hay AU actualiza primero). Cuando quede exenta o aprobada, la siguiente ejecución publica la nueva.
 
 > **Nuevos iconos**: añade el PNG a `icons/`, haz commit y usa `https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@<commit>/icons/<id>.png`.
 

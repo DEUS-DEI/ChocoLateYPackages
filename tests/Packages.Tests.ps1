@@ -209,6 +209,111 @@ Describe 'Install scripts' -Skip:$NoChocolatey {
     }
 }
 
+Describe 'Checksums that Chocolatey''s package validator can read (rule CPMR0073)' {
+    # The validator reads the scripts without running them. A download whose checksum is decided at install
+    # time ($installer.Hash, $table['checksum'], a file in tools\) fails its requirement CPMR0073, the version
+    # is held in moderation and Chocolatey answers 403 to every later version of the package. What passes is
+    # a quoted checksum, or a plain variable that only ever receives quoted checksums.
+    BeforeDiscovery {
+        $script:ToolScripts = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) '*\tools\*.ps1') |
+            ForEach-Object { @{ Script = "$($_.Directory.Parent.Name)\tools\$($_.Name)" } })
+    }
+
+    BeforeAll {
+        function script:Get-WrittenString($Ast, $Expression, [int] $Depth = 0) {
+            # The strings an argument can be when all of them are written in the script; nothing otherwise
+            if ($Expression -is [System.Management.Automation.Language.StringConstantExpressionAst]) { return , @($Expression.Value) }
+            if ($Expression -isnot [System.Management.Automation.Language.VariableExpressionAst] -or $Expression.Splatted -or $Depth -gt 5) { return }
+            $name = $Expression.VariablePath.UserPath
+            $assignments = @($Ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -eq $name }, $true))
+            if (-not $assignments) { return }
+            $values = foreach ($assignment in $assignments) {
+                if ($assignment.Right -isnot [System.Management.Automation.Language.CommandExpressionAst]) { return }
+                $written = Get-WrittenString -Ast $Ast -Expression $assignment.Right.Expression -Depth ($Depth + 1)
+                if (-not $written) { return }
+                $written
+            }
+            , @($values)
+        }
+
+        function script:Get-UnreadableDownload([string] $Text) {
+            # One line for every download of the script whose checksum the validator cannot read
+            $ast = [System.Management.Automation.Language.Parser]::ParseInput($Text, [ref]$null, [ref]$null)
+            $helpers = 'Install-ChocolateyPackage', 'Install-ChocolateyZipPackage', 'Get-ChocolateyWebFile',
+                'Install-ChocolateyPowershellCommand', 'Install-ChocolateyVsixPackage'
+            $calls = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
+            foreach ($call in $calls) {
+                $helper = $call.GetCommandName()
+                if ($helper -eq 'Get-WebFile' -or $helper -eq 'Get-FtpFile') { "$helper downloads without a checksum" }
+                if ($helpers -notcontains $helper) { continue }
+
+                # Arguments by name (hashtable keys are case-insensitive): -Name value, or the table that is splatted
+                $arguments = @{}
+                $elements = @($call.CommandElements)
+                for ($i = 1; $i -lt $elements.Count; $i++) {
+                    $element = $elements[$i]
+                    if ($element -is [System.Management.Automation.Language.CommandParameterAst]) {
+                        $value = $element.Argument
+                        if (-not $value -and $i + 1 -lt $elements.Count -and $elements[$i + 1] -isnot [System.Management.Automation.Language.CommandParameterAst]) { $value = $elements[++$i] }
+                        $arguments[$element.ParameterName] = $value
+                    } elseif ($element -is [System.Management.Automation.Language.VariableExpressionAst] -and $element.Splatted) {
+                        $name = $element.VariablePath.UserPath
+                        $tables = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                                    $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -eq $name }, $true) |
+                                ForEach-Object { $_.Right } | Where-Object { $_ -is [System.Management.Automation.Language.CommandExpressionAst] } |
+                                ForEach-Object { $_.Expression } | Where-Object { $_ -is [System.Management.Automation.Language.HashtableAst] })
+                        if ($tables.Count -ne 1) { "$helper @$name : the splatted table is not written once in the script"; continue }
+                        foreach ($pair in $tables[0].KeyValuePairs) {
+                            $statement = $pair.Item2
+                            $arguments[[string]$pair.Item1.Value] = if ($statement -is [System.Management.Automation.Language.PipelineAst] -and
+                                $statement.PipelineElements.Count -eq 1 -and
+                                $statement.PipelineElements[0] -is [System.Management.Automation.Language.CommandExpressionAst]) {
+                                $statement.PipelineElements[0].Expression
+                            } else { $statement }
+                        }
+                    }
+                }
+
+                $urls = @('Url', 'VsixUrl', 'Url64bit', 'Url64' | Where-Object { $arguments.ContainsKey($_) })
+                if (-not $urls) { "$helper : no url argument found (positional arguments are not read)" }
+                foreach ($url in $urls) {
+                    $checksum = if ($url -like '*64*') { 'Checksum64' } else { 'Checksum' }
+                    $written = if ($arguments.ContainsKey($checksum)) { Get-WrittenString -Ast $ast -Expression $arguments[$checksum] }
+                    if (-not $written -or @($written | Where-Object { $_ -notmatch '^[0-9a-fA-F]{64}$' })) {
+                        "$helper -$url : -$checksum is not a sha256 written in the script"
+                    }
+                }
+            }
+        }
+    }
+
+    It '<Script>: every download carries a checksum written in the script' -ForEach $ToolScripts {
+        $text = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot $Script))
+        @(Get-UnreadableDownload -Text $text) | Should -BeNullOrEmpty
+    }
+
+    It 'accepts <Case>' -ForEach @(
+        @{ Case = 'a quoted checksum in the splatted table'
+            Text = "`$packageArgs = @{ url64bit = 'https://example.org/a.exe'; checksum64 = '$('a' * 64)' }`nInstall-ChocolateyPackage @packageArgs" },
+        @{ Case = 'a variable that only receives quoted checksums'
+            Text = "switch (`$arch) { 'win32' { `$checksum = '$('a' * 64)' } 'win64' { `$checksum = '$('b' * 64)' } }`nInstall-ChocolateyPackage -Url `$url -Checksum `$checksum" }) {
+        @(Get-UnreadableDownload -Text $Text) | Should -BeNullOrEmpty
+    }
+
+    It 'rejects <Case>' -ForEach @(
+        @{ Case = 'a checksum taken from an object chosen at install time (thunderbird-mozilla 158.0.0-beta1)'
+            Text = "`$packageArgs = @{ url = `"`$baseUrl/`$(`$installer.Path)`"; checksum = `$installer.Hash }`nInstall-ChocolateyPackage @packageArgs" },
+        @{ Case = 'a checksum read from a table (fenix-web-server 2.0.0.20260926)'
+            Text = "`$download = @{ url = 'https://example.org/a.zip'; checksum = '$('a' * 64)' }`nInstall-ChocolateyZipPackage -Url `$download['url'] -Checksum `$download['checksum']" },
+        @{ Case = 'a variable filled at install time'
+            Text = "`$checksum = (Get-Content -Path `$file)[0]`nInstall-ChocolateyPackage -Url 'https://example.org/a.exe' -Checksum `$checksum" },
+        @{ Case = 'a download without checksum'
+            Text = "Get-ChocolateyWebFile -PackageName 'a' -FileFullPath `$file -Url 'https://example.org/a.txt'" }) {
+        @(Get-UnreadableDownload -Text $Text) | Should -Not -BeNullOrEmpty
+    }
+}
+
 Describe 'flarectl install (real download and extraction)' -Skip:$NoChocolatey {
     BeforeAll {
         # A .tar.gz shaped like the real release: a tar with flarectl.exe, gzip without an embedded file name

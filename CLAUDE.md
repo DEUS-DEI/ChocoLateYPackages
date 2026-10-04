@@ -14,6 +14,11 @@ y como mantenerlo.
 - Los scripts de `*/tools/` se ejecutan al instalar y tienen que funcionar en **PowerShell v2** (regla de los
   moderadores). PSScriptAnalyzer no puede comprobarlo: pasar ademas la busqueda con `Select-String` del README
   (seccion "Analisis estatico") y, ante la duda, evitar cualquier cosa de v3 o posterior.
+- En `*/tools/`, el checksum de cada descarga (`Install-ChocolateyPackage`, `Install-ChocolateyZipPackage`,
+  `Get-ChocolateyWebFile`) va escrito en el script: un literal, o una variable que solo recibe literales. El
+  validador de Chocolatey no ejecuta el script (regla CPMR0073): si el checksum sale de un objeto, una tabla o un
+  archivo, retiene la version en moderacion y Chocolatey responde 403 a las siguientes. Lo comprueba
+  `tests/Packages.Tests.ps1`; README, "Cumplimiento" punto 9 y nota "Push rechazado con 403".
 - `update_all.ps1` y los `update.ps1` corren en Windows PowerShell 5.1 (`update_all.bat`, `menu.bat` y el workflow).
 - Codificacion: los `chocolateyinstall.ps1` son UTF-8 con BOM; los demas `.ps1`, ASCII. Los `.bat` en CRLF.
 

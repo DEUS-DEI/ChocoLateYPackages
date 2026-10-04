@@ -5,9 +5,10 @@ if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
   throw 'Thunderbird Daily requires Windows 10 or newer.'
 }
 
-$toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$version  = '159.0a1'
-$baseUrl  = 'https://ftp.mozilla.org/pub/thunderbird/nightly/2026/10'
+# One nightly build, in its immutable dated folders ("latest" is overwritten every day)
+$version = '159.0a1'
+$baseUrl = 'https://ftp.mozilla.org/pub/thunderbird/nightly/2026/10'
+$build   = '2026-10-02-10-50-20'
 
 # Package parameters: /Language:es-MX  /Arch:win32
 $pp   = Get-PackageParameters
@@ -22,40 +23,191 @@ $arch = if ($pp['Arch']) {
         elseif ((Get-OSArchitectureWidth -Compare 64) -and $env:chocolateyForceX86 -ne 'true') { 'win64' }
         else { 'win32' }
 
-# tools\checksums.txt holds the sha256 of every installer of this nightly build, taken from Mozilla's
-# manifests: "<sha256>  <build folder>/thunderbird-<version>.<lang>.<arch>.installer.exe"
-$installers = Get-Content -Path (Join-Path $toolsDir 'checksums.txt') | ForEach-Object {
-  if ($_ -match '^(?<hash>[0-9a-fA-F]{64})\s+(?<path>\S+/thunderbird-.+?\.(?<lang>[A-Za-z-]+)\.(?<arch>win32|win64)\.installer\.exe)$') {
-    New-Object PSObject -Property @{ Hash = $Matches.hash; Path = $Matches.path; Arch = $Matches.arch; Lang = $Matches.lang }
-  }
-} | Where-Object { $_.Arch -eq $arch }
+# Languages of the installers of this build, from Mozilla's manifests (block written by update.ps1)
+# <languages>
+$languages = @{
+  win32 = @(
+    'af', 'ar', 'ast', 'be', 'bg', 'br', 'ca', 'cak', 'cs', 'cy', 'da', 'de',
+    'dsb', 'el', 'en-CA', 'en-GB', 'en-US', 'es-AR', 'es-ES', 'es-MX', 'et', 'eu', 'fi', 'fr',
+    'fy-NL', 'ga-IE', 'gd', 'gl', 'he', 'hr', 'hsb', 'hu', 'hy-AM', 'id', 'is', 'it',
+    'ja', 'ka', 'kab', 'kk', 'ko', 'lt', 'lv', 'mk', 'ms', 'nb-NO', 'nl', 'nn-NO',
+    'pa-IN', 'pl', 'pt-BR', 'pt-PT', 'rm', 'ro', 'ru', 'sk', 'sl', 'sq', 'sr', 'sv-SE',
+    'th', 'tr', 'uk', 'uz', 'vi', 'zh-CN', 'zh-TW'
+  )
+  win64 = @(
+    'af', 'ar', 'ast', 'be', 'bg', 'br', 'ca', 'cak', 'cs', 'cy', 'da', 'de',
+    'dsb', 'el', 'en-CA', 'en-GB', 'en-US', 'es-AR', 'es-ES', 'es-MX', 'et', 'eu', 'fi', 'fr',
+    'fy-NL', 'ga-IE', 'gd', 'gl', 'he', 'hr', 'hsb', 'hu', 'hy-AM', 'id', 'is', 'it',
+    'ja', 'ka', 'kab', 'kk', 'ko', 'lt', 'lv', 'mk', 'ms', 'nb-NO', 'nl', 'nn-NO',
+    'pa-IN', 'pl', 'pt-BR', 'pt-PT', 'rm', 'ro', 'ru', 'sk', 'sl', 'sq', 'sr', 'sv-SE',
+    'th', 'tr', 'uk', 'uz', 'vi', 'zh-CN', 'zh-TW'
+  )
+}
+# </languages>
 
 # Preferred language: /Language, then the Windows display and regional languages, then en-US.
 # Mozilla uses both full tags (es-MX, pt-BR) and bare languages (de, fr, ja), so for each tag try
 # the exact tag, its base language and any variant of that language.
 $requested = @($pp['Language'], (Get-UICulture).Name, (Get-Culture).Name, 'en-US') | Where-Object { $_ }
-$installer = $null
+$available = @($languages[$arch])
+$language  = $null
 foreach ($tag in $requested) {
   $base = $tag.Split('-')[0]
-  $installer = @($installers | Where-Object { $_.Lang -eq $tag }) + @($installers | Where-Object { $_.Lang -eq $base }) +
-               @($installers | Where-Object { $_.Lang -like "$base-*" }) | Select-Object -First 1
-  if ($installer) { break }
+  $language = @($available | Where-Object { $_ -eq $tag }) + @($available | Where-Object { $_ -eq $base }) +
+              @($available | Where-Object { $_ -like "$base-*" }) | Select-Object -First 1
+  if ($language) { break }
 }
-if (-not $installer) { throw "No Thunderbird Daily $version installer found for architecture '$arch'." }
+if (-not $language) { throw "No Thunderbird Daily $version installer found for architecture '$arch'." }
 # Also warn when an explicit /Language gets a variant (es-CO -> es-AR); the automatic choice stays quiet
-if ($installer.Lang.Split('-')[0] -ne $requested[0].Split('-')[0] -or ($pp['Language'] -and $installer.Lang -ne $pp['Language'])) {
-  Write-Warning "Language '$($requested[0])' is not available for Thunderbird Daily $version; installing '$($installer.Lang)'."
+if ($language.Split('-')[0] -ne $requested[0].Split('-')[0] -or ($pp['Language'] -and $language -ne $pp['Language'])) {
+  Write-Warning "Language '$($requested[0])' is not available for Thunderbird Daily $version; installing '$language'."
 }
 
-$packageArgs = @{
-  packageName    = $env:ChocolateyPackageName
-  fileType       = 'exe'
-  url            = "$baseUrl/$($installer.Path)"
-  checksum       = $installer.Hash
-  checksumType   = 'sha256'
-  softwareName   = 'Thunderbird Daily*'
-  silentArgs     = '-ms'
-  validExitCodes = @(0)
+# sha256 of that installer, from the same manifests (block written by update.ps1). Every checksum is a
+# literal: Chocolatey's package validator (rule CPMR0073) rejects a download whose checksum it cannot read here.
+# <checksums>
+switch ("$arch/$language") {
+  'win32/af'    { $checksum = '4c14b82b7f44c2e0886b1da98b26ab7663dfd6e36030da80663c71d1b8da7512' }
+  'win32/ar'    { $checksum = '6397e7f5af843cbface7bacc5320a56bb03e3a17c760ef98dd47aa4bf0a79143' }
+  'win32/ast'   { $checksum = '4dcf72cfc90e2f874b36c9473019b8bd07c76b80771bd287286146a318984148' }
+  'win32/be'    { $checksum = 'a1502b4137ae49e475c637dcb5b0eed3128bc1efcf319076e952b9db0634d11e' }
+  'win32/bg'    { $checksum = '068d2b5e22a4bbe65059fca9eea9ab4f98b4dc1dc4c319c2ed07821113b0bc01' }
+  'win32/br'    { $checksum = 'a2cd082e3e3a1ebd6a0e0b9df586a5cf697a88d6e447f7417ad930c303d1b863' }
+  'win32/ca'    { $checksum = '148ba12756c5084c9f976fd08111d9343b7dc4cad668ef1d543549666b7929db' }
+  'win32/cak'   { $checksum = 'b793ade5225d0ff5323914d2f9bacf95aa01b8843c38101a0b99941029d72cc4' }
+  'win32/cs'    { $checksum = '94d4ab1e0d9650075f7f3f54e0833646c71d5cdc2e054175a43a8b79b6a62451' }
+  'win32/cy'    { $checksum = 'd393a5a50c8220bf95073bc1d580c552d511fbb596c95d7b5ae5624d2e412d45' }
+  'win32/da'    { $checksum = 'd9b7b3170c408934f5e52a8ffd157257105c642d196440e8a2e8d8f32d86699a' }
+  'win32/de'    { $checksum = 'b7c0b9a4213eb1fe4689dfab12281d38cc351a2be02d9eb1032aecc09ff9996b' }
+  'win32/dsb'   { $checksum = 'e2530380ba35e436de322cf728418d7ccd48e3736682c9bdbc8e932701f5808c' }
+  'win32/el'    { $checksum = '6bb6422146e637210d98716edd1fd4471cd4aa8322ae92a6c6f690ac054ef773' }
+  'win32/en-CA' { $checksum = '68ed08cad76c9a2c27a21f2f97ff14365a8d16e1c5dbf0eed50ab6cbf6c19940' }
+  'win32/en-GB' { $checksum = '0bf611710a8db41ea733f3469c454c3dd31239a41b5b207d7920c5109674d4af' }
+  'win32/en-US' { $checksum = 'd6c79668db292283a70ee504229b841c7dd0aacbac19467fcaec97bea080f692' }
+  'win32/es-AR' { $checksum = '91d58b3f6a1059e5447f3f63750fa19c452df967388e5db937516b00017a1488' }
+  'win32/es-ES' { $checksum = '5a96d326261a269106da2e60bacf5f6e1f23140ee8fc96999076b48b800734d5' }
+  'win32/es-MX' { $checksum = 'bca047b4395f0b56ae00a9b97836a7bbfb60c3687facf587217743261a95971d' }
+  'win32/et'    { $checksum = '572e0c112667b7e7692645573df4192900de622f7d49e9b71147da94c9a448d0' }
+  'win32/eu'    { $checksum = '2e8781162f74fd4d271055b9463baf3c240fdd42755fe80447ba3b4608854207' }
+  'win32/fi'    { $checksum = '96e7dffcf706ef5e175a15a37a88814bf5827aaf553b05d4ca3328df699481fb' }
+  'win32/fr'    { $checksum = '13f2cead496522f2db0ea129cdf9e9f2871102d573ea51c1421263b5a65a3831' }
+  'win32/fy-NL' { $checksum = '89d2e7ea32c768b008367ff0765826555e3ecb7829a0184eb8e559df5b495c4f' }
+  'win32/ga-IE' { $checksum = '6d888f2a360873a952be0d425863f535b4dfa274e6ed4cb84c49aca2a1ec9bee' }
+  'win32/gd'    { $checksum = '427fb5ee3eab7bc6813c6653cfd1a16c410831cd6df7c4e7d85c8e2a1ad63723' }
+  'win32/gl'    { $checksum = '73aca1fbe7346424c96f92cba5db9414d95233fd474441ba975b62cbcb0d231a' }
+  'win32/he'    { $checksum = '3e7b320ecfc1960980a66928d5feaed4fb3a2d47780136b1b8935c71f0dd706d' }
+  'win32/hr'    { $checksum = '21f17c511b58dc7bd97a40a87bad77a20e9f3a839d66e2413b8b14ff2553ec23' }
+  'win32/hsb'   { $checksum = '2335aac2c190612f0cfcdbd560805d5e68149589c35ebddd6205212caee12ddd' }
+  'win32/hu'    { $checksum = '032a1da58d71cac6ead353e173e8aac045e11252864f0af9543375491c3ea259' }
+  'win32/hy-AM' { $checksum = '848994a1d08d4df0a67a5678209c412f98fa9ee50731e5341c473caf88cd02a6' }
+  'win32/id'    { $checksum = '8fa686a230e9d1d7b56fcb19d0ab364db7f9851bf5506773e9a2e2b60feb20d5' }
+  'win32/is'    { $checksum = '8848f5ecb584b50f96a7ff314d281d0c75ff79c23350616666e97255b7d91e3b' }
+  'win32/it'    { $checksum = '52890522efdc764a02351c54065c417af6d3bbc02e1cf88089b17060bfc35d57' }
+  'win32/ja'    { $checksum = '8fc73ada2821125eb1e2268867ba1150c2c0c70b931bd767d87de515cc7568f2' }
+  'win32/ka'    { $checksum = 'db69441ede2bfe5c876e8dc0eb7086ffd161bc54d9af567538682ad87945b919' }
+  'win32/kab'   { $checksum = 'b01f7b1ce184c6d9d1e43adbf9a24e24630bf6e6e555c101880c6861d9d2a432' }
+  'win32/kk'    { $checksum = '051ffc46a91eeacd0ca78878676551054dda354eebe763746342ebde800c0835' }
+  'win32/ko'    { $checksum = 'ee0aa9b3a1ba93d42604edb4947c31a4207041f1e5e66b56c2f0a0d1143c998a' }
+  'win32/lt'    { $checksum = '1a6474707621666cb120129592baca494a56d20a1ad613346c65cabe1fd71e41' }
+  'win32/lv'    { $checksum = '0f5f984b7edf22548c3632852e64c0297ff5b5d829a06bd0173da738a19074c3' }
+  'win32/mk'    { $checksum = 'de265d635d53cdede00f7ad3503bea424ff1b9133867fc02a2f5e669d4cf868b' }
+  'win32/ms'    { $checksum = '78b95d6990d7e3b427623a3bc095c7f5953062bf49a2f676049b26af3238a652' }
+  'win32/nb-NO' { $checksum = '0ef4cca1dd4f85f4677fb08841b11ab61e37ac04100298b3151b839a02a13ad9' }
+  'win32/nl'    { $checksum = '4dd2c91ea3e100b700842ca35abac18bc3d101fe3db2fb40f465e392fbc272f6' }
+  'win32/nn-NO' { $checksum = '59ac0c10715fdad2a2fc4fda37825f9b6a157635b463dccc03e500520523273e' }
+  'win32/pa-IN' { $checksum = '165f065d0461e29042cdcbf1418d0352b1e68e0c957e5937be96b08bdcfd1798' }
+  'win32/pl'    { $checksum = 'ba62f0bb55a85f7f05a19525256edacf5d10ddacc8a58c36e31881835e039579' }
+  'win32/pt-BR' { $checksum = '7c68c192ffe2ce33b4f34c96921c41a3e7bcbd92d489b456f7749403462313cf' }
+  'win32/pt-PT' { $checksum = 'fac1713755a52f0f2638624dfdf52e87c46e5e2fbc29582ca1201b3c8ab4c193' }
+  'win32/rm'    { $checksum = '6277c05faf7654f6e39018ca3fb027bf2cf24f42eb58eb75f2d0960aa0a4eba4' }
+  'win32/ro'    { $checksum = '250fe827c12353e99fdaeffa34b6e5100bf17c38acbe122a8f890c56a18e67bc' }
+  'win32/ru'    { $checksum = '25e35435b23cda78c98c34984edacc3e9927189c072acbde25695a1d18130ebc' }
+  'win32/sk'    { $checksum = '08b98e79e16c0e6424c17bced2892e16835a36868a0214adf82635f4311f67a3' }
+  'win32/sl'    { $checksum = '118222213123777ba2e966515928a33fd9dc64c0ca9816fc58caac445583c7e2' }
+  'win32/sq'    { $checksum = 'dbe99e7d9b8d5e2b04b6f8dc808620aa938aca0196b467e68ac252643cba309c' }
+  'win32/sr'    { $checksum = 'f4008dc4c7ae6da1f07a65ac6f1aad39bd576ca326095ae13faa5e3cb2b6f60b' }
+  'win32/sv-SE' { $checksum = 'c1cb4b6e13a690aef2dc0bbf35a276828e8d1e468f890bbc2ec415d172f280ad' }
+  'win32/th'    { $checksum = '0f441ed7e2196204d5624b42662b371f9f9db5984b09e271945a7e3b461bb617' }
+  'win32/tr'    { $checksum = '254836c3b0c2645274c0aca0bfbb343c16a835d58ff1a73bd230f08c6e84d292' }
+  'win32/uk'    { $checksum = 'bc9c8617a505d9d23ca6b272f83826b33313ca3de403b284ff34333f761ff97c' }
+  'win32/uz'    { $checksum = 'c91209c2500386f1a634e42fa7163e84fa53460314a6ac7301cdb3b6b40b565c' }
+  'win32/vi'    { $checksum = '4c8684d863487dc96515aa96ddc53dcc87d54747d877002c219093fca6253f66' }
+  'win32/zh-CN' { $checksum = '13d2a08209ff1a9505578c924455d78eafdfb7b7e141821b2f066c323be1423e' }
+  'win32/zh-TW' { $checksum = 'd349c8202fff26673a70da2648da408166b248e63d2acd395724d0bd2715f294' }
+  'win64/af'    { $checksum = 'ba9fb324167f50f54ca4f63198a5d79cd442552b8edeab8882d1607ef3a31fb6' }
+  'win64/ar'    { $checksum = '44017075d103dc69705a0bd541027efd5a17f991077a915d14065db2b6704cec' }
+  'win64/ast'   { $checksum = 'a37befda0cc2952615f365d32731b1758c5946fb64011d5f0c607e77a875ac94' }
+  'win64/be'    { $checksum = '04d0d020d2463db7c891533aa3414adc5a47be0db17231f8c8f953192a36966d' }
+  'win64/bg'    { $checksum = '35de38beedf5dd3d9ce14eff987c39f83880169ba605c8074f53412bd66046ac' }
+  'win64/br'    { $checksum = '6f3492e253077e73e1c4df7bc146a46097a8b6b871a62a3f23af16f818f2724b' }
+  'win64/ca'    { $checksum = 'b9e4ad453da94d19c5da3ad945c63f008c7255ad57f67fc0f389a3fb4d5a651d' }
+  'win64/cak'   { $checksum = 'ad83346d615f62d82f946eba92893caf5312bda28ef976a56771251e6ea1ffe5' }
+  'win64/cs'    { $checksum = '2757ae7d691ee20837bf0c5b39b89f6effcdd0cb6192a46ceb19fcec9cdca202' }
+  'win64/cy'    { $checksum = '80d380d6bafb98fff3f4cc316201f1a916cea8a801a27651872bbf61963b3e55' }
+  'win64/da'    { $checksum = '981eb57c996af7ca4624cd621e5604335809ee628bebdca05cc7d6b01031f7a3' }
+  'win64/de'    { $checksum = '34eb6992e6dbb2845f3a79c1ca423d8c75b5aad116cf60d2d247832bb93bd318' }
+  'win64/dsb'   { $checksum = '92bf17758f74ac13304d2c6b7dc3aeb5052b4dc59f272b3cd78b27a1d71feff7' }
+  'win64/el'    { $checksum = '966211cdff27ff178ef920faed0306a6fc85165c2a4a47f037b388c5a9090cbd' }
+  'win64/en-CA' { $checksum = '77a918b26dfddf6a77e0b3a39a417175da5b24c67200e03df45da8fc7389371f' }
+  'win64/en-GB' { $checksum = '12fc7a01908860515fb0a80713d1483366ca95fffa0f87a4365b018254acf170' }
+  'win64/en-US' { $checksum = 'c152d66bd5fc411513f4340555a608c69a3d2f3ce0e4dd9882dc9c07c00305be' }
+  'win64/es-AR' { $checksum = 'e659c22f91cec22a58f3016f682611f3d24af9fb544ff1f00580c9c11d05e1dc' }
+  'win64/es-ES' { $checksum = '5e380ee0906445b0f6fa9beb1b066d1f43383fba91227428236d76fe2f201333' }
+  'win64/es-MX' { $checksum = '9a7a54e7195024afcee1aa002b5f59a4181de62ef3615c7044d44d3e9fc0f964' }
+  'win64/et'    { $checksum = 'c6bb2bea1817e43fce94a4cd531811bc8f13cb6432e5cfb28f091e595a0cee5f' }
+  'win64/eu'    { $checksum = '91547b96b5f7d9d469bb0b14800dee2cdec1b5a6b81af2fc66167c3804565be6' }
+  'win64/fi'    { $checksum = 'adcbeba8ea28821468cbf9c5a25625683d5a032f2d5e9cd523c538b76709a632' }
+  'win64/fr'    { $checksum = '3d6acef9206007c3238583350b02e3da52bddac0c5b4cde97a57e9f806180307' }
+  'win64/fy-NL' { $checksum = 'b7a0d774658f6237a056c966a3784643b8cb37f896f416c6869d9090e28ac52b' }
+  'win64/ga-IE' { $checksum = '00710c40dbb38bd0868bf8bb5c434c53fe6c464284297bcaf8772f5dbe679124' }
+  'win64/gd'    { $checksum = '57fe3b3f45bd9ba57dafe2e6638088a6c92513bcd162d57268bc7dd60253fd8c' }
+  'win64/gl'    { $checksum = '464c1fd4a3b4ccfa9fd5e05eb0f51f144e1aa4a6d9227ff45d0f9bc8a22d340b' }
+  'win64/he'    { $checksum = '00906c8e0588902599b56dfa6939aec114c216d854ee7f3fcb79e4cbd6dc9d4b' }
+  'win64/hr'    { $checksum = '7ec2c607bee559843f445b4b2e0964239eff3306679353b649651af22adb28d0' }
+  'win64/hsb'   { $checksum = 'b2874cfb3e4e1f2fddc2d12dde0952d3255500ac9f73672ef0262456d4ca9ad0' }
+  'win64/hu'    { $checksum = '8364dca09e2bbb0e8ddbb653edb2d59b72df8429c8e02e52cae2f551dced5326' }
+  'win64/hy-AM' { $checksum = 'b531e2168bd132dd44d70c07abc78f91d0d610b1660693887ccfbf5932cca41d' }
+  'win64/id'    { $checksum = 'ca4226f41d4cf5c4f6f8ce592ad65e658febe4a614a546930806b4a30cf82b9d' }
+  'win64/is'    { $checksum = '2d38950ca84525267b266f4c4a7df900df961e162b06e9ae3a3fa8a3ae8fe895' }
+  'win64/it'    { $checksum = '3a4439406f6b51e58984a13138f889cadf08c3b8b466efceb280af45896cb6fc' }
+  'win64/ja'    { $checksum = '9676f141d9bf9bff8506c511bc019fad2e5d177a3667af38fc9747306713aa16' }
+  'win64/ka'    { $checksum = '178916e083644f0749e788e03c97726b2a58bc7055067c03919a277505c02ee1' }
+  'win64/kab'   { $checksum = '283c7bb4b776ff792814aabb3ead5c0f841415de236c0984695d5d83cf0981ba' }
+  'win64/kk'    { $checksum = 'b5be5bce4ab35bccd66e25a919dd107adca6da1d5e759610a18c5a71feff3dcc' }
+  'win64/ko'    { $checksum = '4b788e7e33b34e3cb5ee5e5765257e93394a80a7609fb12be3ded1d3f394b3a3' }
+  'win64/lt'    { $checksum = 'f8abb20e7944cf4cd7e5a4e9eaf11b85c23488b9111eb6229c5f6af29802fd5b' }
+  'win64/lv'    { $checksum = 'fa3c8c35028c941b7056bd40f26b96179cfc047dc49096d5b0bb2714d3fdd6b6' }
+  'win64/mk'    { $checksum = '9539358f9659f388fae03c011c252eb1863b9f56b91a1082fcf16501e66303fb' }
+  'win64/ms'    { $checksum = '79d4f2b469333ba04c068c4f137eefbdcf7e18814ec6feeecc8fe08f763ef897' }
+  'win64/nb-NO' { $checksum = '9c816016e402e64e0258b25a369f46da30d1483ce3b53cc789d0f28c86c7860c' }
+  'win64/nl'    { $checksum = '6c7f15a4483ad8ba9c4c80d6da383d8207ed0e90c90c7415e9f216842f0313fb' }
+  'win64/nn-NO' { $checksum = 'd514f21ab4961da3f59a3be6ff169cbe0bed3b468e0ae5eecceeb8fee697f796' }
+  'win64/pa-IN' { $checksum = '7de71631ad7dd60cf7da12c53ded8c1782ea423e0b1afed3fb75fdd0289f6cf3' }
+  'win64/pl'    { $checksum = '1df8d1a22b7ba643b656d71d7dcd1b2296e34eddbe4d7e978679ca5a93506a4a' }
+  'win64/pt-BR' { $checksum = '16bfe46fd48d17988b039f1849889c3b1997c7f18dfe3e4d6bedd56d8bb635d7' }
+  'win64/pt-PT' { $checksum = '6fca1c0eaff06d6cf2f772c16d8825275aee18cf8d97eaace66aa2a6408a6388' }
+  'win64/rm'    { $checksum = 'cf84696903c4290afe84789b93dd66a6eb9e38310a96c65d0b1be28902221717' }
+  'win64/ro'    { $checksum = '7c7238972843d309cc8eb36fd74722bf5078d86f5e43059cb26a7e745b4e02bf' }
+  'win64/ru'    { $checksum = '68ee44c454749306c16846d85b1fab476000c93c7cc27b367f4bc461b3a8e406' }
+  'win64/sk'    { $checksum = '00b44156c5c6e248297d822d92d05ab2d9a49214407f80aa626f062215419811' }
+  'win64/sl'    { $checksum = '8d922b490bb4379613257e15f7461ae15c52d380418eb3aba06b11aef580fbaf' }
+  'win64/sq'    { $checksum = '79f4e6c2e4caf505f54bcb4a68f10fa3c5e75d974e1cf9c5b3797bc888f0e458' }
+  'win64/sr'    { $checksum = 'e5d039a56e0317ecb96b276fbdb8a884f99f3f54bad8f3d33790e33f71c1f029' }
+  'win64/sv-SE' { $checksum = '61a3245513cc20d0f692a938bc9e5c054a0353c10fce8cd7b8dd8a5cc34a5cc9' }
+  'win64/th'    { $checksum = '6c602c0bb92927ffc4127faaaecf88e49cbce9aa8bfaa317d24206d5746df2e2' }
+  'win64/tr'    { $checksum = 'a118a98a2604a0e3c93f2d150e31a488adedf773077ca3643e6a71b9010a5f9f' }
+  'win64/uk'    { $checksum = 'e177e7849cdbba3a344cc697f07929595a2d82939b514758302ce3ffd4c69578' }
+  'win64/uz'    { $checksum = 'a9b7fb9c8872cf3509d04dda19758a80bb8c88a2100ce6f49c50075647b606bf' }
+  'win64/vi'    { $checksum = 'b75dd575e5e2d362d92b51a5959d74e7defdb0d8994893cd6ee56adff4a4b586' }
+  'win64/zh-CN' { $checksum = '1424dcf37591ef4e8e2ff7a66e5c6860437bbea7b00884970f0fa72fc395e019' }
+  'win64/zh-TW' { $checksum = '0e1374bf70e8dec92e8afe6deb4b064820a24e52f2bc9e746d6320673b5fe254' }
+  default       { throw "No Thunderbird Daily $version installer found for '$arch/$language'." }
 }
+# </checksums>
 
-Install-ChocolateyPackage @packageArgs
+# en-US is the main build; the other languages are its l10n repacks
+$folder = if ($language -eq 'en-US') { "$build-comm-central" } else { "$build-comm-central-l10n" }
+$url    = "$baseUrl/$folder/thunderbird-$version.$language.$arch.installer.exe"
+
+Install-ChocolateyPackage -PackageName $env:ChocolateyPackageName -FileType 'exe' -Url $url `
+                          -Checksum $checksum -ChecksumType 'sha256' -SilentArgs '-ms' -ValidExitCodes @(0)
