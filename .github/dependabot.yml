@@ -1,0 +1,12 @@
+# Mantiene al dia las acciones de los workflows, que van fijadas por SHA: un PR
+# al mes con todas las que tengan version nueva.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      acciones:
+        patterns:
+          - '*'

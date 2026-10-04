@@ -10,13 +10,19 @@ on:
 permissions:
   contents: read
 
+# Un push nuevo a un PR cancela la ejecucion anterior de ese PR; lanzado a mano, cada
+# ejecucion va en su propio grupo y termina completa.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # La imagen trae Pester 3.4, que no entiende la sintaxis de Pester 5
       - name: Install Pester and PSScriptAnalyzer
