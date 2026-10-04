@@ -38,5 +38,15 @@ if ($packageArgs['url'] -like '*.zip') {
   $packageArgs['softwareName']   = 'Fenix*'
   $packageArgs['silentArgs']     = '/S'
   $packageArgs['validExitCodes'] = @(0)
-  Install-ChocolateyPackage @packageArgs
+
+  # Even with /S the 3.x setup stops at a notice about usage statistics that has to be accepted, and it has
+  # no switch for it (the package description says so). AcceptUsageNotice.ps1 answers it while the setup runs.
+  $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+  $notice   = Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -WindowStyle Hidden -PassThru `
+                            -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $toolsDir 'AcceptUsageNotice.ps1')`""
+  try {
+    Install-ChocolateyPackage @packageArgs
+  } finally {
+    if ($notice -and -not $notice.HasExited) { Stop-Process -Id $notice.Id -Force -ErrorAction SilentlyContinue }
+  }
 }
