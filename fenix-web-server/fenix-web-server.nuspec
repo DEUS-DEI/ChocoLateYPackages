@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>fenix-web-server</id>
-    <version>3.0.0-rc13</version>
+    <version>3.0.0-rc13-20261004</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/fenix-web-server</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>Fenix Web Server</title>
