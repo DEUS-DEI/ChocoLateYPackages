@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>thunderbird-mozilla</id>
-    <version>158.0-beta2</version>
+    <version>158.0-beta3</version>
     <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/thunderbird-mozilla</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>Thunderbird (Beta)</title>
