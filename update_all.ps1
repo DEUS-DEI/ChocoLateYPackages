@@ -3,8 +3,8 @@
     Checks, updates, packs and publishes the active Chocolatey packages of this repository.
 
 .DESCRIPTION
-    Every folder that contains an update.ps1 (Chocolatey-AU) is an active package. For each one the
-    script runs update.ps1, pushes the resulting .nupkg to the Chocolatey community repository and,
+    Every folder of Paquetes\actuales that contains an update.ps1 (Chocolatey-AU) is an active package. For
+    each one the script runs update.ps1, pushes the resulting .nupkg to the Chocolatey community repository and,
     at the end, commits and pushes to Git only the packages that were published successfully (a
     failed push is retried on the next run instead of being recorded as done).
 
@@ -76,9 +76,12 @@ if (Get-Module -ListAvailable -Name Chocolatey-AU) {
     throw 'Chocolatey-AU no esta instalado. Ejecuta: choco install chocolatey-au'
 }
 
-# Active packages = folders with an update.ps1 (deprecated packages live in .\deprecated)
-$packageDirs = @(Get-ChildItem -Path $PSScriptRoot -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'update.ps1') })
-if (-not $packageDirs) { throw "No se encontro ningun paquete (carpetas con update.ps1) en $PSScriptRoot" }
+# Active packages = folders of Paquetes\actuales with an update.ps1 (retired IDs live in Paquetes\descontinuados)
+$packagesFolder = 'Paquetes/actuales'  # relative to the repository, with "/": it is also the path given to Git
+$packagesRoot = Join-Path $PSScriptRoot $packagesFolder
+$packageDirs = @(Get-ChildItem -Path $packagesRoot -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName 'update.ps1') })
+if (-not $packageDirs) { throw "No se encontro ningun paquete (carpetas con update.ps1) en $packagesRoot" }
 if ($Package) {
     # powershell -File passes "a,b" as a single string
     $Package = @($Package -split ',' | ForEach-Object Trim | Where-Object { $_ })
@@ -260,11 +263,11 @@ if ($NoPush -or $NoGit) {
 } else {
     # Forced pushes count too (e.g. a fix version edited by hand), but only if their folder has changes
     $published = @($report | Where-Object { $_.Estado -in 'Actualizado', 'Push parcial', 'Registrado' -or
-        ($_.Estado -eq 'Forzado' -and (Invoke-Tool git -C $PSScriptRoot status --porcelain $_.Paquete)) })
+        ($_.Estado -eq 'Forzado' -and (Invoke-Tool git -C $PSScriptRoot status --porcelain "$packagesFolder/$($_.Paquete)")) })
     $gitOk = $true
     if ($published) {
         Write-Host '>>> Sincronizando cambios con Git...' -ForegroundColor Cyan
-        $paths = @($published.Paquete)
+        $paths = @($published | ForEach-Object { "$packagesFolder/$($_.Paquete)" })
         $message = 'chore: automated update of ' + (($published | ForEach-Object { "$($_.Paquete) v$($_.Nueva)" }) -join ', ')
         # Commit only the published packages ("--only"), never other changes the user had already staged
         Invoke-Tool git -C $PSScriptRoot add @paths

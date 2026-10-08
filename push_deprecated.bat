@@ -63,12 +63,12 @@ if /i not "%~1"=="--no-pause" pause
 popd
 exit /b %failed%
 
-rem Empaqueta y publica un bridge. Nunca trabaja fuera de deprecated\<id>.
+rem Empaqueta y publica un bridge. Nunca trabaja fuera de Paquetes\descontinuados\<id>.
 :bridge
 echo.
 echo --- Bridge: %~1 ---
-if not exist "deprecated\%~1\%~1.nuspec" (echo [ERROR] Falta deprecated\%~1\%~1.nuspec & set "failed=1" & exit /b 1)
-pushd "deprecated\%~1" || (echo [ERROR] No se pudo entrar en deprecated\%~1 & set "failed=1" & exit /b 1)
+if not exist "Paquetes\descontinuados\%~1\%~1.nuspec" (echo [ERROR] Falta Paquetes\descontinuados\%~1\%~1.nuspec & set "failed=1" & exit /b 1)
+pushd "Paquetes\descontinuados\%~1" || (echo [ERROR] No se pudo entrar en Paquetes\descontinuados\%~1 & set "failed=1" & exit /b 1)
 del /f /q *.nupkg 2>nul
 choco pack --limit-output
 rem "if errorlevel 1" solo ve codigos >= 1: un choco que revienta sale con uno negativo (0xE0434352)

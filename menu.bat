@@ -52,12 +52,12 @@ echo ========================================================
 echo           SELECCIONAR PAQUETE PARA FORZAR
 echo ========================================================
 echo.
-rem Paquetes activos = carpetas con update.ps1 (la lista se genera sola)
+rem Paquetes activos = carpetas de Paquetes\actuales con update.ps1 (la lista se genera sola)
 set "count=0"
-for /d %%D in (*) do if exist "%%D\update.ps1" (
+for /d %%D in (Paquetes\actuales\*) do if exist "%%D\update.ps1" (
     set /a count+=1
-    call set "pkg_%%count%%=%%D"
-    call echo [%%count%%] %%D
+    call set "pkg_%%count%%=%%~nxD"
+    call echo [%%count%%] %%~nxD
 )
 echo [B] o Enter: Volver al menu principal
 echo.

@@ -1,4 +1,4 @@
-# Pester 5 tests for the package scripts in */tools/ with the REAL Chocolatey helpers
+# Pester 5 tests for the scripts in tools/ of the active packages, with the REAL Chocolatey helpers
 # (chocolateyInstaller.psm1). Installers never run: every helper that installs, uninstalls or downloads
 # from the Internet is mocked. flarectl is extracted for real (Get-ChocolateyWebFile + 7-Zip) from a
 # small archive built in TestDrive. Uninstallers read fake registry entries through a mock of
@@ -9,14 +9,15 @@
 BeforeDiscovery {
     $chocolateyRoot = if ($env:ChocolateyInstall) { $env:ChocolateyInstall } else { Join-Path $env:ProgramData 'chocolatey' }
     $script:NoChocolatey = -not (Test-Path -Path (Join-Path $chocolateyRoot 'helpers\chocolateyInstaller.psm1'))
-    $script:Uninstallers = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) '*\tools\chocolateyuninstall.ps1') |
+    $script:Uninstallers = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'Paquetes\actuales\*\tools\chocolateyuninstall.ps1') |
         ForEach-Object { @{ Package = $_.Directory.Parent.Name } })
-    $script:Installers = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) '*\tools\chocolateyinstall.ps1') |
+    $script:Installers = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'Paquetes\actuales\*\tools\chocolateyinstall.ps1') |
         Where-Object { $_.Directory.Parent.Name -ne 'flarectl' } | ForEach-Object { @{ Package = $_.Directory.Parent.Name } })
 }
 
 BeforeAll {
-    $script:RepoRoot = Split-Path -Parent $PSScriptRoot
+    # The active packages (the retired IDs of Paquetes\descontinuados have no scripts)
+    $script:PackagesRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'Paquetes\actuales'
     if (-not $env:ChocolateyInstall) { $env:ChocolateyInstall = Join-Path $env:ProgramData 'chocolatey' }
     $helpers = Join-Path $env:ChocolateyInstall 'helpers\chocolateyInstaller.psm1'
     if (Test-Path -Path $helpers) { Import-Module $helpers -Force -DisableNameChecking }
@@ -32,7 +33,7 @@ BeforeAll {
         New-Item -ItemType Directory -Path $temp -Force | Out-Null
         $env:ChocolateyPackageName = $Package
         $env:ChocolateyPackageVersion = $Version
-        $env:ChocolateyPackageFolder = Join-Path $script:RepoRoot $Package
+        $env:ChocolateyPackageFolder = Join-Path $script:PackagesRoot $Package
         $env:chocolateyPackageParameters = $Parameters
         $env:chocolateyForceX86 = ''
         $env:TEMP = $temp
@@ -44,7 +45,7 @@ BeforeAll {
             ForEach-Object { $_.Message }
     }
     function script:Get-NuspecVersion([string] $Package) {
-        ([xml](Get-Content -Path (Join-Path $script:RepoRoot "$Package\$Package.nuspec") -Raw)).package.metadata.version
+        ([xml](Get-Content -Path (Join-Path $script:PackagesRoot "$Package\$Package.nuspec") -Raw)).package.metadata.version
     }
 }
 
@@ -90,7 +91,7 @@ Describe 'Uninstallers' -Skip:$NoChocolatey {
 
     It '<Package>: nothing installed, nothing uninstalled' -ForEach $Uninstallers {
         Set-PackageEnvironment $Package (Get-NuspecVersion $Package)
-        $warnings = Invoke-PackageScript (Join-Path $script:RepoRoot "$Package\tools\chocolateyuninstall.ps1")
+        $warnings = Invoke-PackageScript (Join-Path $script:PackagesRoot "$Package\tools\chocolateyuninstall.ps1")
         Should -Invoke Uninstall-ChocolateyPackage -Times 0 -Exactly
         $warnings | Should -Contain "$Package has already been uninstalled by other means."
     }
@@ -99,7 +100,7 @@ Describe 'Uninstallers' -Skip:$NoChocolatey {
         @{ Name = 'Daily (x64 es-MX)' }, @{ Name = 'Thunderbird Daily (x64 en-US)' }) {
         Set-Registry (New-Entry $Name "`"$script:Programs\Thunderbird Daily\uninstall\helper.exe`"")
         Set-PackageEnvironment 'thunderbird-nightly' (Get-NuspecVersion 'thunderbird-nightly')
-        Invoke-PackageScript (Join-Path $script:RepoRoot 'thunderbird-nightly\tools\chocolateyuninstall.ps1') | Out-Null
+        Invoke-PackageScript (Join-Path $script:PackagesRoot 'thunderbird-nightly\tools\chocolateyuninstall.ps1') | Out-Null
         Should -Invoke Uninstall-ChocolateyPackage -Times 1 -Exactly -ParameterFilter {
             $File -eq "$script:Programs\Thunderbird Daily\uninstall\helper.exe" -and $SilentArgs -eq '/S' }
     }
@@ -109,7 +110,7 @@ Describe 'Uninstallers' -Skip:$NoChocolatey {
             (New-Entry 'Daily (x64 es-MX)' "`"$script:Programs\Thunderbird Daily\uninstall\helper.exe`""),
             (New-Entry 'Thunderbird Daily (x86 en-US)' "`"$script:Programs\Thunderbird Daily\uninstall\helper.exe`""))
         Set-PackageEnvironment 'thunderbird-nightly' (Get-NuspecVersion 'thunderbird-nightly')
-        $warnings = Invoke-PackageScript (Join-Path $script:RepoRoot 'thunderbird-nightly\tools\chocolateyuninstall.ps1')
+        $warnings = Invoke-PackageScript (Join-Path $script:PackagesRoot 'thunderbird-nightly\tools\chocolateyuninstall.ps1')
         Should -Invoke Uninstall-ChocolateyPackage -Times 0 -Exactly
         $warnings | Should -Contain '2 matches found!'
     }
@@ -117,7 +118,7 @@ Describe 'Uninstallers' -Skip:$NoChocolatey {
     It 'thunderbird-mozilla: quoted path with spaces' {
         Set-Registry (New-Entry 'Mozilla Thunderbird (x64 es-MX)' "`"$script:Programs\Mozilla Thunderbird\uninstall\helper.exe`"")
         Set-PackageEnvironment 'thunderbird-mozilla' (Get-NuspecVersion 'thunderbird-mozilla')
-        Invoke-PackageScript (Join-Path $script:RepoRoot 'thunderbird-mozilla\tools\chocolateyuninstall.ps1') | Out-Null
+        Invoke-PackageScript (Join-Path $script:PackagesRoot 'thunderbird-mozilla\tools\chocolateyuninstall.ps1') | Out-Null
         Should -Invoke Uninstall-ChocolateyPackage -Times 1 -Exactly -ParameterFilter {
             $File -eq "$script:Programs\Mozilla Thunderbird\uninstall\helper.exe" -and $SilentArgs -eq '/S' }
     }
@@ -129,7 +130,7 @@ Describe 'Uninstallers' -Skip:$NoChocolatey {
         $codes = @{ 'Cloudflare One Client' = '{22222222-2222-2222-2222-222222222222}'; 'Cloudflare WARP' = '{33333333-3333-3333-3333-333333333333}' }
         Set-Registry @($Names | ForEach-Object { New-Entry $_ "MsiExec.exe /X$($codes[$_])" $codes[$_] })
         Set-PackageEnvironment 'cloudflare-warp-pre' (Get-NuspecVersion 'cloudflare-warp-pre')
-        Invoke-PackageScript (Join-Path $script:RepoRoot 'cloudflare-warp-pre\tools\chocolateyuninstall.ps1') | Out-Null
+        Invoke-PackageScript (Join-Path $script:PackagesRoot 'cloudflare-warp-pre\tools\chocolateyuninstall.ps1') | Out-Null
         Should -Invoke Uninstall-ChocolateyPackage -Times 1 -Exactly -ParameterFilter {
             $FileType -eq 'msi' -and $SilentArgs -eq "$Expected /qn /norestart" }
     }
@@ -141,7 +142,7 @@ Describe 'Uninstallers' -Skip:$NoChocolatey {
             (New-Entry 'Fenix Web Server 2.0.0' "`"$script:Programs\Fenix\unins000.exe`"" 'Fenix_is1' '2.0.0'),
             (New-Entry 'Fenix 3.0.0-rc.13' "`"$script:Programs\Fenix3\Uninstall Fenix.exe`" /currentuser" 'fenix' '3.0.0-rc.13'))
         Set-PackageEnvironment 'fenix-web-server' $Version
-        Invoke-PackageScript (Join-Path $script:RepoRoot 'fenix-web-server\tools\chocolateyuninstall.ps1') | Out-Null
+        Invoke-PackageScript (Join-Path $script:PackagesRoot 'fenix-web-server\tools\chocolateyuninstall.ps1') | Out-Null
         Should -Invoke Uninstall-ChocolateyPackage -Times 1 -Exactly -ParameterFilter {
             $File -eq (Join-Path $script:Programs $Uninstaller) -and $SilentArgs -eq $Arguments }
     }
@@ -149,7 +150,7 @@ Describe 'Uninstallers' -Skip:$NoChocolatey {
     It 'github-desktop-pre: keeps the arguments of the uninstall command' {
         Set-Registry (New-Entry 'GitHub Desktop' "`"$script:Programs\GitHubDesktop\Update.exe`" --uninstall")
         Set-PackageEnvironment 'github-desktop-pre' (Get-NuspecVersion 'github-desktop-pre')
-        Invoke-PackageScript (Join-Path $script:RepoRoot 'github-desktop-pre\tools\chocolateyuninstall.ps1') | Out-Null
+        Invoke-PackageScript (Join-Path $script:PackagesRoot 'github-desktop-pre\tools\chocolateyuninstall.ps1') | Out-Null
         Should -Invoke Uninstall-ChocolateyPackage -Times 1 -Exactly -ParameterFilter {
             $File -eq "$script:Programs\GitHubDesktop\Update.exe" -and $SilentArgs -eq '--uninstall -s' }
     }
@@ -157,7 +158,7 @@ Describe 'Uninstallers' -Skip:$NoChocolatey {
     It 'nicepage: unquoted path with spaces and arguments' {
         Set-Registry (New-Entry 'Nicepage 8.7.0' "$script:Programs\Nicepage\Uninstall Nicepage.exe /allusers")
         Set-PackageEnvironment 'nicepage' (Get-NuspecVersion 'nicepage')
-        Invoke-PackageScript (Join-Path $script:RepoRoot 'nicepage\tools\chocolateyuninstall.ps1') | Out-Null
+        Invoke-PackageScript (Join-Path $script:PackagesRoot 'nicepage\tools\chocolateyuninstall.ps1') | Out-Null
         Should -Invoke Uninstall-ChocolateyPackage -Times 1 -Exactly -ParameterFilter {
             $File -eq "$script:Programs\Nicepage\Uninstall Nicepage.exe" -and $SilentArgs -eq '/allusers /S' }
     }
@@ -174,7 +175,7 @@ Describe 'Install scripts' -Skip:$NoChocolatey {
     }
 
     It '<Package>: one download from its embedded https URL, verified with sha256' -ForEach $Installers {
-        $script = Join-Path $script:RepoRoot "$Package\tools\chocolateyinstall.ps1"
+        $script = Join-Path $script:PackagesRoot "$Package\tools\chocolateyinstall.ps1"
         Set-PackageEnvironment $Package (Get-NuspecVersion $Package) '/Language:es-MX'
         Invoke-PackageScript $script | Out-Null
         # fenix-web-server holds the stream AU updated last: 3.x (setup program) or 2.x (ZIP)
@@ -190,7 +191,7 @@ Describe 'Install scripts' -Skip:$NoChocolatey {
         # The repository holds the stream AU updated last: the script of each stream is built from it
         $tools = Join-Path $TestDrive "fenix-stream-$Times\tools"
         New-Item -ItemType Directory -Path $tools -Force | Out-Null
-        $text = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'fenix-web-server\tools\chocolateyinstall.ps1'))
+        $text = [System.IO.File]::ReadAllText((Join-Path $script:PackagesRoot 'fenix-web-server\tools\chocolateyinstall.ps1'))
         $text = $text -replace "(?m)^(\s*url\s*=\s*)'.*'", "`${1}'$Url'"
         [System.IO.File]::WriteAllText((Join-Path $tools 'chocolateyinstall.ps1'), $text)
         Set-PackageEnvironment 'fenix-web-server' '3.0.0-rc13'
@@ -207,20 +208,20 @@ Describe 'Install scripts' -Skip:$NoChocolatey {
             }
         }) {
         Set-PackageEnvironment $Package (Get-NuspecVersion $Package) "/Language:es-MX /Arch:$Arch"
-        Invoke-PackageScript (Join-Path $script:RepoRoot "$Package\tools\chocolateyinstall.ps1") | Out-Null
+        Invoke-PackageScript (Join-Path $script:PackagesRoot "$Package\tools\chocolateyinstall.ps1") | Out-Null
         Should -Invoke Install-ChocolateyPackage -Times 1 -Exactly -ParameterFilter {
             $Url -match "[/.]$Expected[/.]" -and $Url -match 'es-MX' -and $Checksum -match '^[0-9a-fA-F]{64}$' }
     }
 
     It '<Package> rejects an unknown /Arch' -ForEach @(@{ Package = 'thunderbird-mozilla' }, @{ Package = 'thunderbird-nightly' }) {
         Set-PackageEnvironment $Package (Get-NuspecVersion $Package) '/Arch:arm64'
-        { Invoke-PackageScript (Join-Path $script:RepoRoot "$Package\tools\chocolateyinstall.ps1") } | Should -Throw "Invalid /Arch 'arm64'*"
+        { Invoke-PackageScript (Join-Path $script:PackagesRoot "$Package\tools\chocolateyinstall.ps1") } | Should -Throw "Invalid /Arch 'arm64'*"
         Should -Invoke Install-ChocolateyPackage -Times 0 -Exactly
     }
 
     It '<Package> warns when the requested language is replaced by a variant' -ForEach @(@{ Package = 'thunderbird-mozilla' }, @{ Package = 'thunderbird-nightly' }) {
         Set-PackageEnvironment $Package (Get-NuspecVersion $Package) '/Language:es-CO /Arch:win64'
-        $warnings = Invoke-PackageScript (Join-Path $script:RepoRoot "$Package\tools\chocolateyinstall.ps1")
+        $warnings = Invoke-PackageScript (Join-Path $script:PackagesRoot "$Package\tools\chocolateyinstall.ps1")
         $warnings | Should -BeLike "Language 'es-CO' is not available*"
         Should -Invoke Install-ChocolateyPackage -Times 1 -Exactly
     }
@@ -231,7 +232,7 @@ Describe 'fenix-web-server: AcceptUsageNotice.ps1 (real message boxes)' {
     # against message boxes like that one, shown by another process (they close by themselves in a moment).
     BeforeAll {
         $script:PowerShellExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-        $script:NoticeHelper = Join-Path $script:RepoRoot 'fenix-web-server\tools\AcceptUsageNotice.ps1'
+        $script:NoticeHelper = Join-Path $script:PackagesRoot 'fenix-web-server\tools\AcceptUsageNotice.ps1'
         function script:Show-MessageBox([string] $Text, [string] $AnswerFile) {
             $code = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('$Text', 'Fenix Setup', 'OKCancel') | Set-Content -Path '$AnswerFile'"
             Start-Process -FilePath $script:PowerShellExe -WindowStyle Hidden -PassThru -ArgumentList "-NoProfile -Command `"$code`""
@@ -266,7 +267,7 @@ Describe 'Checksums that Chocolatey''s package validator can read (rule CPMR0073
     # is held in moderation and Chocolatey answers 403 to every later version of the package. What passes is
     # a quoted checksum, or a plain variable that only ever receives quoted checksums.
     BeforeDiscovery {
-        $script:ToolScripts = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) '*\tools\*.ps1') |
+        $script:ToolScripts = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'Paquetes\actuales\*\tools\*.ps1') |
             ForEach-Object { @{ Script = "$($_.Directory.Parent.Name)\tools\$($_.Name)" } })
     }
 
@@ -340,7 +341,7 @@ Describe 'Checksums that Chocolatey''s package validator can read (rule CPMR0073
     }
 
     It '<Script>: every download carries a checksum written in the script' -ForEach $ToolScripts {
-        $text = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot $Script))
+        $text = [System.IO.File]::ReadAllText((Join-Path $script:PackagesRoot $Script))
         @(Get-UnreadableDownload -Text $text) | Should -BeNullOrEmpty
     }
 
@@ -387,7 +388,7 @@ Describe 'flarectl install (real download and extraction)' -Skip:$NoChocolatey {
         New-Item -ItemType Directory -Path $script:Tools | Out-Null
         $hash = (Get-FileHash -Path $script:Archive -Algorithm SHA256).Hash.ToLowerInvariant()
         $url = 'file:///' + $script:Archive.Replace('\', '/')
-        $text = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'flarectl\tools\chocolateyinstall.ps1'))
+        $text = [System.IO.File]::ReadAllText((Join-Path $script:PackagesRoot 'flarectl\tools\chocolateyinstall.ps1'))
         $text = $text -replace "(?m)^(\s*url64bit\s*=\s*)'.*'", "`${1}'$url'" -replace "(?m)^(\s*checksum64\s*=\s*)'.*'", "`${1}'$hash'"
         [System.IO.File]::WriteAllText((Join-Path $script:Tools 'chocolateyinstall.ps1'), $text)
     }
