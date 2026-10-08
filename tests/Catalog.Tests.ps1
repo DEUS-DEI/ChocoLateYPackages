@@ -225,6 +225,77 @@ Describe 'vendor_catalog.ps1: which release and which downloads count' {
     }
 }
 
+Describe 'vendor_catalog.ps1: versions and installers of the winget index' {
+    BeforeAll {
+        Import-CatalogCode -Function 'ConvertTo-SortKey', 'ConvertFrom-WingetManifest'
+        $script:Hash = 'C' * 64
+        function script:Get-Manifest([string[]] $Installer) {
+            # A manifest with these installers, each "architecture" or "architecture/language"
+            $lines = @('PackageIdentifier: Acme.Sample', 'InstallerType: wix', 'Installers:')
+            foreach ($item in $Installer) {
+                $architecture, $locale = $item -split '/'
+                $lines += "- Architecture: $architecture"
+                if ($locale) { $lines += "  InstallerLocale: $locale" }
+                $lines += "  InstallerUrl: https://downloads.example.invalid/sample-$($item -replace '/', '-').msi", "  InstallerSha256: $script:Hash"
+            }
+            $lines -join "`n"
+        }
+    }
+
+    It '<Older> is older than <Newer>' -ForEach @(
+        @{ Older = '99.0.1'; Newer = '157.0.1' }, @{ Older = '1.9.0'; Newer = '1.10.0' }, @{ Older = '21.0.12.7'; Newer = '21.0.12.12' }
+        @{ Older = '1.2.0-beta.1'; Newer = '1.2.0' }, @{ Older = '1.2.0-beta.1'; Newer = '1.2.0-beta.2' }, @{ Older = '1.2.0-rc.3'; Newer = '1.2.1-beta.1' }
+        @{ Older = '158.0b5'; Newer = '158.0' }, @{ Older = '158.0b5'; Newer = '158.0b12' }, @{ Older = 'v1.0.78-3'; Newer = 'v1.0.93' }
+        @{ Older = '1.2'; Newer = '1.2.1' }, @{ Older = '2026.2.1.7'; Newer = '2026.2.1.8' }, @{ Older = '1.2.3.4.5.6.7'; Newer = '1.2.3.4.5.6.8' }
+        @{ Older = '1.2.3.4.5.6'; Newer = '1.2.3.4.5.6.1' }
+    ) {
+        $sorted = @($Newer, $Older | Sort-Object { ConvertTo-SortKey -Version $_ })
+        $sorted | Should -Be $Older, $Newer
+        # And '1.2' is the same version as '1.2.0'
+        (ConvertTo-SortKey -Version '1.2') | Should -BeExactly (ConvertTo-SortKey -Version '1.2.0')
+    }
+
+    It 'on <Bits>-bit Windows takes <Expected> of <Installers>' -ForEach @(
+        @{ Bits = 64; Installers = 'arm64', 'x86', 'x64'; Expected = 'x64' }
+        @{ Bits = 64; Installers = 'x86', 'neutral'; Expected = 'neutral' }
+        @{ Bits = 64; Installers = 'arm64', 'x86'; Expected = 'x86' }
+        @{ Bits = 32; Installers = 'x64', 'x86'; Expected = 'x86' }
+        @{ Bits = 32; Installers = 'x64', 'neutral'; Expected = 'neutral' }
+    ) {
+        $spec = ConvertFrom-WingetManifest -Text (Get-Manifest -Installer $Installers) -Language 'es-MX' -Is64Bit ($Bits -eq 64)
+        $spec.Url | Should -BeExactly "https://downloads.example.invalid/sample-$Expected.msi"
+        $spec.Sha256 | Should -BeExactly $script:Hash
+        $spec.Identifier | Should -BeExactly 'Acme.Sample'
+    }
+
+    It 'has no installer for <Bits>-bit Windows among <Installers>' -ForEach @(
+        @{ Bits = 32; Installers = 'x64', 'arm64' }, @{ Bits = 64; Installers = 'arm64', 'arm' }
+    ) {
+        { ConvertFrom-WingetManifest -Text (Get-Manifest -Installer $Installers) -Language 'es-MX' -Is64Bit ($Bits -eq 64) } | Should -Throw '*arquitectura*'
+    }
+
+    It 'asked for <Language> takes the installer in "<Expected>" of <Installers>' -ForEach @(
+        @{ Language = 'es-MX'; Installers = 'x64/en-US', 'x64/es-MX', 'x64/fr-FR'; Expected = 'es-MX' }
+        @{ Language = 'es-MX'; Installers = 'x64/fr-FR', 'x64'; Expected = '' }
+        @{ Language = 'es-MX'; Installers = 'x64/fr-FR', 'x64/en-US'; Expected = 'en-US' }
+        # Nothing closer: another language, and the caller is told which
+        @{ Language = 'es-MX'; Installers = 'x64/fr-FR', 'x64/de-DE'; Expected = 'fr-FR' }
+        # The architecture counts more than the language
+        @{ Language = 'es-MX'; Installers = 'x86/es-MX', 'x64/fr-FR'; Expected = 'fr-FR' }
+    ) {
+        (ConvertFrom-WingetManifest -Text (Get-Manifest -Installer $Installers) -Language $Language -Is64Bit $true).Locale | Should -BeExactly $Expected
+    }
+
+    It 'refuses a download at <Address>' -ForEach @(
+        @{ Address = 'http://downloads.example.invalid/setup.msi' }, @{ Address = 'https://10.0.0.5/setup.msi' }, @{ Address = 'https://[::1]/setup.msi' }
+        @{ Address = 'https://fileserver/setup.msi' }, @{ Address = 'https://build.corp/setup.msi' }, @{ Address = 'https://nas.local/setup.msi' }
+        @{ Address = 'https://localhost/setup.msi' }, @{ Address = 'ftp://downloads.example.invalid/setup.msi' }, @{ Address = 'setup.msi' }
+    ) {
+        $manifest = "InstallerType: wix`nInstallers:`n- Architecture: x64`n  InstallerUrl: $Address`n  InstallerSha256: $script:Hash"
+        { ConvertFrom-WingetManifest -Text $manifest -Language 'es-MX' -Is64Bit $true } | Should -Throw
+    }
+}
+
 Describe 'vendor_catalog.ps1: the report' {
     BeforeAll {
         # --- A repository with the script, an invented catalog and packages of its own ---
@@ -704,25 +775,28 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
 @{
     Vendors  = @('Acme')
     Owners   = @{ 'Acme' = @('acme') }
+    Winget   = @{ 'Acme' = @('Acme') }
     Ignore   = @()
     Products = @(
         @{ Vendor = 'Acme'; Product = 'Browser'; Channel = 'estable'; Source = 'Mozilla'; File = 'firefox_versions.json'; Key = 'LATEST_FIREFOX_VERSION'
             Id = 'browser'; Installer = @{ Url = 'https://downloads.example.invalid/?product=browser-latest&lang={lang}'; Arguments = '/S'; Signer = 'Acme Corporation' } }
         @{ Vendor = 'Acme'; Product = 'Tunnel'; Channel = 'estable'; Source = 'GitHub'; Repo = 'acme/tunnel'
-            Id = 'tunnel'; Installer = @{ Asset = '^tunnel-windows-amd64\.msi$' } }
+            Id = 'tunnel'; Installer = @{ Asset = '^tunnel-windows-amd64\.msi$'; Signer = 'Acme Corporation' } }
         @{ Vendor = 'Acme'; Product = 'Client'; Channel = 'estable'; Source = 'Warp'; Track = 'ga'
             Id = 'client'; Installer = @{ Type = 'msi'; Signer = 'Acme Corporation' } }
         @{ Vendor = 'Acme'; Product = 'Desktop'; Channel = 'beta'; Source = 'GitHubDesktop'; Track = 'beta'
-            Id = 'desktop'; Installer = @{ Arguments = '-s'; Scope = 'user' } }
+            Id = 'desktop'; Installer = @{ Arguments = '-s'; Scope = 'user'; Signer = 'Acme Corporation' } }
         @{ Vendor = 'Acme'; Product = 'Editor'; Channel = 'estable'; Source = 'Json'; Url = 'https://updates.example.invalid/editor.json'
             VersionPath = 'currentRelease'; DatePath = 'releases.0.updateTo.pub_date'; DownloadPath = 'releases.0.updateTo.url'
             Id = 'editor'; Installer = @{ Arguments = '/VERYSILENT /MERGETASKS=!runcode'; Scope = 'user'; Signer = 'Acme Corporation' } }
         @{ Vendor = 'Acme'; Product = 'SDK'; Channel = 'estable'; Source = 'Json'; Url = 'https://sdk.example.invalid/dl/?mode=json'; VersionPath = '0.version'
-            Id = 'sdk'; Installer = @{ Url = 'https://sdk.example.invalid/dl/{version}.windows-amd64.msi' } }
+            Id = 'sdk'; Installer = @{ Url = 'https://sdk.example.invalid/dl/{version}.windows-amd64.msi'; Signer = 'Acme Corporation' } }
         @{ Vendor = 'Acme'; Product = 'Sync'; Channel = 'estable'; Source = 'Head'; Pattern = 'sync-(\d+(?:\.\d+)+)-windows'
-            Id = 'sync'; Installer = @{ Url = 'https://downloads.example.invalid/sync/latest.msi' } }
+            Id = 'sync'; Installer = @{ Url = 'https://downloads.example.invalid/sync/latest.msi'; Signer = 'Acme Corporation' } }
         @{ Vendor = 'Acme'; Product = 'Plain'; Channel = 'estable'; Source = 'Npm'; Package = 'plain'
-            Id = 'plain'; Installer = @{ Url = 'http://downloads.example.invalid/plain-setup.exe' } }
+            Id = 'plain'; Installer = @{ Url = 'http://downloads.example.invalid/plain-setup.exe'; Signer = 'Acme Corporation' } }
+        @{ Vendor = 'Acme'; Product = 'Loose'; Channel = 'estable'; Source = 'Npm'; Package = 'plain'
+            Id = 'loose'; Installer = @{ Url = 'https://downloads.example.invalid/loose-setup.exe'; Arguments = '/S' } }
         @{ Vendor = 'Acme'; Product = 'Navigator'; Channel = 'estable'; Source = 'Chrome'; Track = 'stable' }
     )
 }
@@ -739,7 +813,23 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
             $Fake.Requests.Add($address)
             if ($address -eq 'https://api.github.com/graphql') {
                 $query = [System.Text.Encoding]::UTF8.GetString($Body) | ConvertFrom-Json
-                if ($query.query -match 'repositoryOwner') { throw 'installing must not search the repositories of the vendors' }
+                if ($query.query -match 'repositoryOwner') {
+                    # The search of the report finds no repository here; installing must never get this far
+                    $Fake.Searches++
+                    $empty = [pscustomobject]@{ pageInfo = [pscustomobject]@{ hasNextPage = $false; endCursor = $null }; nodes = @() }
+                    return [pscustomobject]@{ data = [pscustomobject]@{ repositoryOwner = [pscustomobject]@{ repositories = $empty } } }
+                }
+                if ($query.query -match 'winget-pkgs') {
+                    # p0: object(expression: "HEAD:manifests/a/Acme") { ... }  A folder that is not there is null
+                    $repository = New-Object psobject
+                    foreach ($alias in [regex]::Matches($query.query, 'p(\d+): object\(expression: "HEAD:([^"]+)"\)')) {
+                        $folder = $alias.Groups[2].Value
+                        $Fake.Folders.Add($folder)
+                        $node = if ($Fake.Tree.ContainsKey($folder)) { [pscustomobject]@{ entries = @($Fake.Tree[$folder]) } }
+                        $repository | Add-Member -NotePropertyName "p$($alias.Groups[1].Value)" -NotePropertyValue $node
+                    }
+                    return [pscustomobject]@{ data = [pscustomobject]@{ repository = $repository } }
+                }
                 if ($Fake.GraphQLFailures -gt 0) { $Fake.GraphQLFailures--; throw '502 Bad Gateway' }
                 $data = New-Object psobject
                 foreach ($alias in [regex]::Matches($query.query, 'r(\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)')) {
@@ -783,8 +873,17 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
                     BaseResponse = [pscustomobject]@{ ResponseUri = [uri] 'https://downloads.example.invalid/sync/resources/4.2.0.1/sync-4.2.0.1-windows-x64.msi' }
                 }
             }
+            if (-not $OutFile -and $Fake.Manifests.ContainsKey($address)) {
+                return [pscustomobject]@{ Content = $(if ($Fake.WrongHash) { $Fake.Manifests[$address].Replace($Fake.Hash, ('0' * 64)) } else { $Fake.Manifests[$address] }) }
+            }
             if (-not $OutFile) { throw "Peticion no simulada: $address" }
-            if ($Fake.Missing | Where-Object { $address -like $_ }) { throw 'Error en el servidor remoto: (404) No se encontro.' }
+            if ($Fake.Unreachable | Where-Object { $address -like $_ }) { throw 'No se puede resolver el nombre remoto' }
+            if ($Fake.Missing | Where-Object { $address -like $_ }) {
+                # As Invoke-WebRequest does: an exception that carries the answer of the server
+                $notFound = New-Object CatalogTestHttpException 'Error en el servidor remoto: (404) No se encontro.'
+                $notFound.Response = [pscustomobject]@{ StatusCode = 404 }
+                throw $notFound
+            }
             # A download: an empty file where the script asked for it
             Set-Content -LiteralPath $OutFile -Value 'not a real installer'
             $Fake.Downloads.Add([pscustomobject]@{ Uri = $address; File = $OutFile })
@@ -793,6 +892,10 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         }
 
         Mock Start-Sleep { }
+
+        if (-not ('CatalogTestHttpException' -as [type])) {
+            Add-Type -TypeDefinition 'public class CatalogTestHttpException : System.Exception { public object Response { get; set; } public CatalogTestHttpException(string message) : base(message) { } }'
+        }
 
         Mock Get-AuthenticodeSignature {
             $Fake.Checked.Add($LiteralPath)
@@ -811,7 +914,8 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
 
         function script:Invoke-Install([hashtable] $Parameters) {
             # Runs the copy of the script with -Install and returns its rows and what it printed
-            foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
+            foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started', 'Folders') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
+            $script:Fake.Searches = 0
             $catalog = Join-Path $script:InstallRepo 'vendor_catalog.ps1'
             $output = @(& $catalog @Parameters -PassThru 6>&1 3>&1)
             [pscustomobject]@{
@@ -835,6 +939,174 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $elevated = (New-Object System.Security.Principal.WindowsPrincipal $identity).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
         $script:MachineVerb = if ($elevated) { '' } else { 'RunAs' }
         $script:MsiExec = Join-Path $env:SystemRoot 'System32\msiexec.exe'
+
+        # --- The winget community repository: folders (trees) and manifests (blobs) ---
+        function script:Get-FakeEntry([string[]] $Tree = @(), [string[]] $Blob = @()) {
+            @($Tree | ForEach-Object { [pscustomobject]@{ name = $_; type = 'tree' } }) + @($Blob | ForEach-Object { [pscustomobject]@{ name = $_; type = 'blob' } })
+        }
+        $root = 'manifests/a/Acme'
+        $tree = @{
+            $root                           = Get-FakeEntry -Tree 'Tool', 'Suite', 'Kit', 'Bundle', 'Portable', 'Old', 'Wrong', 'Inner' -Blob 'README.md'
+            # Versions sort as numbers (1.10.0 is newer than 1.9.0) and a pre-release goes before its version
+            # (1.10.0-rc.2 is older than 1.10.0); Beta is another package and es-MX a language
+            "$root/Tool"                    = Get-FakeEntry -Tree '1.9.0', '1.10.0-rc.2', '1.10.0', 'Beta', 'es-MX'
+            "$root/Old"                     = Get-FakeEntry -Tree '3.1', '3.0'
+            "$root/Old/3.1"                 = Get-FakeEntry -Blob 'Acme.Old.yaml'
+            "$root/Wrong"                   = Get-FakeEntry -Tree '1.0'
+            "$root/Wrong/1.0"               = Get-FakeEntry -Blob 'Acme.Wrong.installer.yaml'
+            "$root/Inner"                   = Get-FakeEntry -Tree '1.0'
+            "$root/Inner/1.0"               = Get-FakeEntry -Blob 'Acme.Inner.installer.yaml'
+            "$root/Tool/1.10.0"             = Get-FakeEntry -Blob 'Acme.Tool.installer.yaml', 'Acme.Tool.locale.en-US.yaml', 'Acme.Tool.yaml'
+            "$root/Tool/Beta"               = Get-FakeEntry -Tree '1.11.0', 'EXE'
+            "$root/Tool/Beta/1.11.0"        = Get-FakeEntry -Blob 'Acme.Tool.Beta.installer.yaml'
+            "$root/Tool/Beta/EXE"           = Get-FakeEntry -Tree '1.11.0'
+            "$root/Tool/Beta/EXE/1.11.0"    = Get-FakeEntry -Blob 'Acme.Tool.Beta.EXE.installer.yaml'
+            # Numbered folders that are packages and not versions: what they hold is more folders
+            "$root/Suite"                   = Get-FakeEntry -Tree '21', '25'
+            "$root/Suite/21"                = Get-FakeEntry -Tree 'JDK'
+            "$root/Suite/25"                = Get-FakeEntry -Tree 'JDK'
+            "$root/Suite/21/JDK"            = Get-FakeEntry -Tree '21.0.12.7', '21.0.12.12'
+            "$root/Suite/21/JDK/21.0.12.12" = Get-FakeEntry -Blob 'Acme.Suite.21.JDK.installer.yaml'
+            "$root/Suite/25/JDK"            = Get-FakeEntry -Tree '25.0.4.10', '25.0.1.8'
+            "$root/Suite/25/JDK/25.0.4.10"  = Get-FakeEntry -Blob 'Acme.Suite.25.JDK.installer.yaml'
+            "$root/Kit"                     = Get-FakeEntry -Tree '0.9'
+            "$root/Kit/0.9"                 = Get-FakeEntry -Blob 'Acme.Kit.installer.yaml'
+            "$root/Bundle"                  = Get-FakeEntry -Tree '2.0'
+            "$root/Bundle/2.0"              = Get-FakeEntry -Blob 'Acme.Bundle.installer.yaml'
+            "$root/Portable"                = Get-FakeEntry -Tree '1.0'
+            "$root/Portable/1.0"            = Get-FakeEntry -Blob 'Acme.Portable.installer.yaml'
+        }
+        # As on GitHub, the names of the folders are case-sensitive
+        $script:Fake.Tree = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::Ordinal)
+        foreach ($folder in $tree.Keys) { $script:Fake.Tree[$folder] = $tree[$folder] }
+        # The SHA256 of what the download mock writes, as the manifests of the index give it
+        $sample = Join-Path $TestDrive 'sample-installer'
+        Set-Content -LiteralPath $sample -Value 'not a real installer'
+        $script:Fake.Hash = (Get-FileHash -LiteralPath $sample -Algorithm SHA256).Hash
+        $raw = 'https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/a/Acme'
+        $script:Fake.Manifests = @{
+            # One installer per architecture, what is shared written once at the top
+            "$raw/Tool/1.10.0/Acme.Tool.installer.yaml"          = @"
+# yaml-language-server: `$schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+
+PackageIdentifier: Acme.Tool
+PackageVersion: 1.10.0
+InstallerType: wix
+Scope: machine
+InstallerSwitches:
+  InstallLocation: INSTALLDIR="<INSTALLPATH>"
+  Custom: ADDLOCAL=ALL
+AppsAndFeaturesEntries:
+- ProductCode: '{DA6F3C20-298A-43EE-AA8D-6BABFC0458B0}'
+Installers:
+- Architecture: arm64
+  InstallerUrl: https://downloads.example.invalid/tool/1.10.0/tool-arm64.msi
+  InstallerSha256: $('A' * 64)
+- Architecture: x86
+  InstallerUrl: https://downloads.example.invalid/tool/1.10.0/tool-x86.msi
+  InstallerSha256: $('B' * 64)
+- Architecture: x64
+  InstallerUrl: https://downloads.example.invalid/tool/1.10.0/tool-x64.msi
+  InstallerSha256: $($script:Fake.Hash)
+  ProductCode: '{DA6F3C20-298A-43EE-AA8D-6BABFC0458B0}'
+ManifestType: installer
+ManifestVersion: 1.6.0
+"@
+            # A setup program that needs its own switch, one per language
+            "$raw/Tool/Beta/1.11.0/Acme.Tool.Beta.installer.yaml" = @"
+PackageIdentifier: Acme.Tool.Beta
+PackageVersion: 1.11.0
+InstallerType: exe
+InstallerSwitches:
+  Silent: --silent
+  SilentWithProgress: --passive
+Installers:
+- Architecture: x64
+  InstallerLocale: en-US
+  InstallerUrl: https://downloads.example.invalid/tool-beta/en-US/setup.exe
+  InstallerSha256: $($script:Fake.Hash)
+- Architecture: x64
+  InstallerLocale: es-MX
+  InstallerUrl: https://downloads.example.invalid/tool-beta/es-MX/setup.exe
+  InstallerSha256: $($script:Fake.Hash)
+ManifestType: installer
+"@
+            # Inno Setup, for the current user first; quoted values and a hash in lower case
+            "$raw/Kit/0.9/Acme.Kit.installer.yaml"               = @"
+PackageIdentifier: Acme.Kit
+PackageVersion: '0.9'
+InstallerType: inno
+InstallerSwitches:
+  Custom: '/mergetasks=!runcode'
+Installers:
+- Architecture: x64
+  Scope: user
+  InstallerUrl: "https://downloads.example.invalid/kit/kit-user-0.9.exe"
+  InstallerSha256: $($script:Fake.Hash.ToLowerInvariant())
+- Architecture: x64
+  Scope: machine
+  InstallerUrl: https://downloads.example.invalid/kit/kit-0.9.exe
+  InstallerSha256: $($script:Fake.Hash)
+ManifestType: installer
+"@
+            # A setup program and no word on how to run it silently
+            "$raw/Bundle/2.0/Acme.Bundle.installer.yaml"         = @"
+PackageIdentifier: Acme.Bundle
+InstallerType: exe
+Installers:
+- Architecture: x64
+  InstallerUrl: https://downloads.example.invalid/bundle/setup.exe
+  InstallerSha256: $($script:Fake.Hash)
+"@
+            # The old layout: one file for everything, and the items of the list indented
+            "$raw/Old/3.1/Acme.Old.yaml"                         = @"
+PackageIdentifier: Acme.Old
+PackageVersion: 3.1
+InstallerType: nullsoft
+Installers:
+  - Architecture: x86
+    InstallerUrl: https://downloads.example.invalid/old/old-3.1-x86.exe
+    InstallerSha256: $($script:Fake.Hash)
+  - Architecture: x64
+    InstallerUrl: https://downloads.example.invalid/old/old-3.1-x64.exe
+    InstallerSha256: $($script:Fake.Hash)
+    InstallerSwitches:
+      Custom: /NCRC
+    AppsAndFeaturesEntries:
+      - DisplayName: Acme Old
+ManifestType: singleton
+"@
+            # A manifest that is of another package
+            "$raw/Wrong/1.0/Acme.Wrong.installer.yaml"           = @"
+PackageIdentifier: Acme.Other
+InstallerType: wix
+Installers:
+- Architecture: x64
+  InstallerUrl: https://downloads.example.invalid/other/other.msi
+  InstallerSha256: $($script:Fake.Hash)
+"@
+            # A download that is not on the Internet
+            "$raw/Inner/1.0/Acme.Inner.installer.yaml"           = @"
+PackageIdentifier: Acme.Inner
+InstallerType: wix
+Installers:
+- Architecture: x64
+  InstallerUrl: https://10.0.0.5/inner.msi
+  InstallerSha256: $($script:Fake.Hash)
+"@
+            # An archive with a program inside: winget's own business
+            "$raw/Portable/1.0/Acme.Portable.installer.yaml"     = @"
+PackageIdentifier: Acme.Portable
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+- RelativeFilePath: portable.exe
+Installers:
+- Architecture: x64
+  InstallerUrl: https://downloads.example.invalid/portable/portable-1.0.zip
+  InstallerSha256: $($script:Fake.Hash)
+"@
+        }
     }
     AfterAll {
         foreach ($name in $script:Saved.Keys) { [Environment]::SetEnvironmentVariable($name, $script:Saved[$name], 'Process') }
@@ -844,8 +1116,10 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $script:Fake.SignatureStatus = 'Valid'
         $script:Fake.ExitCode = 0
         $script:Fake.Missing = @()
+        $script:Fake.Unreachable = @()
         $script:Fake.RedirectedTo = ''
         $script:Fake.GraphQLFailures = 0
+        $script:Fake.WrongHash = $false
     }
 
     It 'downloads the installer in the language asked, checks who signed it and runs it silently' {
@@ -905,11 +1179,10 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $started.Existed | Should -BeTrue
     }
 
-    It 'accepts any publisher that Windows trusts when the catalog names none, and says who it is' {
-        $script:Fake.Publisher = 'Somebody Else LLC'
-        $run = Invoke-Install -Parameters @{ Install = 'tunnel'; Yes = $true }
-        $run.Rows[0].Resultado | Should -BeExactly 'instalado'
-        $run.Text | Should -Match 'Firmado por: Somebody Else LLC'
+    It 'does not install a product of the catalog that names no signer, whoever signed the file' {
+        { Invoke-Install -Parameters @{ Install = 'loose'; Yes = $true } } | Should -Throw '*No se pudo instalar: loose*'
+        $script:Fake.Downloads.Count | Should -Be 0
+        $script:Fake.Started.Count | Should -Be 0
     }
 
     It 'does not run an installer whose signature is <Status>' -ForEach @(@{ Status = 'NotSigned' }, @{ Status = 'HashMismatch' }, @{ Status = 'UnknownError' }) {
@@ -924,10 +1197,11 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $script:Fake.Publisher = 'Somebody Else LLC'
         $failure = $null
         try { Invoke-Install -Parameters @{ Install = 'browser,tunnel'; Language = 'en-US'; Yes = $true } } catch { $failure = $_ }
-        # browser names its publisher and is refused; tunnel names none and is still installed
-        "$failure" | Should -BeExactly 'No se pudo instalar: browser'
-        @($script:Fake.Started | ForEach-Object FilePath) | Should -Be $script:MsiExec
+        "$failure" | Should -BeExactly 'No se pudo instalar: browser, tunnel'
+        $script:Fake.Downloads.Count | Should -Be 2
+        $script:Fake.Started.Count | Should -Be 0
         Join-Path $script:Downloaded 'browser.exe' | Should -Not -Exist
+        Join-Path $script:Downloaded 'tunnel.msi' | Should -Not -Exist
     }
 
     It 'reports the exit code <Code> of the installer as "<Result>"' -ForEach @(
@@ -968,7 +1242,7 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
 
     It 'refuses a product that is not in the catalog or has no installer, before asking anything' {
         { Invoke-Install -Parameters @{ Install = 'tunnel,navigator,nothing'; Yes = $true } } |
-            Should -Throw '*Sin instalador en el catalogo: navigator, nothing. Se puede instalar: browser, client, desktop, editor, plain, sdk, sync, tunnel*'
+            Should -Throw '*Sin instalador en el catalogo: navigator, nothing. Se puede instalar: browser, client, desktop, editor, loose, plain, sdk, sync, tunnel*'
         $script:Fake.Requests.Count | Should -Be 0
     }
 
@@ -981,6 +1255,28 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $script:Fake.Checked.Count | Should -Be 0 -Because 'a file that travelled in the open is not even looked at'
         $script:Fake.Started.Count | Should -Be 0
         Join-Path $script:Downloaded 'tunnel.msi' | Should -Not -Exist
+    }
+
+    It 'does not take a download refused for leaving https for a missing language' {
+        $script:Fake.RedirectedTo = 'http://mirror.example.invalid/browser-setup.exe'
+        $failure = $null
+        $text = ''
+        try { $text = (Invoke-Install -Parameters @{ Install = 'browser'; Language = 'es-MX'; Yes = $true }).Text } catch { $failure = $_ }
+        "$failure" | Should -BeExactly 'No se pudo instalar: browser'
+        @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be 'https://downloads.example.invalid/?product=browser-latest&lang=es-MX'
+        $text | Should -Not -Match 'No hay instalador en'
+        $script:Fake.Started.Count | Should -Be 0
+    }
+
+    It 'does not take a network failure for a missing language' {
+        $script:Fake.Unreachable = @('*lang=es-MX')
+        $failure = $null
+        $text = ''
+        try { $text = (Invoke-Install -Parameters @{ Install = 'browser'; Language = 'es-MX'; Yes = $true }).Text } catch { $failure = $_ }
+        "$failure" | Should -BeExactly 'No se pudo instalar: browser'
+        $script:Fake.Downloads.Count | Should -Be 0
+        $text | Should -Not -Match 'No hay instalador en'
+        @($script:Fake.Requests | Where-Object { $_ -like '*lang=en-US' }) | Should -BeNullOrEmpty
     }
 
     It 'still installs the products of other vendors when GitHub does not answer' {
@@ -1007,7 +1303,7 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $rows = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -NoDiscover -PassThru 6>$null)
         $byProduct = @{}
         foreach ($row in $rows) { $byProduct[$row.Producto] = $row }
-        @($rows | Where-Object { $_.Instalar } | ForEach-Object Instalar | Sort-Object) | Should -Be 'browser', 'client', 'desktop', 'editor', 'plain', 'sdk', 'sync', 'tunnel'
+        @($rows | Where-Object { $_.Instalar } | ForEach-Object Instalar | Sort-Object) | Should -Be 'browser', 'client', 'desktop', 'editor', 'loose', 'plain', 'sdk', 'sync', 'tunnel'
         $byProduct['Navigator'].Instalar | Should -BeNullOrEmpty
         $byProduct['Navigator'].Version | Should -BeExactly '156.0.8078.12'
         $byProduct['Navigator'].Fuente | Should -BeExactly 'versionhistory.googleapis.com (stable)'
@@ -1020,5 +1316,144 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $byProduct['Sync'].Fuente | Should -BeExactly 'https://downloads.example.invalid/sync/latest.msi'
         $script:Fake.Downloads.Count | Should -Be 0
         $script:Fake.Started.Count | Should -Be 0
+    }
+
+    Context 'the winget index' {
+        It 'lists everything the index has of the publishers of the vendor, each with its latest version' {
+            foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started', 'Folders') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
+            $rows = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -PassThru 6>$null | Where-Object { $_.Origen -eq 'winget' })
+            @($rows | ForEach-Object { "$($_.Producto) $($_.Version)" }) | Should -Be @(
+                'Acme.Bundle 2.0', 'Acme.Inner 1.0', 'Acme.Kit 0.9', 'Acme.Old 3.1', 'Acme.Portable 1.0', 'Acme.Suite.21.JDK 21.0.12.12'
+                'Acme.Suite.25.JDK 25.0.4.10', 'Acme.Tool 1.10.0', 'Acme.Tool.Beta 1.11.0', 'Acme.Tool.Beta.EXE 1.11.0', 'Acme.Wrong 1.0')
+            # The name to install it with is the one of the index, and it is the vendor's row
+            @($rows | Where-Object { $_.Instalar -cne $_.Producto -or $_.Fabricante -ne 'Acme' -or $_.Estado -ne 'actual' }) | Should -BeNullOrEmpty
+            $rows[7].Fuente | Should -BeExactly 'github.com/microsoft/winget-pkgs/tree/master/manifests/a/Acme/Tool/1.10.0'
+            # A language (es-MX) is not a package, and no folder is asked for twice
+            @($script:Fake.Folders | Where-Object { $_ -like '*es-MX*' }) | Should -BeNullOrEmpty
+            @($script:Fake.Folders | Group-Object | Where-Object Count -GT 1) | Should -BeNullOrEmpty
+        }
+
+        It 'prints the index in a table of its own and writes it to the Markdown report' {
+            $report = Join-Path $TestDrive 'indice.md'
+            foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started', 'Folders') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
+            $output = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -OutFile $report 6>&1 3>&1)
+            $text = @($output | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { "$_" }) -join "`n"
+            $text | Should -Match '(?m)^  INDICE DE WINGET \(11\)$'
+            $text | Should -Match '(?m)^Acme\s+Acme\.Suite\.21\.JDK\s+21\.0\.12\.12\s*$'
+            # The tables of the catalog do not count the rows of the index
+            $text | Should -Match '(?m)^  ACTUALES \(10\)$'
+            $lines = @(Get-Content -LiteralPath $report)
+            $index = [array]::IndexOf($lines, '## Indice de winget')
+            $index | Should -BeGreaterThan ([array]::IndexOf($lines, '## Descontinuados'))
+            [array]::IndexOf($lines, '| Acme | Acme.Tool.Beta | 1.11.0 |') | Should -BeGreaterThan $index
+        }
+
+        It '-NoDiscover does not read the index' {
+            $run = Invoke-Install -Parameters @{ NoDiscover = $true }
+            @($run.Rows | Where-Object { $_.Origen -eq 'winget' }) | Should -BeNullOrEmpty
+            $script:Fake.Folders.Count | Should -Be 0
+        }
+
+        It 'installs a package of the index from the address, with the SHA256 and the arguments of its manifest' {
+            $run = Invoke-Install -Parameters @{ Install = 'Acme.Tool'; Yes = $true }
+            $file = Join-Path $script:Downloaded 'Acme.Tool.msi'
+            $run.Rows[0].Id | Should -BeExactly 'Acme.Tool'
+            $run.Rows[0].Version | Should -BeExactly '1.10.0'
+            $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+            # The installer for x64, not the first one of the manifest
+            @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be 'https://downloads.example.invalid/tool/1.10.0/tool-x64.msi'
+            $script:Fake.Started[0].FilePath | Should -BeExactly $script:MsiExec
+            $script:Fake.Started[0].Arguments | Should -BeExactly "/i `"$file`" /qn /norestart ADDLOCAL=ALL"
+            $script:Fake.Started[0].Verb | Should -BeExactly $script:MachineVerb
+            $run.Text | Should -Match 'SHA256 igual al del indice de winget'
+            $run.Text | Should -Match 'Firmado por: Acme Corporation'
+            $file | Should -Not -Exist
+            # Only the folder of the package is read, not the whole index
+            $script:Fake.Folders.ToArray() | Should -Be 'manifests/a/Acme/Tool', 'manifests/a/Acme/Tool/1.10.0'
+            $script:Fake.Searches | Should -Be 0
+        }
+
+        It 'does not run a file whose SHA256 is not the one of the index' {
+            $script:Fake.WrongHash = $true
+            $failure = $null
+            try { Invoke-Install -Parameters @{ Install = 'Acme.Tool'; Yes = $true } } catch { $failure = $_ }
+            "$failure" | Should -BeExactly 'No se pudo instalar: Acme.Tool'
+            $script:Fake.Downloads.Count | Should -Be 1
+            $script:Fake.Checked.Count | Should -Be 0 -Because 'the hash is compared before the signature is even read'
+            $script:Fake.Started.Count | Should -Be 0
+            Join-Path $script:Downloaded 'Acme.Tool.msi' | Should -Not -Exist
+        }
+
+        It 'installs an unsigned package of the index once its SHA256 matches, and says so' {
+            $script:Fake.SignatureStatus = 'NotSigned'
+            $run = Invoke-Install -Parameters @{ Install = 'Acme.Tool'; Yes = $true }
+            $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+            $run.Text | Should -Match '\[AVISO\] El instalador no lleva firma digital'
+            $script:Fake.Started.Count | Should -Be 1
+        }
+
+        It 'does not run a package of the index whose signature is broken, even with the right SHA256' {
+            $script:Fake.SignatureStatus = 'HashMismatch'
+            { Invoke-Install -Parameters @{ Install = 'Acme.Tool'; Yes = $true } } | Should -Throw '*No se pudo instalar: Acme.Tool*'
+            $script:Fake.Started.Count | Should -Be 0
+        }
+
+        It 'gives each kind of installer its silent arguments, and runs one for the current user without elevation' {
+            $run = Invoke-Install -Parameters @{ Install = 'Acme.Kit'; Yes = $true }
+            $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+            $run.Rows[0].Version | Should -BeExactly '0.9'
+            @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be 'https://downloads.example.invalid/kit/kit-user-0.9.exe'
+            $script:Fake.Started[0].FilePath | Should -BeExactly (Join-Path $script:Downloaded 'Acme.Kit.exe')
+            $script:Fake.Started[0].Arguments | Should -BeExactly '/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /mergetasks=!runcode'
+            $script:Fake.Started[0].Verb | Should -BeExactly ''
+        }
+
+        It 'takes the installer in <Language> from <Url>' -ForEach @(
+            @{ Language = 'es-MX'; Url = 'https://downloads.example.invalid/tool-beta/es-MX/setup.exe' }
+            @{ Language = 'fr-FR'; Url = 'https://downloads.example.invalid/tool-beta/en-US/setup.exe' }
+        ) {
+            $run = Invoke-Install -Parameters @{ Install = 'Acme.Tool.Beta'; Language = $Language; Yes = $true }
+            $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+            @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be $Url
+            $script:Fake.Started[0].Arguments | Should -BeExactly '--silent'
+            # Told when it is not the language asked for
+            if ($Language -eq 'fr-FR') { $run.Text | Should -Match '\[AVISO\] El indice no tiene este instalador en fr-FR: es el de en-US' }
+            else { $run.Text | Should -Not -Match 'El indice no tiene este instalador' }
+        }
+
+        It 'reads a manifest in a single file, with the items of its list indented' {
+            $run = Invoke-Install -Parameters @{ Install = 'Acme.Old'; Yes = $true }
+            $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+            $run.Rows[0].Version | Should -BeExactly '3.1'
+            @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be 'https://downloads.example.invalid/old/old-3.1-x64.exe'
+            $script:Fake.Started[0].Arguments | Should -BeExactly '/S /NCRC'
+        }
+
+        It 'does not download <Id>: <Why>' -ForEach @(
+            @{ Id = 'Acme.Bundle'; Why = 'a setup program whose manifest does not say how to run it silently' }
+            @{ Id = 'Acme.Portable'; Why = 'an archive, which winget installs itself' }
+            @{ Id = 'Acme.Suite'; Why = 'a folder of packages, not a package' }
+            @{ Id = 'Acme.Missing'; Why = 'not in the index' }
+            @{ Id = 'Acme.Wrong'; Why = 'its manifest is of another package' }
+            @{ Id = 'Acme.Inner'; Why = 'its manifest points to an address that is not public' }
+            @{ Id = 'acme.tool'; Why = 'the names of the index are case-sensitive' }
+        ) {
+            { Invoke-Install -Parameters @{ Install = $Id; Yes = $true } } | Should -Throw "*No se pudo instalar: $Id*"
+            $script:Fake.Downloads.Count | Should -Be 0
+            $script:Fake.Started.Count | Should -Be 0
+        }
+
+        It 'refuses a package of a publisher that is not in the catalog, before asking anything' {
+            { Invoke-Install -Parameters @{ Install = 'Acme.Tool,Other.Thing'; Yes = $true } } |
+                Should -Throw '*Sin instalador en el catalogo: Other.Thing.*del indice de winget, lo de Acme*'
+            $script:Fake.Requests.Count | Should -Be 0
+        }
+
+        It '-WhatIf reads the manifest and downloads nothing' {
+            $run = Invoke-Install -Parameters @{ Install = 'Acme.Kit'; WhatIf = $true }
+            $run.Rows[0].Resultado | Should -BeExactly 'simulado (-WhatIf)'
+            $run.Rows[0].Descarga | Should -BeExactly 'https://downloads.example.invalid/kit/kit-user-0.9.exe'
+            $script:Fake.Downloads.Count | Should -Be 0
+        }
     }
 }

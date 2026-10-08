@@ -21,7 +21,9 @@ y como mantenerlo.
   consulta a los fabricantes, a GitHub y a Chocolatey; no empaqueta, no publica y no escribe en el repositorio.
 - `vendor_catalog.ps1 -Install <nombre>` descarga y ejecuta instaladores en la PC del usuario. No ejecutarlo sin
   `-WhatIf` salvo que el usuario lo pida para un producto concreto. Un producto nuevo solo entra como instalable con
-  una descarga `https` del fabricante y, si se conoce, su firmante (`Signer`): la firma se comprueba antes de ejecutar.
+  una descarga `https` del fabricante y su firmante (`Signer`), leido de la firma del instalador real: sin el no se
+  instala. Los nombres con punto (`Google.QuickShare`) son paquetes del indice de winget de los editores de `Winget`
+  en el `.psd1`: se instalan desde la direccion de su manifiesto y solo si el SHA256 coincide.
 
 ## Compatibilidad
 - Los scripts de `Paquetes/actuales/*/tools/` se ejecutan al instalar y tienen que funcionar en **PowerShell v2**

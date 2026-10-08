@@ -11,11 +11,18 @@
     expects, and runs it silently. It asks before each product (-Yes skips the question, -WhatIf only shows
     what would be done). Chocolatey takes no part in it.
 
-    The products of the report come from two places:
+    -Install also takes a package of the winget community repository (github.com/microsoft/winget-pkgs) of
+    the publishers of the catalog, by its name there (Google.QuickShare, Amazon.Kindle). The script reads the
+    manifest of its latest version, downloads the installer from the vendor's address written in it, and runs
+    it only if its SHA256 is the one of the manifest. Neither winget nor Chocolatey is called.
+
+    The products of the report come from three places:
       - vendor_catalog.psd1: the products with a name, a channel and, when there is one, the ID of their
         package in the Chocolatey community repository.
       - GitHub (unless -NoDiscover): every other repository of the vendors' organizations whose latest
         release has a download for Windows.
+      - The winget index (unless -NoDiscover): every package it has of the publishers of each vendor, in a
+        table of its own. It is the fullest public list of what a vendor ships for Windows.
 
     For each product the script asks the vendor for the latest version, asks Chocolatey for the version of
     its package and tells whether this repository packages it (Paquetes\actuales, Paquetes\descontinuados).
@@ -41,8 +48,9 @@
 
 .PARAMETER Install
     Install these products (comma separated): the names of the "Instalar" column of the report, such as
-    firefox, chrome, kiro, cursor, gh or aws-cli. The parameters of the report (-Vendor, -NoDiscover, -OutFile)
-    play no part: a product is installed whoever its vendor is.
+    firefox, chrome, kiro, cursor, gh or aws-cli, or the names of the winget index, written as they are there
+    (Google.QuickShare). The parameters of the report (-Vendor, -NoDiscover, -OutFile) play no part: a product
+    is installed whoever its vendor is.
 
 .PARAMETER Language
     Language of the installers that come in several (Firefox, Thunderbird). Default: the display language of
@@ -94,6 +102,7 @@ $script:GitHubHeaders = @{ 'User-Agent' = 'ChocoLateYPackages-vendor-catalog' }
 $script:GitHubFailure = ''
 $script:MozillaFiles = @{}
 $script:ChocolateyVersions = @{}
+$script:WingetFolders = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::Ordinal)  # names are case-sensitive
 
 function Get-GitHubToken {
     # The token is only sent to api.github.com and never printed
@@ -401,6 +410,8 @@ function Get-LocalStatus([string] $Id) {
 function Get-InstallerSpec($Entry, $Latest, [string] $Language) {
     # Where the installer of a product is downloaded from, how it is run and who must have signed it
     $installer = $Entry.Installer
+    # A product of the catalog is only installed when the catalog says who signs it
+    if (-not $installer.Signer) { throw 'el catalogo no dice quien firma el instalador de este producto' }
     $url = if ($installer.Asset) {
         # A file of the GitHub release, by its name
         $asset = @($Latest.Assets | Where-Object { $_ -match $installer.Asset })[0]
@@ -423,18 +434,182 @@ function Save-Installer([string] $Url, [string] $Path) {
     $origin = $response.BaseResponse.ResponseUri
     if (-not $origin -or $origin.Scheme -ne 'https') {
         Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
-        throw "la descarga termino en una direccion que no es https ($origin)"
+        # Its own kind of error: it is not a missing file, and must not be taken for a missing language
+        throw (New-Object System.Security.SecurityException "la descarga termino en una direccion que no es https ($origin)")
     }
 }
 
-function Get-InstallerPublisher([string] $Path, [string] $Signer) {
+function Get-InstallerPublisher([string] $Path, [string] $Signer, [string] $Sha256) {
     # Who signed a downloaded installer. Fails unless Windows trusts the signature and, when the catalog
     # names the signer, it is that one: a file that is not the vendor's must never be run.
+    # With the SHA256 of the winget index the file must be exactly that one, and then (only then) an installer
+    # without any signature is accepted, as winget does: some open source tools are not signed.
+    if ($Sha256 -and (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ne $Sha256) {
+        throw 'el SHA256 del instalador no es el del indice de winget'
+    }
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($Sha256 -and "$($signature.Status)" -eq 'NotSigned') { return '' }
     if ("$($signature.Status)" -ne 'Valid') { throw "la firma digital del instalador no es valida ($($signature.Status))" }
     $publisher = $signature.SignerCertificate.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false)
     if ($Signer -and $publisher -ne $Signer) { throw "el instalador esta firmado por '$publisher' y no por '$Signer'" }
     $publisher
+}
+
+function Get-WingetFolder([string[]] $Path) {
+    # Name and type of the entries of some folders of the winget community repository, 80 folders per request.
+    # Each folder is asked once: the index does not change while the script runs.
+    $missing = @($Path | Where-Object { -not $script:WingetFolders.ContainsKey($_) } | Select-Object -Unique)
+    for ($start = 0; $start -lt $missing.Count; $start += 80) {
+        $batch = @($missing[$start..([Math]::Min($start + 79, $missing.Count - 1))])
+        $parts = for ($i = 0; $i -lt $batch.Count; $i++) {
+            if ($batch[$i] -notmatch '^[^\s"\\]+$') { throw "Carpeta de winget no valida: '$($batch[$i])'" }
+            'p{0}: object(expression: "HEAD:{1}") {{ ... on Tree {{ entries {{ name type }} }} }}' -f $i, $batch[$i]
+        }
+        $data = Invoke-GitHubQuery -Query ("query { repository(owner: `"microsoft`", name: `"winget-pkgs`") {`n" + ($parts -join "`n") + "`n} }")
+        for ($i = 0; $i -lt $batch.Count; $i++) {
+            $entries = @()
+            $node = $data.repository."p$i"
+            if ($node -and $node.entries) { $entries = @($node.entries) }
+            $script:WingetFolders[$batch[$i]] = $entries
+        }
+    }
+    $script:WingetFolders
+}
+
+function ConvertTo-SortKey([string] $Version) {
+    # Text that sorts versions: numbers as numbers ('99.0.1' before '157.0.1', '1.9.0' before '1.10.0') and a
+    # pre-release ('1.2.0-beta.1', '158.0b5') before the version it leads to ('1.2.0', '158.0')
+    $clean = $Version -replace '^[vV]'
+    $core = [regex]::Match($clean, '^\d+(\.\d+)*').Value
+    $rest = $clean.Substring($core.Length)
+    # Twelve numbers, far more than any version has: with fewer, versions that only differ after them would tie
+    $numbers = @($core -split '\.' | Where-Object { $_ }) + @('0') * 12 | Select-Object -First 12
+    $key = @($numbers | ForEach-Object { $_.PadLeft(12, '0') }) -join '.'
+    if (-not $rest) { return "$key.1" }
+    "$key.0." + (@($rest -split '[^0-9]+' | Where-Object { $_ } | ForEach-Object { $_.PadLeft(12, '0') }) -join '.')
+}
+
+function Get-WingetPackage([string[]] $Publisher) {
+    # Every package of some publishers in the winget community repository, with its latest version. A folder
+    # is a package when its numbered folders hold manifests (they are its versions). It can also hold other
+    # packages, down to two more levels (Google.Chrome.Beta, Amazon.Corretto.21.JDK), and one per language
+    # (Mozilla.Firefox.es-MX), which is left out.
+    $numbered = '^v?\d'
+    $language = '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'  # compared case-sensitively: "Dev" and "ESR" are not languages
+    $candidates = [ordered]@{}
+    $roots = [ordered]@{}
+    foreach ($name in $Publisher) { $roots["manifests/$($name.Substring(0, 1).ToLowerInvariant())/$name"] = $name }
+    $folders = Get-WingetFolder -Path @($roots.Keys)
+    foreach ($path in $roots.Keys) {
+        foreach ($entry in $folders[$path] | Where-Object { $_.type -eq 'tree' }) { $candidates["$path/$($entry.name)"] = "$($roots[$path]).$($entry.name)" }
+    }
+    foreach ($depth in 0, 1, 2) {
+        if (-not $candidates.Count) { break }
+        $folders = Get-WingetFolder -Path @($candidates.Keys)
+        # Whether the numbered folders of each candidate are versions is told by the highest one
+        $highest = @{}
+        foreach ($path in $candidates.Keys) {
+            $top = @($folders[$path] | Where-Object { $_.type -eq 'tree' -and $_.name -match $numbered } |
+                Sort-Object { ConvertTo-SortKey -Version $_.name } -Descending | ForEach-Object { $_.name })[0]
+            if ($top) { $highest[$path] = $top }
+        }
+        $probed = @{}
+        if ($highest.Count) { $probed = Get-WingetFolder -Path @($highest.Keys | ForEach-Object { "$_/$($highest[$_])" }) }
+        $next = [ordered]@{}
+        foreach ($path in $candidates.Keys) {
+            $id = $candidates[$path]
+            $versions = $false
+            if ($highest.ContainsKey($path)) {
+                $versions = [bool] ($probed["$path/$($highest[$path])"] | Where-Object { $_.type -eq 'blob' -and $_.name -like '*.yaml' })
+                if ($versions) { [pscustomobject]@{ Id = $id; Version = $highest[$path]; Path = "$path/$($highest[$path])" } }
+            }
+            if ($depth -eq 2) { continue }
+            foreach ($child in $folders[$path] | Where-Object { $_.type -eq 'tree' }) {
+                $isPackage = if ($child.name -match $numbered) { -not $versions } else { $child.name -cnotmatch $language }
+                if ($isPackage) { $next["$path/$($child.name)"] = "$id.$($child.name)" }
+            }
+        }
+        $candidates = $next
+    }
+}
+
+function ConvertFrom-WingetManifest([string] $Text, [string] $Language, [bool] $Is64Bit = [System.Environment]::Is64BitOperatingSystem) {
+    # The installer of a winget manifest for this PC and how to run it. On 64-bit Windows: x64 first, then one
+    # for any architecture, then x86; on 32-bit Windows, x86 or any. In the language asked when there is one
+    # per language, else one for every language, else English, else whatever there is.
+    # Only the fields needed are read, line by line: what is written for one installer wins over what is
+    # written for all of them. The items of the list may be indented or not, as YAML allows.
+    $shared = @{}
+    $installers = @()
+    $current = $null
+    $inList = $false
+    $indent = -1
+    foreach ($line in $Text -split "`r?`n") {
+        if ($line -match '^Installers:\s*$') { $inList = $true; continue }
+        if ($inList -and $line -match '^\S' -and $line -notmatch '^- ') { $inList = $false; $current = $null }
+        if ($inList -and $line -match '^(?<spaces>\s*)- ') {
+            if ($indent -lt 0) { $indent = $Matches.spaces.Length }
+            if ($Matches.spaces.Length -eq $indent) { $current = @{}; $installers += $current }
+        }
+        if ($line -match '^\s*(?:- )?(?<key>PackageIdentifier|Architecture|InstallerType|NestedInstallerType|Scope|InstallerUrl|InstallerSha256|InstallerLocale|Silent|Custom):\s*(?<value>\S.*?)\s*$') {
+            $key = $Matches.key
+            $value = $Matches.value -replace "^(['`"])(.*)\1$", '$2'
+            $target = if ($inList -and $current) { $current } else { $shared }
+            if (-not $target.ContainsKey($key)) { $target[$key] = $value }
+        }
+    }
+    $rank = if ($Is64Bit) { @{ x64 = 3; neutral = 2; x86 = 1 } } else { @{ x86 = 3; neutral = 2 } }
+    $chosen = $null
+    $best = 0
+    foreach ($installer in $installers | Where-Object { $_.InstallerUrl }) {
+        $score = 10 * [int] $rank["$($installer.Architecture)"]
+        if (-not $score) { continue }  # arm, arm64, or x64 on 32-bit Windows
+        $score += if ($installer.InstallerLocale -eq $Language) { 4 } elseif (-not $installer.InstallerLocale) { 3 } elseif ($installer.InstallerLocale -eq 'en-US') { 2 } else { 1 }
+        if ($score -gt $best) { $best = $score; $chosen = $installer }
+    }
+    if (-not $chosen) { throw 'el manifiesto de winget no tiene instalador para la arquitectura de este Windows' }
+    foreach ($key in $shared.Keys) { if (-not $chosen.ContainsKey($key)) { $chosen[$key] = $shared[$key] } }
+
+    # What each kind of installer needs to run silently, unless the manifest says otherwise. An .msi gets its
+    # own arguments from Invoke-Installer; a plain "exe" has no default.
+    $kind = "$($chosen.InstallerType)".ToLowerInvariant()
+    $silent = @{ inno = '/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART'; nullsoft = '/S'; burn = '/quiet /norestart' }
+    if ($kind -notin 'msi', 'wix', 'inno', 'nullsoft', 'burn', 'exe') { throw "este script no sabe instalar un paquete de tipo '$kind' (zip, msix y portables los instala winget)" }
+    $arguments = if ($kind -in 'msi', 'wix') { '' } elseif ($chosen.Silent) { "$($chosen.Silent)" } else { "$($silent[$kind])" }
+    if ($kind -eq 'exe' -and -not $arguments) { throw 'el manifiesto de winget no dice como instalarlo en silencio' }
+    if ("$($chosen.InstallerSha256)" -notmatch '^[0-9A-Fa-f]{64}$') { throw 'el manifiesto de winget no trae el SHA256 del instalador' }
+    # The download has to be public: https, a host name with a domain, and neither an address nor a name of
+    # the local network. The index is moderated, but a manifest must not be able to point this PC anywhere.
+    $address = $null
+    if (-not [uri]::TryCreate("$($chosen.InstallerUrl)", [System.UriKind]::Absolute, [ref] $address) -or $address.Scheme -ne 'https') { throw 'el manifiesto de winget no da una descarga https' }
+    if ($address.HostNameType -ne [System.UriHostNameType]::Dns -or $address.Host -notmatch '\.[a-z]{2,}$' -or $address.Host -match '(^|\.)(localhost|local|internal|intranet|lan|home|corp)$') {
+        throw "el manifiesto de winget apunta a una direccion que no es publica ($($address.Host))"
+    }
+    @{
+        Url = $address.AbsoluteUri; Type = $(if ($kind -in 'msi', 'wix') { 'msi' } else { 'exe' })
+        Arguments = ("$arguments $($chosen.Custom)").Trim(); Signer = ''; Sha256 = "$($chosen.InstallerSha256)".ToUpperInvariant()
+        PerUser = ($chosen.Scope -eq 'user'); Version = ''; Locale = "$($chosen.InstallerLocale)"; Identifier = "$($chosen.PackageIdentifier)"
+    }
+}
+
+function Get-WingetInstaller([string] $Id, [string] $Language) {
+    # Latest version of a package of the winget community repository and its installer, from the manifest
+    $segments = @($Id -split '\.')
+    $path = "manifests/$($segments[0].Substring(0, 1).ToLowerInvariant())/$($segments -join '/')"
+    $folder = Get-WingetFolder -Path @($path)
+    $version = @($folder[$path] | Where-Object { $_.type -eq 'tree' -and $_.name -match '^v?\d' } |
+        Sort-Object { ConvertTo-SortKey -Version $_.name } -Descending | ForEach-Object { $_.name })[0]
+    if (-not $version) { throw "el indice de winget no tiene ninguna version de $Id (el nombre distingue mayusculas)" }
+    # The installer is in "<Id>.installer.yaml" or, in the old layout with a single file, in "<Id>.yaml"
+    $files = @((Get-WingetFolder -Path @("$path/$version"))["$path/$version"] | Where-Object { $_.type -eq 'blob' } | ForEach-Object { $_.name })
+    $file = @("$Id.installer.yaml", "$Id.yaml" | Where-Object { $files -ccontains $_ })[0]
+    if (-not $file) { throw "$Id no es un paquete del indice de winget: agrupa otros, cuyo nombre completo sale en el informe" }
+    $manifest = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/$path/$version/$file" -UseBasicParsing).Content
+    if ($manifest -is [byte[]]) { $manifest = [System.Text.Encoding]::UTF8.GetString($manifest) }
+    $spec = ConvertFrom-WingetManifest -Text $manifest -Language $Language
+    if ($spec.Identifier -cne $Id) { throw "el manifiesto leido es de '$($spec.Identifier)' y no de $Id" }
+    $spec.Version = $version
+    $spec
 }
 
 function Test-Administrator {
@@ -498,10 +673,19 @@ if ($Install) {
     $ids = @($Install -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
     $installable = @($catalog.Products | Where-Object { $_.Id -and $_.Installer })
     $available = @($installable | ForEach-Object { $_.Id })
-    $unknown = @($ids | Where-Object { $available -notcontains $_ })
-    if ($unknown) { throw "Sin instalador en el catalogo: $($unknown -join ', '). Se puede instalar: $(($available | Sort-Object) -join ', ')" }
+    # A name with a dot is a package of the winget index (Google.QuickShare), of the publishers of the catalog
+    $publishers = @()
+    if ($catalog.Winget) { $publishers = @($catalog.Winget.Values | ForEach-Object { $_ }) }
+    $unknown = @($ids | Where-Object { if ($_ -like '*.*') { $publishers -notcontains ($_ -split '\.')[0] } else { $available -notcontains $_ } })
+    if ($unknown) {
+        throw "Sin instalador en el catalogo: $($unknown -join ', '). Se puede instalar: $(($available | Sort-Object) -join ', ')" +
+            $(if ($publishers) { "; y del indice de winget, lo de $(($publishers | Sort-Object) -join ', ') (por ejemplo $($publishers[0]).Producto)" } else { '' })
+    }
     if (-not $Language) { $Language = (Get-UICulture).Name }
-    $selected = @(foreach ($id in $ids) { $installable | Where-Object { $_.Id -eq $id } | Select-Object -First 1 })
+    $selected = @(foreach ($id in $ids) {
+            if ($id -like '*.*') { @{ Id = $id; Product = $id; Channel = 'winget'; Winget = $true } }
+            else { $installable | Where-Object { $_.Id -eq $id } | Select-Object -First 1 }
+        })
 
     $repositories = @{}
     $names = @($selected | Where-Object { $_.Source -eq 'GitHub' } | ForEach-Object { $_.Repo } | Sort-Object -Unique)
@@ -512,12 +696,20 @@ if ($Install) {
             $result = [pscustomobject][ordered]@{ Id = $entry.Id; Producto = "$($entry.Product) ($($entry.Channel))"; Version = ''; Descarga = ''; Resultado = '' }
             $file = $null
             try {
-                $latest = Get-SourceVersion -Entry $entry -Repositories $repositories
-                $spec = Get-InstallerSpec -Entry $entry -Latest $latest -Language $Language
+                if ($entry.Winget) {
+                    # Version, address, SHA256 and arguments come from the manifest of the winget index
+                    if (-not $token) { throw 'sin token de GitHub no se puede leer el indice de winget' }
+                    $spec = Get-WingetInstaller -Id $entry.Id -Language $Language
+                    $latest = @{ Version = $spec.Version }
+                } else {
+                    $latest = Get-SourceVersion -Entry $entry -Repositories $repositories
+                    $spec = Get-InstallerSpec -Entry $entry -Latest $latest -Language $Language
+                }
                 $result.Version = $latest.Version
                 $result.Descarga = $spec.Url
                 Write-Host ">>> $($entry.Product) ($($entry.Channel)) $($latest.Version)" -ForegroundColor Cyan
                 Write-Host "    $($spec.Url)"
+                if ($spec.Locale -and $spec.Locale -ne $Language) { Write-Host "    [AVISO] El indice no tiene este instalador en $($Language): es el de $($spec.Locale)." -ForegroundColor Yellow }
                 $proceed = if ($Yes -and -not $WhatIfPreference) { $true } else { $PSCmdlet.ShouldProcess("$($entry.Product) $($latest.Version) <$($spec.Url)>", 'Descargar e instalar') }
                 if (-not $proceed) {
                     $result.Resultado = if ($WhatIfPreference) { 'simulado (-WhatIf)' } else { 'omitido' }
@@ -530,15 +722,23 @@ if ($Install) {
                 try {
                     Save-Installer -Url $spec.Url -Path $file
                 } catch {
-                    # A vendor does not build its installer in every language: English is always there
-                    if ($entry.Installer.Url -notmatch '\{lang\}' -or $Language -eq 'en-US') { throw }
+                    # A vendor does not build its installer in every language: English is always there. Only
+                    # an answer "not found" means that: a download taken away from https, a server error or a
+                    # network failure (no answer at all) says nothing about the language.
+                    $status = if ($_.Exception.Response) { [int] $_.Exception.Response.StatusCode } else { 0 }
+                    if ($entry.Winget -or $entry.Installer.Url -notmatch '\{lang\}' -or $Language -eq 'en-US' -or $status -ne 404) { throw }
                     Write-Host "    [AVISO] No hay instalador en $($Language): se descarga en en-US." -ForegroundColor Yellow
                     $spec = Get-InstallerSpec -Entry $entry -Latest $latest -Language 'en-US'
                     $result.Descarga = $spec.Url
                     Save-Installer -Url $spec.Url -Path $file
                 }
-                $publisher = Get-InstallerPublisher -Path $file -Signer $spec.Signer
-                Write-Host "    Firmado por: $publisher"
+                $publisher = Get-InstallerPublisher -Path $file -Signer $spec.Signer -Sha256 "$($spec.Sha256)"
+                if ($spec.Sha256) { Write-Host '    SHA256 igual al del indice de winget.' }
+                if ($publisher) {
+                    Write-Host "    Firmado por: $publisher"
+                } else {
+                    Write-Host '    [AVISO] El instalador no lleva firma digital: lo unico comprobado es su SHA256.' -ForegroundColor Yellow
+                }
                 Write-Host '    Instalando...'
                 $code = Invoke-Installer -Spec $spec -Path $file
                 $result.Resultado = switch ($code) {
@@ -632,7 +832,29 @@ if ($token -and -not $NoDiscover) {
     }
 }
 
-# --- 3. Chocolatey ---
+# --- 3. Everything the winget community repository lists for the publishers of the vendors ---
+# It is the fullest public list of what each vendor ships for Windows, also what is not on GitHub. Its rows
+# go in a table of their own: the index says which version it has, not whether the product is still alive.
+$indexRows = New-Object System.Collections.Generic.List[object]
+if ($token -and -not $NoDiscover -and $catalog.Winget) {
+    Write-Host '>>> Leyendo el indice de winget: todo lo que registra de cada fabricante...' -ForegroundColor Cyan
+    $vendorOf = @{}
+    foreach ($name in $vendors) { foreach ($publisher in @($catalog.Winget[$name] | Where-Object { $_ })) { $vendorOf[$publisher] = $name } }
+    try {
+        foreach ($package in $(if ($vendorOf.Count) { Get-WingetPackage -Publisher @($vendorOf.Keys) })) {
+            $indexRows.Add([pscustomobject][ordered]@{
+                    Fabricante = $vendorOf[($package.Id -split '\.')[0]]; Producto = $package.Id; Canal = ''; Estado = 'actual'
+                    Version = $package.Version; Fecha = ''; PaqueteChocolatey = ''; Chocolatey = ''; AlDia = ''; EnRepo = ''; Instalar = $package.Id
+                    Nota = ''; Origen = 'winget'; Fuente = "github.com/microsoft/winget-pkgs/tree/master/$($package.Path)"; Prerelease = $false; Supuesto = $false
+                })
+        }
+        Write-Host "    $($indexRows.Count) paquetes"
+    } catch {
+        Write-Host "    [AVISO] No se pudo leer el indice de winget: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+# --- 4. Chocolatey ---
 $withId = @($rows | Where-Object { $_.PaqueteChocolatey })
 Write-Host ">>> Consultando Chocolatey: $($withId.Count) paquetes..." -ForegroundColor Cyan
 foreach ($row in $withId) {
@@ -658,6 +880,7 @@ $order = @{}
 for ($i = 0; $i -lt $catalog.Vendors.Count; $i++) { $order[$catalog.Vendors[$i]] = $i }
 # Vendors in the order of the catalog; for each one its named products first, then the repositories found
 $sorted = @($rows | Sort-Object -Property { $order[$_.Fabricante] }, { $_.Origen -ne 'catalogo' }, Producto, Canal)
+$index = @($indexRows | Sort-Object -Property { $order[$_.Fabricante] }, Producto)
 $public = 'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Instalar', 'Nota', 'Origen', 'Fuente'
 $shown = @(
     'Fabricante', 'Producto', 'Canal', 'Version', 'Fecha'
@@ -679,12 +902,17 @@ if ($OutFile) {
         }
         $lines += ''
     }
+    if ($index) {
+        $lines += '## Indice de winget', '', '| Fabricante | Instalar | Version |', '| :--- | :--- | :--- |'
+        foreach ($row in $index) { $lines += "| $($row.Fabricante) | $($row.Instalar) | $($row.Version) |" }
+        $lines += ''
+    }
     [System.IO.File]::WriteAllLines($path, $lines, (New-Object System.Text.UTF8Encoding $false))
     Write-Host ">>> Informe guardado en $path" -ForegroundColor Green
 }
 
 if ($PassThru) {
-    $sorted | Select-Object -Property $public
+    $sorted + $index | Select-Object -Property $public
 } else {
     foreach ($title in $groups.Keys) {
         $group = @($sorted | Where-Object { $_.Estado -eq $groups[$title] })
@@ -696,6 +924,13 @@ if ($PassThru) {
         } else {
             Write-Host '  (ninguno)'
         }
+    }
+    if ($index) {
+        Write-Host "`n========================================================"
+        Write-Host "  INDICE DE WINGET ($($index.Count))"
+        Write-Host '========================================================'
+        Write-Host (($index | Format-Table -Property Fabricante, Instalar, Version -AutoSize | Out-String -Width 200).Trim("`r", "`n"))
+        Write-Host 'Lo que el indice de winget registra de cada fabricante, este o no en las tablas de arriba. Se instala igual: -Install <nombre>, tal cual esta escrito.'
     }
     Write-Host ''
     $current = @($sorted | Where-Object { $_.Estado -eq 'actual' })
