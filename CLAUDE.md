@@ -10,11 +10,19 @@ y como mantenerlo.
   commits en `main` todos los dias a las 04:47 UTC: no ejecutarla, no empaquetar ni publicar nada, y contar con que
   `main` avanza sola (traer `main` antes de subir una rama).
 
+## Estructura
+- `Paquetes/actuales/<id>/`: paquetes activos. Los revisa y publica `update_all.ps1`, que toma cualquier carpeta de
+  ahi que tenga un `update.ps1`.
+- `Paquetes/descontinuados/<id>/`: IDs retirados; solo el nuspec del bridge (`push_deprecated.bat`).
+- `deprecated/<id>/README.md`: avisos de "se movio". No borrarlos: las versiones ya publicadas en Chocolatey enlazan
+  a esa ruta como "Package Source" y un bridge no se vuelve a publicar.
+- Al mover o renombrar la carpeta de un paquete, actualizar su `packageSourceUrl`.
+
 ## Compatibilidad
-- Los scripts de `*/tools/` se ejecutan al instalar y tienen que funcionar en **PowerShell v2** (regla de los
-  moderadores). PSScriptAnalyzer no puede comprobarlo: pasar ademas la busqueda con `Select-String` del README
-  (seccion "Analisis estatico") y, ante la duda, evitar cualquier cosa de v3 o posterior.
-- En `*/tools/`, el checksum de cada descarga (`Install-ChocolateyPackage`, `Install-ChocolateyZipPackage`,
+- Los scripts de `Paquetes/actuales/*/tools/` se ejecutan al instalar y tienen que funcionar en **PowerShell v2**
+  (regla de los moderadores). PSScriptAnalyzer no puede comprobarlo: pasar ademas la busqueda con `Select-String` del
+  README (seccion "Analisis estatico") y, ante la duda, evitar cualquier cosa de v3 o posterior.
+- En esos scripts, el checksum de cada descarga (`Install-ChocolateyPackage`, `Install-ChocolateyZipPackage`,
   `Get-ChocolateyWebFile`) va escrito en el script: un literal, o una variable que solo recibe literales. El
   validador de Chocolatey no ejecuta el script (regla CPMR0073): si el checksum sale de un objeto, una tabla o un
   archivo, retiene la version en moderacion y Chocolatey responde 403 a las siguientes. Lo comprueba

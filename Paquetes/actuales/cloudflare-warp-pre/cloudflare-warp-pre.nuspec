@@ -3,7 +3,7 @@
   <metadata>
     <id>cloudflare-warp-pre</id>
     <version>2026.8.2033.1-pre</version>
-    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/cloudflare-warp-pre</packageSourceUrl>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/Paquetes/actuales/cloudflare-warp-pre</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>Cloudflare WARP (Beta)</title>
     <authors>Cloudflare</authors>

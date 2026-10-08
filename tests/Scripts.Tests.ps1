@@ -16,7 +16,11 @@ BeforeAll {
     foreach ($file in 'push_deprecated.bat', 'menu.bat', 'update_all.bat') {
         Copy-Item -LiteralPath (Join-Path $script:RepoRoot $file) -Destination $script:Special
     }
-    Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'deprecated') -Destination $script:Special -Recurse
+    # Same layout as the repository: Paquetes\actuales (active packages) and Paquetes\descontinuados (bridges)
+    $script:Actuales = 'Paquetes\actuales'
+    $script:Descontinuados = 'Paquetes\descontinuados'
+    New-Item -ItemType Directory -Path (Join-Path $script:Special 'Paquetes') | Out-Null
+    Copy-Item -LiteralPath (Join-Path $script:RepoRoot $script:Descontinuados) -Destination (Join-Path $script:Special 'Paquetes') -Recurse
 
     # The caller's folder: its .nupkg and nuspec must never be deleted, packed or pushed
     $script:Caller = Join-Path $TestDrive 'caller'
@@ -50,7 +54,7 @@ Describe 'deprecated bridges' {
     # <old id>" and "choco upgrade all" then work without --pre) and never if the bridge is a stable version:
     # "Unable to resolve dependency", whatever the lower bound of the dependency is.
     BeforeDiscovery {
-        $script:BridgeFiles = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'deprecated\*\*.nuspec') |
+        $script:BridgeFiles = @(Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'Paquetes\descontinuados\*\*.nuspec') |
             ForEach-Object { @{ Bridge = $_.BaseName; Path = $_.FullName } })
     }
 
@@ -74,7 +78,7 @@ Describe 'deprecated bridges' {
 
 Describe 'push_deprecated.bat' {
     BeforeAll {
-        $script:Bridges = @(Get-ChildItem -LiteralPath (Join-Path $script:Special 'deprecated') -Directory | ForEach-Object Name)
+        $script:Bridges = @(Get-ChildItem -LiteralPath (Join-Path $script:Special $script:Descontinuados) -Directory | ForEach-Object Name)
         $script:PushDeprecated = Join-Path $script:Special 'push_deprecated.bat'
     }
 
@@ -86,14 +90,14 @@ Describe 'push_deprecated.bat' {
         @($log | Where-Object { $_ -match '\[pack\]' }).Count | Should -Be $script:Bridges.Count
         @($log | Where-Object { $_ -match '\[push\]' }).Count | Should -Be $script:Bridges.Count
         foreach ($line in $log) {
-            $line | Should -Match ([regex]::Escape("cwd=[$script:Special\deprecated\"))
+            $line | Should -Match ([regex]::Escape("cwd=[$script:Special\$script:Descontinuados\"))
         }
         foreach ($bridge in $script:Bridges) {
-            $version = ([xml](Get-Content -LiteralPath (Join-Path $script:Special "deprecated\$bridge\$bridge.nuspec") -Raw)).package.metadata.version
+            $version = ([xml](Get-Content -LiteralPath (Join-Path $script:Special "$script:Descontinuados\$bridge\$bridge.nuspec") -Raw)).package.metadata.version
             $log -match "\[push\] \[$([regex]::Escape("$bridge.$version"))\.nupkg\] \[--source=https://push\.chocolatey\.org/\]" | Should -Not -BeNullOrEmpty
         }
         Join-Path $script:Caller 'canary.nupkg' | Should -Exist
-        @(Get-ChildItem -LiteralPath (Join-Path $script:Special 'deprecated') -Recurse -Filter '*.nupkg').Count | Should -Be 0
+        @(Get-ChildItem -LiteralPath (Join-Path $script:Special $script:Descontinuados) -Recurse -Filter '*.nupkg').Count | Should -Be 0
     }
 
     It 'passes CHOCO_API_KEY to every push without printing it' {
@@ -161,8 +165,8 @@ Add-Content -LiteralPath $env:STUB_LOG -Value ('Package=[{0}] Force={1} NoPush={
 exit [int]$env:STUB_EXIT
 '@
         foreach ($package in 'pkga', 'pkgb') {
-            New-Item -ItemType Directory -Path (Join-Path $script:Special $package) | Out-Null
-            Set-Content -LiteralPath (Join-Path $script:Special "$package\update.ps1") -Value '# test package'
+            New-Item -ItemType Directory -Path (Join-Path $script:Special "$script:Actuales\$package") | Out-Null
+            Set-Content -LiteralPath (Join-Path $script:Special "$script:Actuales\$package\update.ps1") -Value '# test package'
         }
         function script:Invoke-Menu([string] $InputText, [int] $TimeoutSeconds = 60) {
             Remove-Item -LiteralPath $script:StubLog -ErrorAction SilentlyContinue
@@ -247,11 +251,11 @@ Export-ModuleMember -Function Update-Package
 '@
         # Repository with one package ("demo" 1.0.0), cloned from a bare remote
         $seed = Join-Path $TestDrive 'ua-seed'
-        New-Item -ItemType Directory -Path (Join-Path $seed 'demo\tools') -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $seed 'Paquetes\actuales\demo\tools') -Force | Out-Null
         Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'update_all.ps1') -Destination $seed
-        Set-Content -LiteralPath (Join-Path $seed 'demo\demo.nuspec') -Encoding Ascii -Value '<?xml version="1.0"?><package><metadata><id>demo</id><version>1.0.0</version></metadata></package>'
-        Set-Content -LiteralPath (Join-Path $seed 'demo\update.ps1') -Encoding Ascii -Value 'Update-Package'
-        Set-Content -LiteralPath (Join-Path $seed 'demo\tools\chocolateyinstall.ps1') -Encoding Ascii -Value '# test'
+        Set-Content -LiteralPath (Join-Path $seed 'Paquetes\actuales\demo\demo.nuspec') -Encoding Ascii -Value '<?xml version="1.0"?><package><metadata><id>demo</id><version>1.0.0</version></metadata></package>'
+        Set-Content -LiteralPath (Join-Path $seed 'Paquetes\actuales\demo\update.ps1') -Encoding Ascii -Value 'Update-Package'
+        Set-Content -LiteralPath (Join-Path $seed 'Paquetes\actuales\demo\tools\chocolateyinstall.ps1') -Encoding Ascii -Value '# test'
         Set-Content -LiteralPath (Join-Path $seed '.gitignore') -Encoding Ascii -Value '*.nupkg'
         $git = @('-c', 'user.name=test', '-c', 'user.email=test@example.invalid', '-c', 'core.autocrlf=false')
         & git init -q $seed
@@ -282,7 +286,7 @@ Export-ModuleMember -Function Update-Package
                 -WorkingDirectory $TestDrive -Environment $environment -TimeoutSeconds 180
         }
         function script:Get-DemoVersion {
-            ([xml](Get-Content -LiteralPath (Join-Path $script:UaRepo 'demo\demo.nuspec') -Raw)).package.metadata.version
+            ([xml](Get-Content -LiteralPath (Join-Path $script:UaRepo 'Paquetes\actuales\demo\demo.nuspec') -Raw)).package.metadata.version
         }
     }
     AfterAll {
@@ -314,7 +318,7 @@ Export-ModuleMember -Function Update-Package
         $run.Output | Should -Match 'STUB-AU'
         $run.Output | Should -Match 'la proxima ejecucion lo publicara'
         Get-DemoVersion | Should -Be '1.0.0'
-        Join-Path $script:UaRepo 'demo\demo.1.1.0.nupkg' | Should -Exist
+        Join-Path $script:UaRepo 'Paquetes\actuales\demo\demo.1.1.0.nupkg' | Should -Exist
         @(Get-FakeLog $script:FakeLog | Where-Object { $_ -match '\[push\]' }).Count | Should -Be 0
     }
 
@@ -325,7 +329,7 @@ Export-ModuleMember -Function Update-Package
         $run.Output | Should -Match 'sin publicar'
         $run.Output | Should -Match 'una ejecucion normal no lo publicara'
         $run.Output | Should -Not -Match 'la proxima ejecucion lo publicara'
-        Join-Path $script:UaRepo 'demo\demo.1.0.0.nupkg' | Should -Exist
+        Join-Path $script:UaRepo 'Paquetes\actuales\demo\demo.1.0.0.nupkg' | Should -Exist
     }
 
     It '-Force -NoPush packs every real package (its pre-pack check finds all the files the scripts need)' {
@@ -333,19 +337,19 @@ Export-ModuleMember -Function Update-Package
         # version: update_all.ps1 refuses to pack a package whose tools\*.ps1 reference a missing file
         Remove-Item -LiteralPath $script:FakeLog -ErrorAction SilentlyContinue
         $real = Join-Path $TestDrive 'real-packages'
-        New-Item -ItemType Directory -Path $real | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $real $script:Actuales) | Out-Null
         Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'update_all.ps1') -Destination $real
-        $packages = @(Get-ChildItem -LiteralPath $script:RepoRoot -Directory |
+        $packages = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot $script:Actuales) -Directory |
             Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'update.ps1') } | ForEach-Object Name)
         foreach ($package in $packages) {
-            Copy-Item -LiteralPath (Join-Path $script:RepoRoot $package) -Destination $real -Recurse
-            Get-ChildItem -LiteralPath (Join-Path $real $package) -Filter '*.nupkg' | Remove-Item
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot "$script:Actuales\$package") -Destination (Join-Path $real $script:Actuales) -Recurse
+            Get-ChildItem -LiteralPath (Join-Path $real "$script:Actuales\$package") -Filter '*.nupkg' | Remove-Item
         }
         $run = Invoke-UpdateAll -Arguments '-Force -NoPush' -Script (Join-Path $real 'update_all.ps1')
         $run.Output | Should -Not -Match 'Faltan archivos'
         $run.ExitCode | Should -Be 0 -Because "$($run.Output)$($run.Error)"
         foreach ($package in $packages) {
-            @(Get-ChildItem -LiteralPath (Join-Path $real $package) -Filter '*.nupkg').Count | Should -Be 1 -Because $package
+            @(Get-ChildItem -LiteralPath (Join-Path $real "$script:Actuales\$package") -Filter '*.nupkg').Count | Should -Be 1 -Because $package
         }
         @(Get-FakeLog $script:FakeLog | Where-Object { $_ -match '\[push\]' }).Count | Should -Be 0
     }
@@ -366,8 +370,8 @@ Export-ModuleMember -Function Update-Package
         @(Get-FakeLog $script:FakeLog | Where-Object { $_ -match '\[push\]' }).Count | Should -Be 0
         Get-DemoVersion | Should -Be '1.1.0'
         & git -C $script:Remote log -1 --format=%s | Should -Be 'chore: automated update of demo v1.1.0'
-        & git -C $script:Remote show HEAD:demo/demo.nuspec | Should -Match '<version>1\.1\.0</version>'
-        @(Get-ChildItem -LiteralPath (Join-Path $script:UaRepo 'demo') -Filter '*.nupkg').Count | Should -Be 0
+        & git -C $script:Remote show HEAD:Paquetes/actuales/demo/demo.nuspec | Should -Match '<version>1\.1\.0</version>'
+        @(Get-ChildItem -LiteralPath (Join-Path $script:UaRepo 'Paquetes\actuales\demo') -Filter '*.nupkg').Count | Should -Be 0
     }
 
     It 'a version that is not in the feed yet is still pushed' {

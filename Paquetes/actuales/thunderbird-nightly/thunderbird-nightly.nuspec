@@ -3,7 +3,7 @@
   <metadata>
     <id>thunderbird-nightly</id>
     <version>159.0.1.2026100210-alpha</version>
-    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/thunderbird-nightly</packageSourceUrl>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/Paquetes/actuales/thunderbird-nightly</packageSourceUrl>
     <owners>DEUS-DEI</owners>
     <title>Thunderbird Daily (Nightly)</title>
     <authors>Mozilla</authors>

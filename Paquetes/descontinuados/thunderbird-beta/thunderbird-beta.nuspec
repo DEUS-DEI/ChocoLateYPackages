@@ -3,7 +3,7 @@
   <metadata>
     <id>thunderbird-beta</id>
     <version>999.0.1-deprecated</version>
-    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/thunderbird-beta</packageSourceUrl>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/Paquetes/descontinuados/thunderbird-beta</packageSourceUrl>
     <title>[Deprecated] Mozilla Thunderbird Beta</title>
     <authors>Mozilla</authors>
     <owners>DEUS-DEI</owners>
