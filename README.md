@@ -15,10 +15,10 @@ GitHub Actions revisa, empaqueta y publica los paquetes **todos los días** (cro
 | `nicepage` | 🟢 Lvl 3 | Manifiesto de actualización oficial (`latest.yml`) | ✅ Activo |
 | `cloudflare-warp-pre` | 🟢 Lvl 3 | Feed JSON oficial de betas de Cloudflare | ✅ Activo |
 | `flarectl` | 🟢 Lvl 3 | Tags `v0.*` de cloudflare-go (`git ls-remote`) | ✅ Activo |
-| `fenix-web-server-beta` | 🔀 Bridge | Redirige → `fenix-web-server` (pre-releases) | ⏸️ Sin enviar (su destino, `fenix-web-server 3.0.0-rc13-20261004`, ya está en Chocolatey) |
-| `fenix-web-server-pre` | 🔀 Bridge | Redirige → `fenix-web-server` (pre-releases) | ⏸️ Sin enviar (su destino, `fenix-web-server 3.0.0-rc13-20261004`, ya está en Chocolatey) |
-| `github-desktop-beta` | 🔀 Bridge | Redirige → `github-desktop-pre` | ⏳ `999.0.1-deprecated` enviado el 2026-10-04; retenido por CPMR0024 |
-| `thunderbird-beta` | 🔀 Bridge | Redirige → `thunderbird-mozilla` | ⏳ `999.0.1-deprecated` enviado el 2026-10-04; retenido por CPMR0024 |
+| `fenix-web-server-beta` | 🔀 Bridge | Redirige → `fenix-web-server` (pre-releases) | ⏳ `999.0.1-deprecated` enviado el 2026-10-08 |
+| `fenix-web-server-pre` | 🔀 Bridge | Redirige → `fenix-web-server` (pre-releases) | ⏳ `999.0.1-deprecated` enviado el 2026-10-08 |
+| `github-desktop-beta` | 🔀 Bridge | Redirige → `github-desktop-pre` | ⏳ `999.0.1-deprecated` enviado el 2026-10-04; retenido por CPMR0024 (explicado en su revisión el 2026-10-08) |
+| `thunderbird-beta` | 🔀 Bridge | Redirige → `thunderbird-mozilla` | ⏳ `999.0.1-deprecated` enviado el 2026-10-04; retenido por CPMR0024 (explicado en su revisión el 2026-10-08) |
 | `thunderbird-daily` | 🔀 Bridge | Redirige → `thunderbird-nightly` | ✅ `999.0.1-deprecated` exento desde el 2026-10-06 |
 
 La columna «Estado» de los bridges es una foto del 2026-10-08; el estado al día se ve en [la lista de paquetes de la cuenta](https://community.chocolatey.org/profiles/DEUS-DEI). Los bridges `999.0.0` de `fenix-web-server-beta` y `github-desktop-beta` se enviaron en abril de 2026 y Chocolatey los rechazó el 19 de mayo, porque su dependencia no se podía satisfacer; ver la nota «Bridges de deprecación» más abajo.
