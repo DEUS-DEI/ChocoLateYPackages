@@ -50,6 +50,7 @@ Paquetes/
 icons/                            # Iconos de los paquetes (servidos por jsDelivr fijado a un commit)
 deprecated/<id>/README.md         # Avisos de «se movió»: no borrar (ver abajo)
 update_all.ps1 / .bat             # Orquestador: actualiza, publica y sincroniza Git
+vendor_catalog.ps1 / .bat / .psd1 # Catálogo del software de los fabricantes (solo consulta)
 menu.bat                          # Panel de control interactivo
 tests/                            # Pruebas Pester en Windows (tests/README.md)
 ```
@@ -103,6 +104,7 @@ Uso:
 | `.\update_all.bat -NoGit` | Publica en Chocolatey sin hacer commit/push en Git |
 | `.\push_deprecated.bat` | Publica los bridges de `Paquetes/descontinuados/`. Termina con código 1 si falla algún empaquetado o push; `--no-pause` no espera una tecla al final |
 | `cd Paquetes\actuales\nicepage` y `powershell -File update.ps1` | Prueba un solo paquete con AU |
+| `.\vendor_catalog.bat` | Lista el software para Windows de Mozilla, Cloudflare, GitHub y Fenix con su última versión y su paquete en Chocolatey. Solo consulta (ver «Catálogo de fabricantes») |
 
 En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede configurar desde la opción 4 de `menu.bat`).
 
@@ -117,6 +119,34 @@ En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede confi
 > **Bridges de deprecación** (`Paquetes/descontinuados/`, `push_deprecated.bat`): se publican como versión **prerelease** (`999.0.1-deprecated`), no estable. Los paquetes a los que redirigen solo publican prereleases, y `choco` solo resuelve una dependencia prerelease si el paquete que la pide también lo es (o con `--pre`). Comprobado con `choco` 2.7.4: con el bridge prerelease, `choco upgrade <id antiguo>` y `choco upgrade all` actualizan sin `--pre` e instalan el paquete nuevo; con un bridge estable fallan siempre con «Unable to resolve dependency». Una versión rechazada no se puede volver a subir: hay que subir el número (`999.0.2-deprecated`). Los IDs que llevan `beta` o `pre` fallan el requisito CPMR0024 del validador («el ID incluye un nombre de prerelease») y eso no tiene arreglo en el paquete, porque el ID es justo lo que se depreca: la versión queda *Waiting for Maintainer* hasta que el verificador la pruebe (una prerelease se aprueba entonces aunque la validación haya fallado, pero puede tardar días) o hasta que se explique en la revisión de su página que es la deprecación de un ID que ya existía. Ojo con el orden: si el validador se pronuncia después del comentario del mantenedor, el estado vuelve a *Waiting for Maintainer* y hay que responder otra vez para que quede en *Responded*, que es cuando lo ve un moderador. Las versiones anteriores de un ID retirado se ocultan (*unlist*) en la web, como pide la [guía oficial](https://docs.chocolatey.org/en-us/community-repository/maintainers/deprecate-a-chocolatey-package/); las de los seis IDs actuales ya lo están (ver «Cómo debe quedar un ID descontinuado»).
 
 > **Nuevos iconos**: añade el PNG a `icons/`, haz commit y usa `https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@<commit>/icons/<id>.png`.
+
+### Catálogo de fabricantes (`vendor_catalog.ps1`)
+
+Responde a «¿qué más publican estos fabricantes y qué falta empaquetar?». No empaqueta, no publica y no escribe en el repositorio. Para cada producto pregunta la última versión al fabricante y la del paquete a Chocolatey, y separa el resultado en **actuales** y **descontinuados**:
+
+| Columna | Qué es |
+| :--- | :--- |
+| Versión, Fecha | Lo último que publica el fabricante (la fecha, cuando la fuente la da) |
+| Chocolatey | ID y versión del paquete en el repositorio de la comunidad; `(atrasado)` si va por detrás del fabricante; `-` si no hay paquete |
+| En este repo | `actual` si el paquete está en `Paquetes/actuales/`, y a qué IDs retirados sustituye |
+| Nota | `repositorio archivado`, `sin versiones desde <año>` (tres años sin publicar) o el motivo anotado en el catálogo |
+
+Los productos salen de dos sitios:
+
+- **`vendor_catalog.psd1`**: los que tienen nombre propio (Firefox, Thunderbird, WARP, cloudflared, GitHub Desktop, gh, NVM for Windows…), con su canal, de dónde se lee la versión y el ID de su paquete en Chocolatey. Para añadir uno basta una línea.
+- **Búsqueda en GitHub**: cualquier otro repositorio de las organizaciones de cada fabricante (lista `Owners` del `.psd1`) cuya última versión estable tenga una descarga para Windows. Aquí el único ID que se prueba en Chocolatey es el nombre del repositorio, y por eso lleva `(?)`: un paquete con el mismo nombre puede ser otro programa.
+
+Un producto es **descontinuado** si su repositorio está archivado o si el catálogo lo dice (`Status`); todo lo demás es actual.
+
+| Comando | Qué hace |
+| :--- | :--- |
+| `.\vendor_catalog.bat` | Todo: unos 100 productos en minuto y medio |
+| `.\vendor_catalog.bat -NoDiscover` | Solo los productos del `.psd1` (medio minuto) |
+| `.\vendor_catalog.bat -Vendor Cloudflare,GitHub` | Solo esos fabricantes (vale el principio del nombre: `Fenix`) |
+| `.\vendor_catalog.bat -OutFile catalogo.md` | Guarda además el informe en Markdown |
+| `.\vendor_catalog.ps1 -PassThru` | Devuelve objetos en vez de tablas, para `Where-Object`, `Export-Csv`… |
+
+GitHub se consulta por su API GraphQL, que pide un token: la variable `GITHUB_TOKEN` (o `GH_TOKEN`) o la sesión de GitHub CLI (`gh auth login`). El token solo se envía a `api.github.com`. Sin token, los productos alojados en GitHub salen sin versión y no se hace la búsqueda.
 
 ### Análisis estático (PSScriptAnalyzer)
 
