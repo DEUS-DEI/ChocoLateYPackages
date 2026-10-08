@@ -31,8 +31,9 @@ REM  fenix-web-server-pre   --> fenix-web-server (pre-releases)
 REM  github-desktop-beta    --> github-desktop-pre
 REM  thunderbird-beta       --> thunderbird-mozilla
 REM  thunderbird-daily      --> thunderbird-nightly
+REM  warp-beta              --> cloudflare-warp-pre
 REM ============================================================
-set "bridges=fenix-web-server-beta fenix-web-server-pre github-desktop-beta thunderbird-beta thunderbird-daily"
+set "bridges=fenix-web-server-beta fenix-web-server-pre github-desktop-beta thunderbird-beta thunderbird-daily warp-beta"
 
 echo Procesando bridges de transicion...
 echo --------------------------------------------------------
