@@ -17,6 +17,8 @@ y como mantenerlo.
 - `deprecated/<id>/README.md`: avisos de "se movio". No borrarlos: las versiones ya publicadas en Chocolatey enlazan
   a esa ruta como "Package Source" y un bridge no se vuelve a publicar.
 - Al mover o renombrar la carpeta de un paquete, actualizar su `packageSourceUrl`.
+- `vendor_catalog.ps1` (datos en `vendor_catalog.psd1`): catalogo del software de los fabricantes. Solo consulta a los
+  fabricantes, a GitHub y a Chocolatey; no empaqueta, no publica y no escribe en el repositorio.
 
 ## Compatibilidad
 - Los scripts de `Paquetes/actuales/*/tools/` se ejecutan al instalar y tienen que funcionar en **PowerShell v2**
