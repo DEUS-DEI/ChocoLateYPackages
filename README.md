@@ -139,7 +139,7 @@ Para cada producto pedido el script:
 
 1. Pregunta la última versión al fabricante y resuelve la dirección de su instalador (solo `https`).
 2. Pide confirmación (`-Yes` no pregunta; `-WhatIf` enseña lo que haría y no descarga nada).
-3. Descarga el instalador a la carpeta temporal.
+3. Descarga el instalador a la carpeta temporal. Si la descarga acaba, por una redirección, en una dirección que no es `https`, se descarta.
 4. Comprueba su **firma digital**: Windows tiene que darla por válida y, si el catálogo dice quién firma (`Signer`), tiene que ser ese. Si no, el archivo se borra sin ejecutarlo.
 5. Lo ejecuta en silencio. Los instaladores para todos los usuarios piden elevación (UAC); los de usuario (Kiro, Cursor, GitHub Desktop) no.
 6. Borra la descarga y resume el resultado. Termina con error si algún producto no se instaló.
@@ -147,6 +147,8 @@ Para cada producto pedido el script:
 Los nombres que acepta `-Install` son los de la columna **Instalar** del informe: `firefox`, `firefox-esr`, `firefox-beta`, `firefox-dev`, `firefox-nightly`, `thunderbird`, `thunderbird-esr`, `thunderbird-beta`, `thunderbird-daily`, `mozilla-vpn`, `warp`, `warp-beta`, `cloudflared`, `github-desktop`, `github-desktop-beta`, `gh`, `git-lfs`, `gcm`, `chrome`, `chrome-beta`, `chrome-dev`, `drive`, `earth-pro`, `chrome-remote-desktop`, `gcpw`, `gcloud`, `go`, `kiro`, `aws-cli`, `sam-cli`, `session-manager-plugin`, `corretto-21`, `corretto-25` y `cursor`.
 
 Firefox y Thunderbird se bajan en el idioma de Windows (`-Language es-MX` para elegir otro); si el fabricante no tiene ese idioma, en inglés. El script no desinstala ni lleva la cuenta de lo instalado: volver a ejecutarlo instala la versión que haya en ese momento, que es como se actualiza.
+
+`-Vendor`, `-NoDiscover` y `-OutFile` son del informe y no cuentan al instalar: un producto se instala sea del fabricante que sea. Si GitHub no responde, solo se quedan sin instalar los productos que salen de GitHub.
 
 Para añadir un producto instalable basta darle en `vendor_catalog.psd1` un `Id` y un `Installer` (dirección fija, archivo de un release de GitHub o la que dé su fuente de versiones; argumentos silenciosos; firmante).
 
@@ -171,7 +173,7 @@ Un producto es **descontinuado** si su repositorio está archivado o si el catá
 
 | Comando | Qué hace |
 | :--- | :--- |
-| `.\vendor_catalog.bat` | Todo: unos 100 productos en minuto y medio |
+| `.\vendor_catalog.bat` | Todo: unos 225 productos. Tarda unos cinco minutos, casi todo en recorrer las organizaciones de Google y Amazon en GitHub |
 | `.\vendor_catalog.bat -NoDiscover` | Solo los productos del `.psd1` (medio minuto) |
 | `.\vendor_catalog.bat -Vendor Cloudflare,GitHub` | Solo esos fabricantes (vale el principio del nombre: `Fenix`) |
 | `.\vendor_catalog.bat -OutFile catalogo.md` | Guarda además el informe en Markdown |

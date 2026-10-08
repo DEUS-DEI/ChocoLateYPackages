@@ -107,6 +107,7 @@ Describe 'vendor_catalog.psd1' {
                 # Then the source of the version has to point to the installer
                 ($product.Source -in 'Warp', 'GitHubDesktop' -or ($product.Source -eq 'Json' -and $product.DownloadPath)) | Should -BeTrue -Because "$name has no Url and no Asset"
             }
+            $installer.Signer | Should -Not -BeNullOrEmpty -Because "$name is only run when its vendor signed the installer"
             if ($installer.ContainsKey('Type')) { $installer.Type | Should -BeIn 'msi', 'exe' -Because $name }
             if ($installer.ContainsKey('Scope')) { $installer.Scope | Should -BeExactly 'user' -Because $name }
         }
@@ -678,10 +679,16 @@ Describe 'vendor_catalog.ps1: the report' {
             Should -Invoke Start-Sleep -Times 2 -Exactly
         }
 
-        It 'gives up when GitHub fails three times in a row' {
+        It 'gives up when GitHub fails three times in a row, and only the GitHub products go without an answer' {
             $script:Fake.GraphQLFailures = 3
-            { Invoke-Catalog -Parameters @{ Vendor = 'Beta'; NoDiscover = $true; PassThru = $true } } | Should -Throw '*502*'
-            @($script:Fake.Requests | Where-Object { $_.Uri -eq 'https://api.github.com/graphql' }).Count | Should -Be 3
+            $run = Invoke-Catalog -Parameters @{ NoDiscover = $true; PassThru = $true }
+            @($run.Requests | Where-Object { $_.Uri -eq 'https://api.github.com/graphql' }).Count | Should -Be 3
+            $run.Rows.Count | Should -Be 15
+            $github = (Get-Row -Run $run -Product 'Tunnel')[0]
+            $github.Version | Should -BeExactly '?'
+            $github.Nota | Should -BeExactly 'no se pudo consultar: GitHub no responde (502 Bad Gateway)'
+            (Get-Row -Run $run -Product 'Browser')[0].Version | Should -BeExactly '157.0.1'
+            (Get-Row -Run $run -Product 'Client' -Channel 'estable')[0].Version | Should -BeExactly '2026.8.2100.0'
         }
     }
 }
@@ -733,6 +740,7 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
             if ($address -eq 'https://api.github.com/graphql') {
                 $query = [System.Text.Encoding]::UTF8.GetString($Body) | ConvertFrom-Json
                 if ($query.query -match 'repositoryOwner') { throw 'installing must not search the repositories of the vendors' }
+                if ($Fake.GraphQLFailures -gt 0) { $Fake.GraphQLFailures--; throw '502 Bad Gateway' }
                 $data = New-Object psobject
                 foreach ($alias in [regex]::Matches($query.query, 'r(\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)')) {
                     $data | Add-Member -NotePropertyName "r$($alias.Groups[1].Value)" -NotePropertyValue $Fake.Repositories["$($alias.Groups[2].Value)/$($alias.Groups[3].Value)"]
@@ -780,7 +788,11 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
             # A download: an empty file where the script asked for it
             Set-Content -LiteralPath $OutFile -Value 'not a real installer'
             $Fake.Downloads.Add([pscustomobject]@{ Uri = $address; File = $OutFile })
+            # -PassThru: the answer says where the file really came from, after any redirection
+            [pscustomobject]@{ StatusCode = 200; BaseResponse = [pscustomobject]@{ ResponseUri = [uri] $(if ($Fake.RedirectedTo) { $Fake.RedirectedTo } else { $address }) } }
         }
+
+        Mock Start-Sleep { }
 
         Mock Get-AuthenticodeSignature {
             $Fake.Checked.Add($LiteralPath)
@@ -832,6 +844,8 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $script:Fake.SignatureStatus = 'Valid'
         $script:Fake.ExitCode = 0
         $script:Fake.Missing = @()
+        $script:Fake.RedirectedTo = ''
+        $script:Fake.GraphQLFailures = 0
     }
 
     It 'downloads the installer in the language asked, checks who signed it and runs it silently' {
@@ -851,7 +865,7 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $run.Rows[0].Id | Should -BeExactly 'browser'
         $run.Rows[0].Version | Should -BeExactly '157.0.1'
         $run.Rows[0].Resultado | Should -BeExactly 'instalado'
-        $run.Text | Should -Match 'Firmado por Acme Corporation'
+        $run.Text | Should -Match 'Firmado por: Acme Corporation'
         $file | Should -Not -Exist -Because 'the download is deleted after installing'
     }
 
@@ -895,7 +909,7 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         $script:Fake.Publisher = 'Somebody Else LLC'
         $run = Invoke-Install -Parameters @{ Install = 'tunnel'; Yes = $true }
         $run.Rows[0].Resultado | Should -BeExactly 'instalado'
-        $run.Text | Should -Match 'Firmado por Somebody Else LLC'
+        $run.Text | Should -Match 'Firmado por: Somebody Else LLC'
     }
 
     It 'does not run an installer whose signature is <Status>' -ForEach @(@{ Status = 'NotSigned' }, @{ Status = 'HashMismatch' }, @{ Status = 'UnknownError' }) {
@@ -956,6 +970,25 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         { Invoke-Install -Parameters @{ Install = 'tunnel,navigator,nothing'; Yes = $true } } |
             Should -Throw '*Sin instalador en el catalogo: navigator, nothing. Se puede instalar: browser, client, desktop, editor, plain, sdk, sync, tunnel*'
         $script:Fake.Requests.Count | Should -Be 0
+    }
+
+    It 'does not run a download that was redirected away from https' {
+        $script:Fake.RedirectedTo = 'http://mirror.example.invalid/tunnel-windows-amd64.msi'
+        $failure = $null
+        try { Invoke-Install -Parameters @{ Install = 'tunnel'; Yes = $true } } catch { $failure = $_ }
+        "$failure" | Should -BeExactly 'No se pudo instalar: tunnel'
+        $script:Fake.Downloads.Count | Should -Be 1
+        $script:Fake.Checked.Count | Should -Be 0 -Because 'a file that travelled in the open is not even looked at'
+        $script:Fake.Started.Count | Should -Be 0
+        Join-Path $script:Downloaded 'tunnel.msi' | Should -Not -Exist
+    }
+
+    It 'still installs the products of other vendors when GitHub does not answer' {
+        $script:Fake.GraphQLFailures = 3
+        $failure = $null
+        try { Invoke-Install -Parameters @{ Install = 'tunnel,browser'; Language = 'en-US'; Yes = $true } } catch { $failure = $_ }
+        "$failure" | Should -BeExactly 'No se pudo instalar: tunnel'
+        @($script:Fake.Started | ForEach-Object FilePath) | Should -Be (Join-Path $script:Downloaded 'browser.exe')
     }
 
     It 'refuses a download that is not https' {

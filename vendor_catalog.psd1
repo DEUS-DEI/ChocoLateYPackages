@@ -53,7 +53,8 @@
     #       Type           'msi' or 'exe' when the address does not end in it
     #       Arguments      what makes an .exe install silently (an .msi always gets /qn /norestart)
     #       Scope          'user' for an installer that needs no administrator
-    #       Signer         who must have signed it; without it, any publisher that Windows trusts is accepted
+    #       Signer         who must have signed it (read from the signature of the real installer). Every product
+    #                      here names one; without it the script would accept any publisher that Windows trusts
     Products = @(
         @{ Vendor = 'Mozilla'; Product = 'Firefox'; Channel = 'estable'; Source = 'Mozilla'; File = 'firefox_versions.json'; Key = 'LATEST_FIREFOX_VERSION'; Choco = 'firefox'
             Id = 'firefox'; Installer = @{ Url = 'https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang={lang}'; Arguments = '/S'; Signer = 'Mozilla Corporation' } }
@@ -74,7 +75,7 @@
         @{ Vendor = 'Mozilla'; Product = 'Thunderbird Daily'; Channel = 'nightly'; Source = 'Mozilla'; File = 'thunderbird_versions.json'; Key = 'LATEST_THUNDERBIRD_NIGHTLY_VERSION'; Choco = 'thunderbird-nightly'; Pre = $true
             Id = 'thunderbird-daily'; Installer = @{ Url = 'https://download.mozilla.org/?product=thunderbird-nightly-latest-l10n-SSL&os=win64&lang={lang}'; Arguments = '/S'; Signer = 'Mozilla Corporation' } }
         @{ Vendor = 'Mozilla'; Product = 'Mozilla VPN'; Channel = 'estable'; Source = 'GitHub'; Repo = 'mozilla-mobile/mozilla-vpn-client'
-            Id = 'mozilla-vpn'; Installer = @{ Asset = '^MozillaVPN\.msi$' } }
+            Id = 'mozilla-vpn'; Installer = @{ Asset = '^MozillaVPN\.msi$'; Signer = 'Mozilla Corporation' } }
         @{ Vendor = 'Mozilla'; Product = 'Thunderbolt'; Channel = 'estable'; Source = 'GitHub'; Repo = 'thunderbird/thunderbolt' }
         @{ Vendor = 'Mozilla'; Product = 'MozillaBuild'; Channel = 'estable'; Source = 'Listing'; Url = 'https://ftp.mozilla.org/pub/mozilla/libraries/win32/'; Pattern = 'MozillaBuildSetup-(\d+(?:\.\d+)+)\.exe'; Choco = 'mozillabuild' }
         @{ Vendor = 'Mozilla'; Product = 'geckodriver'; Channel = 'estable'; Source = 'GitHub'; Repo = 'mozilla/geckodriver'; Choco = 'selenium-gecko-driver' }
@@ -87,7 +88,7 @@
         @{ Vendor = 'Cloudflare'; Product = 'Cloudflare WARP'; Channel = 'beta'; Source = 'Warp'; Track = 'beta'; Choco = 'cloudflare-warp-pre'; Pre = $true
             Id = 'warp-beta'; Installer = @{ Type = 'msi'; Signer = 'Cloudflare, Inc.' } }
         @{ Vendor = 'Cloudflare'; Product = 'cloudflared'; Channel = 'estable'; Source = 'GitHub'; Repo = 'cloudflare/cloudflared'; Choco = 'cloudflared'
-            Id = 'cloudflared'; Installer = @{ Asset = '^cloudflared-windows-amd64\.msi$' } }
+            Id = 'cloudflared'; Installer = @{ Asset = '^cloudflared-windows-amd64\.msi$'; Signer = 'Cloudflare, Inc.' } }
         @{ Vendor = 'Cloudflare'; Product = 'flarectl'; Channel = 'estable'; Source = 'GitHubTag'; Repo = 'cloudflare/cloudflare-go'; TagPrefix = 'v0.'; Choco = 'flarectl' }
         @{ Vendor = 'Cloudflare'; Product = 'Wrangler'; Channel = 'estable'; Source = 'Npm'; Package = 'wrangler' }
         @{ Vendor = 'Cloudflare'; Product = 'workerd'; Channel = 'estable'; Source = 'GitHub'; Repo = 'cloudflare/workerd' }
@@ -104,9 +105,9 @@
         @{ Vendor = 'GitHub'; Product = 'GitHub Copilot CLI'; Channel = 'estable'; Source = 'GitHub'; Repo = 'github/copilot-cli'; Choco = 'github-copilot-cli' }
         @{ Vendor = 'GitHub'; Product = 'CodeQL CLI'; Channel = 'estable'; Source = 'GitHub'; Repo = 'github/codeql-cli-binaries'; Choco = 'codeql' }
         @{ Vendor = 'GitHub'; Product = 'Git LFS'; Channel = 'estable'; Source = 'GitHub'; Repo = 'git-lfs/git-lfs'; Choco = 'git-lfs'
-            Id = 'git-lfs'; Installer = @{ Asset = '^git-lfs-windows-v[\d.]+\.exe$'; Arguments = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' } }
+            Id = 'git-lfs'; Installer = @{ Asset = '^git-lfs-windows-v[\d.]+\.exe$'; Arguments = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-'; Signer = 'GitHub, Inc.' } }
         @{ Vendor = 'GitHub'; Product = 'Git Credential Manager'; Channel = 'estable'; Source = 'GitHub'; Repo = 'git-ecosystem/git-credential-manager'
-            Id = 'gcm'; Installer = @{ Asset = '^gcm-win-x64-[\d.]+\.exe$'; Arguments = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' } }
+            Id = 'gcm'; Installer = @{ Asset = '^gcm-win-x64-[\d.]+\.exe$'; Arguments = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-'; Signer = 'Microsoft Corporation' } }
         @{ Vendor = 'GitHub'; Product = 'GitHub Actions Runner'; Channel = 'estable'; Source = 'GitHub'; Repo = 'actions/runner' }
         @{ Vendor = 'GitHub'; Product = 'GitHub MCP Server'; Channel = 'estable'; Source = 'GitHub'; Repo = 'github/github-mcp-server'; Choco = 'github-mcp-server' }
         @{ Vendor = 'GitHub'; Product = 'Dependabot CLI'; Channel = 'estable'; Source = 'GitHub'; Repo = 'dependabot/cli'; Choco = 'dependabot' }
@@ -142,15 +143,15 @@
             VersionPath = 'currentRelease'; DatePath = 'releases.0.updateTo.pub_date'; DownloadPath = 'releases.0.updateTo.url'; Choco = 'kiro'
             Id = 'kiro'; Installer = @{ Arguments = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /MERGETASKS=!runcode'; Scope = 'user'; Signer = 'Amazon.com, Inc.' } }
         @{ Vendor = 'Amazon'; Product = 'AWS CLI'; Channel = 'estable'; Source = 'GitHubTag'; Repo = 'aws/aws-cli'; TagPrefix = '2.'; Choco = 'awscli'
-            Id = 'aws-cli'; Installer = @{ Url = 'https://awscli.amazonaws.com/AWSCLIV2.msi' } }
+            Id = 'aws-cli'; Installer = @{ Url = 'https://awscli.amazonaws.com/AWSCLIV2.msi'; Signer = 'Amazon Web Services, Inc.' } }
         @{ Vendor = 'Amazon'; Product = 'AWS SAM CLI'; Channel = 'estable'; Source = 'GitHub'; Repo = 'aws/aws-sam-cli'; Choco = 'awssamcli'
-            Id = 'sam-cli'; Installer = @{ Asset = '^AWS_SAM_CLI_64_PY3\.msi$' } }
+            Id = 'sam-cli'; Installer = @{ Asset = '^AWS_SAM_CLI_64_PY3\.msi$'; Signer = 'Amazon Web Services, Inc.' } }
         @{ Vendor = 'Amazon'; Product = 'AWS Session Manager Plugin'; Channel = 'estable'; Source = 'Listing'; Url = 'https://s3.amazonaws.com/session-manager-downloads/plugin/latest/VERSION'; Pattern = '^\s*(\d+(?:\.\d+)+)'; Choco = 'awscli-session-manager'
-            Id = 'session-manager-plugin'; Installer = @{ Url = 'https://s3.amazonaws.com/session-manager-downloads/plugin/latest/windows/SessionManagerPluginSetup.exe'; Arguments = '/quiet /norestart' } }
+            Id = 'session-manager-plugin'; Installer = @{ Url = 'https://s3.amazonaws.com/session-manager-downloads/plugin/latest/windows/SessionManagerPluginSetup.exe'; Arguments = '/quiet /norestart'; Signer = 'Amazon Web Services, Inc.' } }
         @{ Vendor = 'Amazon'; Product = 'Amazon Corretto 21 (JDK)'; Channel = 'estable'; Source = 'Head'; Pattern = 'amazon-corretto-(\d+(?:\.\d+)+)-windows'; Choco = 'corretto21jdk'
-            Id = 'corretto-21'; Installer = @{ Url = 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-windows-jdk.msi' } }
+            Id = 'corretto-21'; Installer = @{ Url = 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-windows-jdk.msi'; Signer = 'Amazon.com Services LLC' } }
         @{ Vendor = 'Amazon'; Product = 'Amazon Corretto 25 (JDK)'; Channel = 'estable'; Source = 'Head'; Pattern = 'amazon-corretto-(\d+(?:\.\d+)+)-windows'; Choco = 'corretto25jdk'
-            Id = 'corretto-25'; Installer = @{ Url = 'https://corretto.aws/downloads/latest/amazon-corretto-25-x64-windows-jdk.msi' } }
+            Id = 'corretto-25'; Installer = @{ Url = 'https://corretto.aws/downloads/latest/amazon-corretto-25-x64-windows-jdk.msi'; Signer = 'Amazon.com Services LLC' } }
         @{ Vendor = 'Amazon'; Product = 'AWS CDK'; Channel = 'estable'; Source = 'Npm'; Package = 'aws-cdk' }
 
         @{ Vendor = 'Cursor (Anysphere)'; Product = 'Cursor'; Channel = 'estable'; Source = 'Json'; Url = 'https://api2.cursor.sh/updates/api/download/stable/win32-x64-user/cursor'

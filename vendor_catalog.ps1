@@ -41,7 +41,8 @@
 
 .PARAMETER Install
     Install these products (comma separated): the names of the "Instalar" column of the report, such as
-    firefox, chrome, kiro, cursor, gh or aws-cli.
+    firefox, chrome, kiro, cursor, gh or aws-cli. The parameters of the report (-Vendor, -NoDiscover, -OutFile)
+    play no part: a product is installed whoever its vendor is.
 
 .PARAMETER Language
     Language of the installers that come in several (Firefox, Thunderbird). Default: the display language of
@@ -90,6 +91,7 @@ $script:RecentReleases = 'releases(first: 15, orderBy: {field: CREATED_AT, direc
 $script:WindowsAsset = '(\.(exe|msi|msix|appx)$)|((^|[^a-z])win(dows)?(32|64)?([^a-z]|$))|pc-windows'
 $script:NotSoftware = '\.(whl|json|txt|sig|asc|pem|sha256|sha512|sbom|ps1)$|-napi-'
 $script:GitHubHeaders = @{ 'User-Agent' = 'ChocoLateYPackages-vendor-catalog' }
+$script:GitHubFailure = ''
 $script:MozillaFiles = @{}
 $script:ChocolateyVersions = @{}
 
@@ -138,6 +140,17 @@ function Get-GitHubRepository([string[]] $Name) {
         for ($i = 0; $i -lt $batch.Count; $i++) { $found[$batch[$i]] = $data."r$i" }
     }
     $found
+}
+
+function Get-CatalogRepository([string[]] $Name) {
+    # The repositories of the products of the catalog. When GitHub fails only those products are left without
+    # an answer: the ones of other sources do not depend on it.
+    try {
+        Get-GitHubRepository -Name $Name
+    } catch {
+        $script:GitHubFailure = "GitHub no responde ($($_.Exception.Message))"
+        @{}
+    }
 }
 
 function Find-GitHubRepository([string] $Owner) {
@@ -279,6 +292,7 @@ function Get-SourceVersion($Entry, [hashtable] $Repositories) {
         }
         'GitHub' {
             if (-not $script:GitHubHeaders.ContainsKey('Authorization')) { throw 'sin token de GitHub' }
+            if ($script:GitHubFailure) { throw $script:GitHubFailure }
             $repository = $Repositories[$Entry.Repo]
             if (-not $repository) { throw 'GitHub no encuentra el repositorio' }
             $latest.Archived = [bool] $repository.isArchived
@@ -402,6 +416,17 @@ function Get-InstallerSpec($Entry, $Latest, [string] $Language) {
     @{ Url = "$url"; Type = $type; Arguments = "$($installer.Arguments)"; Signer = "$($installer.Signer)"; PerUser = ($installer.Scope -eq 'user') }
 }
 
+function Save-Installer([string] $Url, [string] $Path) {
+    # Downloads an installer. An https download can be redirected anywhere: where the file really came from
+    # has to be https as well, or it is not kept (it would have travelled in the open).
+    $response = Invoke-WebRequest -Uri $Url -OutFile $Path -UseBasicParsing -PassThru
+    $origin = $response.BaseResponse.ResponseUri
+    if (-not $origin -or $origin.Scheme -ne 'https') {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        throw "la descarga termino en una direccion que no es https ($origin)"
+    }
+}
+
 function Get-InstallerPublisher([string] $Path, [string] $Signer) {
     # Who signed a downloaded installer. Fails unless Windows trusts the signature and, when the catalog
     # names the signer, it is that one: a file that is not the vendor's must never be run.
@@ -480,7 +505,7 @@ if ($Install) {
 
     $repositories = @{}
     $names = @($selected | Where-Object { $_.Source -eq 'GitHub' } | ForEach-Object { $_.Repo } | Sort-Object -Unique)
-    if ($token -and $names) { $repositories = Get-GitHubRepository -Name $names }
+    if ($token -and $names) { $repositories = Get-CatalogRepository -Name $names }
     $folder = Join-Path ([System.IO.Path]::GetTempPath()) 'vendor_catalog'
 
     $results = @(foreach ($entry in $selected) {
@@ -503,17 +528,18 @@ if ($Install) {
                 New-Item -ItemType Directory -Path $folder -Force | Out-Null
                 $file = Join-Path $folder "$($entry.Id).$($spec.Type)"
                 try {
-                    Invoke-WebRequest -Uri $spec.Url -OutFile $file -UseBasicParsing
+                    Save-Installer -Url $spec.Url -Path $file
                 } catch {
                     # A vendor does not build its installer in every language: English is always there
                     if ($entry.Installer.Url -notmatch '\{lang\}' -or $Language -eq 'en-US') { throw }
                     Write-Host "    [AVISO] No hay instalador en $($Language): se descarga en en-US." -ForegroundColor Yellow
                     $spec = Get-InstallerSpec -Entry $entry -Latest $latest -Language 'en-US'
                     $result.Descarga = $spec.Url
-                    Invoke-WebRequest -Uri $spec.Url -OutFile $file -UseBasicParsing
+                    Save-Installer -Url $spec.Url -Path $file
                 }
                 $publisher = Get-InstallerPublisher -Path $file -Signer $spec.Signer
-                Write-Host "    Firmado por $publisher. Instalando..."
+                Write-Host "    Firmado por: $publisher"
+                Write-Host '    Instalando...'
                 $code = Invoke-Installer -Spec $spec -Path $file
                 $result.Resultado = switch ($code) {
                     0 { 'instalado' }
@@ -547,7 +573,7 @@ $entries = @($catalog.Products | Where-Object { $vendors -contains $_.Vendor })
 Write-Host ">>> Consultando a los fabricantes: $($entries.Count) productos del catalogo ($($vendors -join ', '))..." -ForegroundColor Cyan
 $repositories = @{}
 $names = @($entries | Where-Object { $_.Source -eq 'GitHub' } | ForEach-Object { $_.Repo } | Sort-Object -Unique)
-if ($token -and $names) { $repositories = Get-GitHubRepository -Name $names }
+if ($token -and $names) { $repositories = Get-CatalogRepository -Name $names }
 
 $rows = New-Object System.Collections.Generic.List[object]
 foreach ($entry in $entries) {
