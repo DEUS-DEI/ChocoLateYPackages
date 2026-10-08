@@ -42,7 +42,8 @@ Describe 'vendor_catalog.psd1' {
         # What each source needs to find the latest version
         $script:SourceFields = @{
             Mozilla = 'File', 'Key'; GitHub = @('Repo'); GitHubTag = 'Repo', 'TagPrefix'; Warp = @('Track')
-            GitHubDesktop = @('Track'); Npm = @('Package'); Listing = 'Url', 'Pattern'
+            GitHubDesktop = @('Track'); Npm = @('Package'); Listing = 'Url', 'Pattern'; Chrome = @('Track')
+            Json = 'Url', 'VersionPath'; Head = @()
         }
     }
 
@@ -84,6 +85,36 @@ Describe 'vendor_catalog.psd1' {
         foreach ($product in $script:Data.Products | Where-Object { $_.ContainsKey('Status') }) {
             $product.Status | Should -BeExactly 'descontinuado' -Because $product.Product
             $product.Note | Should -Not -BeNullOrEmpty -Because $product.Product
+        }
+    }
+
+    It 'gives every product that can be installed a name of its own and an https download' {
+        $installable = @($script:Data.Products | Where-Object { $_.ContainsKey('Id') -or $_.ContainsKey('Installer') })
+        $installable.Count | Should -BeGreaterThan 0
+        @($installable | Group-Object -Property { $_.Id } | Where-Object Count -GT 1 | ForEach-Object Name) | Should -BeNullOrEmpty
+        foreach ($product in $installable) {
+            $name = "$($product.Product) ($($product.Channel))"
+            $product.Id | Should -MatchExactly '^[a-z0-9][a-z0-9-]*$' -Because $name
+            $installer = $product.Installer
+            $installer | Should -BeOfType [hashtable] -Because "$name has an Id"
+            @($installer.Keys | Where-Object { 'Url', 'Asset', 'Type', 'Arguments', 'Scope', 'Signer' -notcontains $_ }) | Should -BeNullOrEmpty -Because $name
+            if ($installer.Url) { $installer.Url | Should -Match '^https://' -Because $name }
+            if ($installer.Asset) {
+                $product.Source | Should -BeExactly 'GitHub' -Because "$name takes a file of a GitHub release"
+                { [regex] $installer.Asset } | Should -Not -Throw -Because $name
+            }
+            if (-not $installer.Url -and -not $installer.Asset) {
+                # Then the source of the version has to point to the installer
+                ($product.Source -in 'Warp', 'GitHubDesktop' -or ($product.Source -eq 'Json' -and $product.DownloadPath)) | Should -BeTrue -Because "$name has no Url and no Asset"
+            }
+            if ($installer.ContainsKey('Type')) { $installer.Type | Should -BeIn 'msi', 'exe' -Because $name }
+            if ($installer.ContainsKey('Scope')) { $installer.Scope | Should -BeExactly 'user' -Because $name }
+        }
+    }
+
+    It 'gives every Head source a download to look at' {
+        foreach ($product in $script:Data.Products | Where-Object { $_.Source -eq 'Head' }) {
+            "$($product.Url)$($product.Installer.Url)" | Should -Match '^https://' -Because $product.Product
         }
     }
 
@@ -405,7 +436,7 @@ Describe 'vendor_catalog.ps1: the report' {
         It 'returns a row per product and per repository found, vendors in catalog order and named products first' {
             $script:Full.Rows.Count | Should -Be 19
             @($script:Full.Rows[0].PSObject.Properties.Name) | Should -Be @(
-                'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Nota', 'Origen', 'Fuente')
+                'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Instalar', 'Nota', 'Origen', 'Fuente')
             @($script:Full.Rows | ForEach-Object { "$($_.Fabricante): $($_.Producto) $($_.Canal)".Trim() }) | Should -Be @(
                 'Acme: Browser estable', 'Acme: Browser Beta beta', 'Acme: Build Kit estable', 'Acme: Client beta', 'Acme: Client estable'
                 'Acme: ctl estable', 'Acme: Deployer estable', 'Acme: Desktop estable', 'Acme: Dropped estable', 'Acme: Missing estable'
@@ -575,12 +606,12 @@ Describe 'vendor_catalog.ps1: the report' {
             $discontinued = [array]::IndexOf($lines, '## Descontinuados')
             $current | Should -BeGreaterThan 0
             $discontinued | Should -BeGreaterThan $current
-            @($lines | Where-Object { $_ -eq '| Fabricante | Producto | Canal | Version | Fecha | Chocolatey | En este repo | Nota |' }).Count | Should -Be 2
-            $tunnel = [array]::IndexOf($lines, "| Acme | Tunnel | estable | v2.5.0 | $script:RecentDay | tunnel 2.4.0 (atrasado) |  |  |")
+            @($lines | Where-Object { $_ -eq '| Fabricante | Producto | Canal | Version | Fecha | Chocolatey | En este repo | Instalar | Nota |' }).Count | Should -Be 2
+            $tunnel = [array]::IndexOf($lines, "| Acme | Tunnel | estable | v2.5.0 | $script:RecentDay | tunnel 2.4.0 (atrasado) |  |  |  |")
             $tunnel | Should -BeGreaterThan $current
             $tunnel | Should -BeLessThan $discontinued
-            [array]::IndexOf($lines, '| Acme | Old Editor | estable | v1.60.0 | 2022-03-08 | old-editor 1.60.0 |  | repositorio archivado |') | Should -BeGreaterThan $discontinued
-            [array]::IndexOf($lines, '| Acme | Deployer | estable | 4.148.0 |  | - |  |  |') | Should -BeGreaterThan $current
+            [array]::IndexOf($lines, '| Acme | Old Editor | estable | v1.60.0 | 2022-03-08 | old-editor 1.60.0 |  |  | repositorio archivado |') | Should -BeGreaterThan $discontinued
+            [array]::IndexOf($lines, '| Acme | Deployer | estable | 4.148.0 |  | - |  |  |  |') | Should -BeGreaterThan $current
         }
     }
 
@@ -652,5 +683,309 @@ Describe 'vendor_catalog.ps1: the report' {
             { Invoke-Catalog -Parameters @{ Vendor = 'Beta'; NoDiscover = $true; PassThru = $true } } | Should -Throw '*502*'
             @($script:Fake.Requests | Where-Object { $_.Uri -eq 'https://api.github.com/graphql' }).Count | Should -Be 3
         }
+    }
+}
+
+Describe 'vendor_catalog.ps1: installing from the vendor' {
+    # Nothing is downloaded or run: Invoke-WebRequest writes an empty file, Get-AuthenticodeSignature answers
+    # what each test says and Start-Process only records how it was called.
+    BeforeAll {
+        $script:InstallRepo = Join-Path $TestDrive 'install-repo'
+        New-Item -ItemType Directory -Path $script:InstallRepo | Out-Null
+        Copy-Item -LiteralPath $script:CatalogScript -Destination $script:InstallRepo
+        Set-Content -LiteralPath (Join-Path $script:InstallRepo 'vendor_catalog.psd1') -Encoding Ascii -Value @'
+@{
+    Vendors  = @('Acme')
+    Owners   = @{ 'Acme' = @('acme') }
+    Ignore   = @()
+    Products = @(
+        @{ Vendor = 'Acme'; Product = 'Browser'; Channel = 'estable'; Source = 'Mozilla'; File = 'firefox_versions.json'; Key = 'LATEST_FIREFOX_VERSION'
+            Id = 'browser'; Installer = @{ Url = 'https://downloads.example.invalid/?product=browser-latest&lang={lang}'; Arguments = '/S'; Signer = 'Acme Corporation' } }
+        @{ Vendor = 'Acme'; Product = 'Tunnel'; Channel = 'estable'; Source = 'GitHub'; Repo = 'acme/tunnel'
+            Id = 'tunnel'; Installer = @{ Asset = '^tunnel-windows-amd64\.msi$' } }
+        @{ Vendor = 'Acme'; Product = 'Client'; Channel = 'estable'; Source = 'Warp'; Track = 'ga'
+            Id = 'client'; Installer = @{ Type = 'msi'; Signer = 'Acme Corporation' } }
+        @{ Vendor = 'Acme'; Product = 'Desktop'; Channel = 'beta'; Source = 'GitHubDesktop'; Track = 'beta'
+            Id = 'desktop'; Installer = @{ Arguments = '-s'; Scope = 'user' } }
+        @{ Vendor = 'Acme'; Product = 'Editor'; Channel = 'estable'; Source = 'Json'; Url = 'https://updates.example.invalid/editor.json'
+            VersionPath = 'currentRelease'; DatePath = 'releases.0.updateTo.pub_date'; DownloadPath = 'releases.0.updateTo.url'
+            Id = 'editor'; Installer = @{ Arguments = '/VERYSILENT /MERGETASKS=!runcode'; Scope = 'user'; Signer = 'Acme Corporation' } }
+        @{ Vendor = 'Acme'; Product = 'SDK'; Channel = 'estable'; Source = 'Json'; Url = 'https://sdk.example.invalid/dl/?mode=json'; VersionPath = '0.version'
+            Id = 'sdk'; Installer = @{ Url = 'https://sdk.example.invalid/dl/{version}.windows-amd64.msi' } }
+        @{ Vendor = 'Acme'; Product = 'Sync'; Channel = 'estable'; Source = 'Head'; Pattern = 'sync-(\d+(?:\.\d+)+)-windows'
+            Id = 'sync'; Installer = @{ Url = 'https://downloads.example.invalid/sync/latest.msi' } }
+        @{ Vendor = 'Acme'; Product = 'Plain'; Channel = 'estable'; Source = 'Npm'; Package = 'plain'
+            Id = 'plain'; Installer = @{ Url = 'http://downloads.example.invalid/plain-setup.exe' } }
+        @{ Vendor = 'Acme'; Product = 'Navigator'; Channel = 'estable'; Source = 'Chrome'; Track = 'stable' }
+    )
+}
+'@
+        # $Fake is read by the mocks from inside the scopes of the script (see the report tests)
+        $script:Fake = @{}
+        $recentDate = (Get-Date).ToUniversalTime().AddDays(-30).ToString('yyyy-MM-ddTHH:mm:ssZ')
+        $script:Fake.Repositories = @{
+            'acme/tunnel' = Get-FakeRepository -Name 'acme/tunnel' -Latest (Get-FakeRelease -Tag 'v2.5.0' -Date $recentDate -Asset 'tunnel-windows-386.msi', 'tunnel-windows-amd64.msi', 'tunnel-darwin-amd64.tgz')
+        }
+
+        Mock Invoke-RestMethod {
+            $address = $Uri.OriginalString
+            $Fake.Requests.Add($address)
+            if ($address -eq 'https://api.github.com/graphql') {
+                $query = [System.Text.Encoding]::UTF8.GetString($Body) | ConvertFrom-Json
+                if ($query.query -match 'repositoryOwner') { throw 'installing must not search the repositories of the vendors' }
+                $data = New-Object psobject
+                foreach ($alias in [regex]::Matches($query.query, 'r(\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)')) {
+                    $data | Add-Member -NotePropertyName "r$($alias.Groups[1].Value)" -NotePropertyValue $Fake.Repositories["$($alias.Groups[2].Value)/$($alias.Groups[3].Value)"]
+                }
+                return [pscustomobject]@{ data = $data }
+            }
+            switch ($address) {
+                'https://product-details.mozilla.org/1.0/firefox_versions.json' { return [pscustomobject]@{ LATEST_FIREFOX_VERSION = '157.0.1' } }
+                'https://downloads.cloudflareclient.com/v1/update/json/windows/ga' {
+                    return [pscustomobject]@{ items = @(
+                            [pscustomobject]@{ version = '2026.7.1376.0'; releaseDate = '2026-08-28T10:00:00.000Z'; packageURL = 'https://downloads.cloudflareclient.com/v1/download/windows/version/2026.7.1376.0' }
+                            [pscustomobject]@{ version = '2026.8.2100.0'; releaseDate = '2026-10-07T10:00:00.000Z'; packageURL = 'https://downloads.cloudflareclient.com/v1/download/windows/version/2026.8.2100.0' }) }
+                }
+                'https://central.github.com/api/deployments/desktop/desktop/latest?env=beta&os=windows&arch=x64' {
+                    return [pscustomobject]@{ version = '3.6.7-beta3'; pub_date = '2026-10-07T15:39:08Z'; url = 'https://desktop.example.invalid/releases/3.6.7-beta3-809b4ec0/GitHubDesktop-x64.zip' }
+                }
+                'https://updates.example.invalid/editor.json' {
+                    $update = [pscustomobject]@{ version = '1.2.37'; pub_date = '2026-10-05'; url = 'https://download.example.invalid/releases/1.2.37/editor-1.2.37-win32-x64.exe' }
+                    return [pscustomobject]@{ currentRelease = '1.2.37'; releases = @([pscustomobject]@{ version = '1.2.37'; updateTo = $update }) }
+                }
+                'https://sdk.example.invalid/dl/?mode=json' {
+                    # An array at the top, newest first
+                    return [pscustomobject]@{ version = 'go1.27.1'; stable = $true }, [pscustomobject]@{ version = 'go1.26.8'; stable = $true }
+                }
+                'https://registry.npmjs.org/plain/latest' { return [pscustomobject]@{ version = '1.0.0' } }
+                'https://versionhistory.googleapis.com/v1/chrome/platforms/win64/channels/stable/versions?pageSize=1&order_by=version%20desc' {
+                    return [pscustomobject]@{ versions = @([pscustomobject]@{ name = 'chrome/platforms/win64/channels/stable/versions/156.0.8078.12'; version = '156.0.8078.12' }) }
+                }
+            }
+            throw "Peticion no simulada: $address"
+        }
+
+        Mock Invoke-WebRequest {
+            $address = $Uri.OriginalString
+            $Fake.Requests.Add($address)
+            if ("$Method" -eq 'Head') {
+                if ($address -ne 'https://downloads.example.invalid/sync/latest.msi') { throw "Peticion no simulada: HEAD $address" }
+                return [pscustomobject]@{
+                    StatusCode = 200; Headers = @{ 'Last-Modified' = 'Thu, 01 Oct 2026 22:51:01 GMT' }
+                    BaseResponse = [pscustomobject]@{ ResponseUri = [uri] 'https://downloads.example.invalid/sync/resources/4.2.0.1/sync-4.2.0.1-windows-x64.msi' }
+                }
+            }
+            if (-not $OutFile) { throw "Peticion no simulada: $address" }
+            if ($Fake.Missing | Where-Object { $address -like $_ }) { throw 'Error en el servidor remoto: (404) No se encontro.' }
+            # A download: an empty file where the script asked for it
+            Set-Content -LiteralPath $OutFile -Value 'not a real installer'
+            $Fake.Downloads.Add([pscustomobject]@{ Uri = $address; File = $OutFile })
+        }
+
+        Mock Get-AuthenticodeSignature {
+            $Fake.Checked.Add($LiteralPath)
+            $certificate = [pscustomobject]@{ Name = $Fake.Publisher }
+            $certificate | Add-Member -MemberType ScriptMethod -Name GetNameInfo -Value { $this.Name }
+            [pscustomobject]@{ Status = $Fake.SignatureStatus; SignerCertificate = $certificate }
+        }
+
+        Mock Start-Process {
+            $Fake.Started.Add([pscustomobject]@{
+                    FilePath = $FilePath; Arguments = "$ArgumentList"; Verb = "$Verb"; Wait = [bool] $Wait
+                    Existed  = (Test-Path -LiteralPath $(if ($FilePath -like '*msiexec.exe') { "$ArgumentList" -replace '^/i "([^"]+)".*$', '$1' } else { $FilePath }))
+                })
+            [pscustomobject]@{ ExitCode = $Fake.ExitCode }
+        }
+
+        function script:Invoke-Install([hashtable] $Parameters) {
+            # Runs the copy of the script with -Install and returns its rows and what it printed
+            foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
+            $catalog = Join-Path $script:InstallRepo 'vendor_catalog.ps1'
+            $output = @(& $catalog @Parameters -PassThru 6>&1 3>&1)
+            [pscustomobject]@{
+                Rows = @($output | Where-Object { $_ -isnot [System.Management.Automation.InformationRecord] -and $_ -isnot [System.Management.Automation.WarningRecord] })
+                Text = @($output | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { "$_" }) -join "`n"
+            }
+        }
+
+        # Downloads go to the temporary folder of the tests, and the token is a fake one
+        $script:Saved = @{ TEMP = $env:TEMP; TMP = $env:TMP; GITHUB_TOKEN = $env:GITHUB_TOKEN; GH_TOKEN = $env:GH_TOKEN }
+        $script:Temp = Join-Path $TestDrive 'temp'
+        New-Item -ItemType Directory -Path $script:Temp | Out-Null
+        $env:TEMP = $script:Temp
+        $env:TMP = $script:Temp
+        $env:GITHUB_TOKEN = 'test-token'
+        $env:GH_TOKEN = $null
+        $script:Downloaded = Join-Path $script:Temp 'vendor_catalog'
+
+        # An installer for all users asks for elevation unless the tests already run elevated (as on the CI)
+        $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        $elevated = (New-Object System.Security.Principal.WindowsPrincipal $identity).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+        $script:MachineVerb = if ($elevated) { '' } else { 'RunAs' }
+        $script:MsiExec = Join-Path $env:SystemRoot 'System32\msiexec.exe'
+    }
+    AfterAll {
+        foreach ($name in $script:Saved.Keys) { [Environment]::SetEnvironmentVariable($name, $script:Saved[$name], 'Process') }
+    }
+    BeforeEach {
+        $script:Fake.Publisher = 'Acme Corporation'
+        $script:Fake.SignatureStatus = 'Valid'
+        $script:Fake.ExitCode = 0
+        $script:Fake.Missing = @()
+    }
+
+    It 'downloads the installer in the language asked, checks who signed it and runs it silently' {
+        $run = Invoke-Install -Parameters @{ Install = 'browser'; Language = 'es-MX'; Yes = $true }
+        $file = Join-Path $script:Downloaded 'browser.exe'
+        $script:Fake.Downloads.Count | Should -Be 1
+        $script:Fake.Downloads[0].Uri | Should -BeExactly 'https://downloads.example.invalid/?product=browser-latest&lang=es-MX'
+        $script:Fake.Downloads[0].File | Should -BeExactly $file
+        $script:Fake.Checked.ToArray() | Should -Be $file
+        $script:Fake.Started.Count | Should -Be 1
+        $script:Fake.Started[0].FilePath | Should -BeExactly $file
+        $script:Fake.Started[0].Arguments | Should -BeExactly '/S'
+        $script:Fake.Started[0].Verb | Should -BeExactly $script:MachineVerb
+        $script:Fake.Started[0].Wait | Should -BeTrue
+        $script:Fake.Started[0].Existed | Should -BeTrue -Because 'the installer must still be there while it runs'
+        $run.Rows.Count | Should -Be 1
+        $run.Rows[0].Id | Should -BeExactly 'browser'
+        $run.Rows[0].Version | Should -BeExactly '157.0.1'
+        $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+        $run.Text | Should -Match 'Firmado por Acme Corporation'
+        $file | Should -Not -Exist -Because 'the download is deleted after installing'
+    }
+
+    It 'falls back to the English installer when the vendor has none in that language' {
+        $script:Fake.Missing = @('*lang=es-CO')
+        $run = Invoke-Install -Parameters @{ Install = 'browser'; Language = 'es-CO'; Yes = $true }
+        $run.Text | Should -Match '\[AVISO\] No hay instalador en es-CO'
+        @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be 'https://downloads.example.invalid/?product=browser-latest&lang=en-US'
+        $run.Rows[0].Descarga | Should -BeExactly 'https://downloads.example.invalid/?product=browser-latest&lang=en-US'
+        $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+    }
+
+    It 'takes <Id> from <Url> and runs it as <Kind>' -ForEach @(
+        @{ Id = 'tunnel'; Kind = 'msi'; PerUser = $false; Arguments = ''; Version = 'v2.5.0'; Url = 'https://github.com/acme/tunnel/releases/download/v2.5.0/tunnel-windows-amd64.msi' }
+        @{ Id = 'client'; Kind = 'msi'; PerUser = $false; Arguments = ''; Version = '2026.8.2100.0'; Url = 'https://downloads.cloudflareclient.com/v1/download/windows/version/2026.8.2100.0' }
+        @{ Id = 'sdk'; Kind = 'msi'; PerUser = $false; Arguments = ''; Version = 'go1.27.1'; Url = 'https://sdk.example.invalid/dl/go1.27.1.windows-amd64.msi' }
+        @{ Id = 'sync'; Kind = 'msi'; PerUser = $false; Arguments = ''; Version = '4.2.0.1'; Url = 'https://downloads.example.invalid/sync/latest.msi' }
+        @{ Id = 'desktop'; Kind = 'exe'; PerUser = $true; Arguments = '-s'; Version = '3.6.7-beta3'; Url = 'https://desktop.example.invalid/releases/3.6.7-beta3-809b4ec0/GitHubDesktopSetup-x64.exe' }
+        @{ Id = 'editor'; Kind = 'exe'; PerUser = $true; Arguments = '/VERYSILENT /MERGETASKS=!runcode'; Version = '1.2.37'; Url = 'https://download.example.invalid/releases/1.2.37/editor-1.2.37-win32-x64.exe' }
+    ) {
+        $run = Invoke-Install -Parameters @{ Install = $Id; Yes = $true }
+        $file = Join-Path $script:Downloaded "$Id.$Kind"
+        $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+        $run.Rows[0].Version | Should -BeExactly $Version
+        @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be $Url
+        $script:Fake.Downloads[0].File | Should -BeExactly $file
+        $started = $script:Fake.Started[0]
+        if ($Kind -eq 'msi') {
+            $started.FilePath | Should -BeExactly $script:MsiExec
+            $started.Arguments | Should -BeExactly "/i `"$file`" /qn /norestart"
+        } else {
+            $started.FilePath | Should -BeExactly $file
+            $started.Arguments | Should -BeExactly $Arguments
+        }
+        # An installer for the current user never asks for elevation
+        $started.Verb | Should -BeExactly $(if ($PerUser) { '' } else { $script:MachineVerb })
+        $started.Existed | Should -BeTrue
+    }
+
+    It 'accepts any publisher that Windows trusts when the catalog names none, and says who it is' {
+        $script:Fake.Publisher = 'Somebody Else LLC'
+        $run = Invoke-Install -Parameters @{ Install = 'tunnel'; Yes = $true }
+        $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+        $run.Text | Should -Match 'Firmado por Somebody Else LLC'
+    }
+
+    It 'does not run an installer whose signature is <Status>' -ForEach @(@{ Status = 'NotSigned' }, @{ Status = 'HashMismatch' }, @{ Status = 'UnknownError' }) {
+        $script:Fake.SignatureStatus = $Status
+        { Invoke-Install -Parameters @{ Install = 'tunnel'; Yes = $true } } | Should -Throw '*No se pudo instalar: tunnel*'
+        $script:Fake.Downloads.Count | Should -Be 1
+        $script:Fake.Started.Count | Should -Be 0
+        Join-Path $script:Downloaded 'tunnel.msi' | Should -Not -Exist
+    }
+
+    It 'does not run an installer signed by someone other than the publisher of the catalog' {
+        $script:Fake.Publisher = 'Somebody Else LLC'
+        $failure = $null
+        try { Invoke-Install -Parameters @{ Install = 'browser,tunnel'; Language = 'en-US'; Yes = $true } } catch { $failure = $_ }
+        # browser names its publisher and is refused; tunnel names none and is still installed
+        "$failure" | Should -BeExactly 'No se pudo instalar: browser'
+        @($script:Fake.Started | ForEach-Object FilePath) | Should -Be $script:MsiExec
+        Join-Path $script:Downloaded 'browser.exe' | Should -Not -Exist
+    }
+
+    It 'reports the exit code <Code> of the installer as "<Result>"' -ForEach @(
+        @{ Code = 0; Result = 'instalado'; Fails = $false }
+        @{ Code = 3010; Result = 'instalado (falta reiniciar Windows)'; Fails = $false }
+        @{ Code = 1641; Result = 'instalado (Windows se esta reiniciando)'; Fails = $false }
+        @{ Code = 1603; Result = 'error: el instalador termino con el codigo 1603'; Fails = $true }
+    ) {
+        $script:Fake.ExitCode = $Code
+        $rows = @()
+        $failure = $null
+        try { $rows = (Invoke-Install -Parameters @{ Install = 'tunnel'; Yes = $true }).Rows } catch { $failure = $_ }
+        if ($Fails) { "$failure" | Should -BeExactly 'No se pudo instalar: tunnel' } else { $rows[0].Resultado | Should -BeExactly $Result }
+    }
+
+    It '-WhatIf tells what would be installed and downloads nothing' {
+        $run = Invoke-Install -Parameters @{ Install = 'browser,editor'; Language = 'es-MX'; WhatIf = $true; Yes = $true }
+        $run.Rows.Count | Should -Be 2
+        @($run.Rows | ForEach-Object Resultado | Sort-Object -Unique) | Should -Be 'simulado (-WhatIf)'
+        $run.Rows[0].Descarga | Should -BeExactly 'https://downloads.example.invalid/?product=browser-latest&lang=es-MX'
+        $run.Rows[1].Descarga | Should -BeExactly 'https://download.example.invalid/releases/1.2.37/editor-1.2.37-win32-x64.exe'
+        $script:Fake.Downloads.Count | Should -Be 0
+        $script:Fake.Started.Count | Should -Be 0
+        @(Get-ChildItem -LiteralPath $script:Downloaded -ErrorAction SilentlyContinue).Count | Should -Be 0
+    }
+
+    It 'asks before installing unless -Yes is given: -Confirm:$false answers yes' {
+        $run = Invoke-Install -Parameters @{ Install = 'tunnel'; Confirm = $false }
+        $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+        $script:Fake.Started.Count | Should -Be 1
+    }
+
+    It 'installs each product once, in the order given, also when the names come in one string' {
+        $run = Invoke-Install -Parameters @{ Install = 'tunnel, client ,tunnel'; Yes = $true }
+        @($run.Rows | ForEach-Object Id) | Should -Be 'tunnel', 'client'
+        $script:Fake.Started.Count | Should -Be 2
+    }
+
+    It 'refuses a product that is not in the catalog or has no installer, before asking anything' {
+        { Invoke-Install -Parameters @{ Install = 'tunnel,navigator,nothing'; Yes = $true } } |
+            Should -Throw '*Sin instalador en el catalogo: navigator, nothing. Se puede instalar: browser, client, desktop, editor, plain, sdk, sync, tunnel*'
+        $script:Fake.Requests.Count | Should -Be 0
+    }
+
+    It 'refuses a download that is not https' {
+        { Invoke-Install -Parameters @{ Install = 'plain'; Yes = $true } } | Should -Throw '*No se pudo instalar: plain*'
+        $script:Fake.Downloads.Count | Should -Be 0
+        $script:Fake.Started.Count | Should -Be 0
+    }
+
+    It 'only asks the vendor of what it installs: no search on GitHub and nothing from Chocolatey' {
+        Invoke-Install -Parameters @{ Install = 'editor'; Yes = $true } | Out-Null
+        $script:Fake.Requests.ToArray() | Should -Be 'https://updates.example.invalid/editor.json', 'https://download.example.invalid/releases/1.2.37/editor-1.2.37-win32-x64.exe'
+    }
+
+    It 'the report names what can be installed and reads the sources that installers use' {
+        foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
+        $rows = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -NoDiscover -PassThru 6>$null)
+        $byProduct = @{}
+        foreach ($row in $rows) { $byProduct[$row.Producto] = $row }
+        @($rows | Where-Object { $_.Instalar } | ForEach-Object Instalar | Sort-Object) | Should -Be 'browser', 'client', 'desktop', 'editor', 'plain', 'sdk', 'sync', 'tunnel'
+        $byProduct['Navigator'].Instalar | Should -BeNullOrEmpty
+        $byProduct['Navigator'].Version | Should -BeExactly '156.0.8078.12'
+        $byProduct['Navigator'].Fuente | Should -BeExactly 'versionhistory.googleapis.com (stable)'
+        $byProduct['Editor'].Version | Should -BeExactly '1.2.37'
+        $byProduct['Editor'].Fecha | Should -BeExactly '2026-10-05'
+        $byProduct['SDK'].Version | Should -BeExactly 'go1.27.1'
+        # No version feed: the date of the "latest" download and the version in the name it redirects to
+        $byProduct['Sync'].Version | Should -BeExactly '4.2.0.1'
+        $byProduct['Sync'].Fecha | Should -BeExactly '2026-10-01'
+        $byProduct['Sync'].Fuente | Should -BeExactly 'https://downloads.example.invalid/sync/latest.msi'
+        $script:Fake.Downloads.Count | Should -Be 0
+        $script:Fake.Started.Count | Should -Be 0
     }
 }
