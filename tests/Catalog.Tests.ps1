@@ -246,7 +246,8 @@ Describe 'vendor_catalog.ps1: versions and installers of the winget index' {
         @{ Older = '99.0.1'; Newer = '157.0.1' }, @{ Older = '1.9.0'; Newer = '1.10.0' }, @{ Older = '21.0.12.7'; Newer = '21.0.12.12' }
         @{ Older = '1.2.0-beta.1'; Newer = '1.2.0' }, @{ Older = '1.2.0-beta.1'; Newer = '1.2.0-beta.2' }, @{ Older = '1.2.0-rc.3'; Newer = '1.2.1-beta.1' }
         @{ Older = '158.0b5'; Newer = '158.0' }, @{ Older = '158.0b5'; Newer = '158.0b12' }, @{ Older = 'v1.0.78-3'; Newer = 'v1.0.93' }
-        @{ Older = '1.2'; Newer = '1.2.1' }, @{ Older = '2026.2.1.7'; Newer = '2026.2.1.8' }
+        @{ Older = '1.2'; Newer = '1.2.1' }, @{ Older = '2026.2.1.7'; Newer = '2026.2.1.8' }, @{ Older = '1.2.3.4.5.6.7'; Newer = '1.2.3.4.5.6.8' }
+        @{ Older = '1.2.3.4.5.6'; Newer = '1.2.3.4.5.6.1' }
     ) {
         $sorted = @($Newer, $Older | Sort-Object { ConvertTo-SortKey -Version $_ })
         $sorted | Should -Be $Older, $Newer

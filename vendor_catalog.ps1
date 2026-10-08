@@ -482,7 +482,8 @@ function ConvertTo-SortKey([string] $Version) {
     $clean = $Version -replace '^[vV]'
     $core = [regex]::Match($clean, '^\d+(\.\d+)*').Value
     $rest = $clean.Substring($core.Length)
-    $numbers = @($core -split '\.' | Where-Object { $_ }) + @('0') * 6 | Select-Object -First 6
+    # Twelve numbers, far more than any version has: with fewer, versions that only differ after them would tie
+    $numbers = @($core -split '\.' | Where-Object { $_ }) + @('0') * 12 | Select-Object -First 12
     $key = @($numbers | ForEach-Object { $_.PadLeft(12, '0') }) -join '.'
     if (-not $rest) { return "$key.1" }
     "$key.0." + (@($rest -split '[^0-9]+' | Where-Object { $_ } | ForEach-Object { $_.PadLeft(12, '0') }) -join '.')
