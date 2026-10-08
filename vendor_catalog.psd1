@@ -78,7 +78,7 @@
         @{ Vendor = 'GitHub'; Product = 'GitHub Enterprise Importer (gei)'; Channel = 'estable'; Source = 'GitHub'; Repo = 'github/gh-gei' }
         @{ Vendor = 'GitHub'; Product = 'git-sizer'; Channel = 'estable'; Source = 'GitHub'; Repo = 'github/git-sizer'; Choco = 'git-sizer' }
         @{ Vendor = 'GitHub'; Product = 'smimesign'; Channel = 'estable'; Source = 'GitHub'; Repo = 'github/smimesign'; Choco = 'smimesign' }
-        @{ Vendor = 'GitHub'; Product = 'Atom'; Channel = 'estable'; Source = 'GitHub'; Repo = 'atom/atom'; Choco = 'atom' }
+        @{ Vendor = 'GitHub'; Product = 'Atom'; Channel = 'estable'; Source = 'GitHub'; Repo = 'atom/atom'; Choco = 'atom'; Status = 'descontinuado'; Note = 'GitHub lo retiro en diciembre de 2022' }
         @{ Vendor = 'GitHub'; Product = 'hub'; Channel = 'estable'; Source = 'GitHub'; Repo = 'mislav/hub'; Choco = 'hub'; Status = 'descontinuado'; Note = 'sustituido por GitHub CLI (gh)' }
 
         @{ Vendor = 'Fenix (Corey Butler)'; Product = 'Fenix Web Server'; Channel = 'estable'; Source = 'GitHub'; Repo = 'coreybutler/fenix'; Choco = 'fenix-web-server' }

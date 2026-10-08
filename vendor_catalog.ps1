@@ -55,10 +55,10 @@ $ProgressPreference = 'SilentlyContinue'  # Windows PowerShell downloads are muc
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 # Fields asked of a repository: its newest stable release with its files. Counting or sorting the releases of
-# every repository of an organization is too much for GitHub (502), so the newest release of any kind is only
-# asked for the products of the catalog.
+# every repository of an organization is too much for GitHub (502), so the latest releases of any kind (where
+# the newest pre-release is) are only asked for the products of the catalog.
 $script:RepositoryFields = 'nameWithOwner isArchived latestRelease { tagName publishedAt releaseAssets(first: 60) { nodes { name } } }'
-$script:NewestRelease = 'releases(first: 1, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { tagName publishedAt } }'
+$script:RecentReleases = 'releases(first: 15, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { tagName publishedAt isPrerelease } }'
 # A download for Windows: an installer, or "win", "windows", "win32", "win64" as a word of the file name
 # ("darwin" is not one). Signatures, manifests and libraries built for other programs are not software.
 $script:WindowsAsset = '(\.(exe|msi|msix|appx)$)|((^|[^a-z])win(dows)?(32|64)?([^a-z]|$))|pc-windows'
@@ -106,7 +106,7 @@ function Get-GitHubRepository([string[]] $Name) {
         $parts = for ($i = 0; $i -lt $batch.Count; $i++) {
             if ($batch[$i] -notmatch '^[\w.-]+/[\w.-]+$') { throw "Repositorio no valido en vendor_catalog.psd1: '$($batch[$i])'" }
             $owner, $repository = $batch[$i] -split '/', 2
-            'r{0}: repository(owner: "{1}", name: "{2}") {{ {3} {4} }}' -f $i, $owner, $repository, $script:RepositoryFields, $script:NewestRelease
+            'r{0}: repository(owner: "{1}", name: "{2}") {{ {3} {4} }}' -f $i, $owner, $repository, $script:RepositoryFields, $script:RecentReleases
         }
         $data = Invoke-GitHubQuery -Query ("query {`n" + ($parts -join "`n") + "`n}")
         for ($i = 0; $i -lt $batch.Count; $i++) { $found[$batch[$i]] = $data."r$i" }
@@ -129,11 +129,17 @@ function Find-GitHubRepository([string] $Owner) {
 }
 
 function Get-Release($Repository, [bool] $Prerelease) {
-    # latestRelease is the newest stable release; a repository that only publishes pre-releases has none
-    $newest = $null
-    if ($Repository.releases -and $Repository.releases.nodes) { $newest = @($Repository.releases.nodes)[0] }
-    if ($Prerelease -or -not $Repository.latestRelease) { return $newest }
-    $Repository.latestRelease
+    # latestRelease is the newest stable release. A pre-release channel wants the newest pre-release instead
+    # (marked as such, or with a label in its tag: 3.0.0-rc.13), not whatever was published last. A repository
+    # that only publishes pre-releases has no latestRelease: its newest release is taken.
+    $recent = @()
+    if ($Repository.releases -and $Repository.releases.nodes) { $recent = @($Repository.releases.nodes) }
+    if ($Prerelease) {
+        $newest = @($recent | Where-Object { $_.isPrerelease -or $_.tagName -match '\d-[a-z]' })[0]
+        if ($newest) { return $newest }
+    }
+    if ($Repository.latestRelease) { return $Repository.latestRelease }
+    $recent[0]
 }
 
 function Get-WindowsAsset($Release) {
@@ -162,15 +168,41 @@ function ConvertTo-PlainVersion([string] $Text) {
     [version] ($numbers -join '.')
 }
 
+function ConvertTo-VersionPart([string] $Text) {
+    # Numbers, pre-release label and number of that label of a version, whoever wrote it:
+    #   'v2.102.0' -> 2 102 0      '158.0b5' -> 158 0, beta, 5      '3.0.0-rc.13' -> 3 0 0, rc, 13
+    #   '158.0.0-beta3' -> 158 0 0, beta, 3      '159.0.1.2026100210-alpha' -> 159 0 1 2026100210, alpha, none
+    $clean = ($Text -replace '^[^\d]*' -replace 'esr$').ToLowerInvariant()
+    if ($clean -notmatch '^(?<numbers>\d{1,12}(\.\d{1,12}){0,3})(?<rest>.*)$') { return $null }
+    $part = @{ Numbers = @($Matches.numbers -split '\.' | ForEach-Object { [long] $_ }); Label = ''; Number = $null }
+    $rest = $Matches.rest
+    if ($rest) {
+        if ($rest -notmatch '^[-.]?(?<label>[a-z]+)[-.]?(?<number>\d{1,12})?') { return $null }
+        $part.Label = switch ($Matches.label) { 'a' { 'alpha' } 'b' { 'beta' } default { $Matches.label } }
+        if ($Matches.number) { $part.Number = [long] $Matches.number }
+    }
+    $part
+}
+
 function Test-UpToDate([string] $Vendor, [string] $Chocolatey) {
-    # 'si' / 'no' when the two versions can be compared, nothing when they cannot (most pre-releases)
+    # 'si' / 'no' when the two versions can be ordered, nothing when they cannot
     if (-not $Vendor -or -not $Chocolatey) { return '' }
     if (($Vendor -replace '^[^\d]*') -eq ($Chocolatey -replace '-pre$')) { return 'si' }
-    $upstream = ConvertTo-PlainVersion -Text $Vendor
-    $package = ConvertTo-PlainVersion -Text $Chocolatey
-    if ($null -eq $upstream -or $null -eq $package) { return '' }
-    # A fix version of the package (2.0.0.20260926) is the same upstream version
-    if ($package -ge $upstream) { 'si' } else { 'no' }
+    $upstream = ConvertTo-VersionPart -Text $Vendor
+    $package = ConvertTo-VersionPart -Text $Chocolatey
+    if (-not $upstream -or -not $package) { return '' }
+    # Only over the numbers the vendor's version has: a package adds its own after them (the date of a fix
+    # version in 2.0.0.20260926, the build of a nightly, the beta number in 158.0.4-beta)
+    for ($i = 0; $i -lt $upstream.Numbers.Count; $i++) {
+        $number = if ($i -lt $package.Numbers.Count) { $package.Numbers[$i] } else { 0 }
+        if ($number -gt $upstream.Numbers[$i]) { return 'si' }
+        if ($number -lt $upstream.Numbers[$i]) { return 'no' }
+    }
+    # Same numbers: the pre-release labels decide, when both say the same kind of thing
+    if (-not $upstream.Label -and -not $package.Label) { return 'si' }
+    if ($upstream.Label -and -not $package.Label) { return 'si' }  # the final version of that pre-release
+    if ($upstream.Label -ne $package.Label -or $null -eq $upstream.Number -or $null -eq $package.Number) { return '' }
+    if ($package.Number -ge $upstream.Number) { 'si' } else { 'no' }
 }
 
 function Get-MozillaVersion([string] $File, [string] $Key) {
@@ -194,8 +226,8 @@ function Get-SourceName($Entry) {
 }
 
 function Get-SourceVersion($Entry, [hashtable] $Repositories) {
-    # Latest version of a product of the catalog: Version, Date (when the source has one) and Archived
-    $latest = @{ Version = ''; Date = ''; Archived = $false }
+    # Latest version of a product of the catalog: Version, Date (when the source has one), Archived and a Note
+    $latest = @{ Version = ''; Date = ''; Archived = $false; Note = '' }
     switch ($Entry.Source) {
         'Mozilla' {
             $latest.Version = Get-MozillaVersion -File $Entry.File -Key $Entry.Key
@@ -209,6 +241,11 @@ function Get-SourceVersion($Entry, [hashtable] $Repositories) {
             if ($release) {
                 $latest.Version = $release.tagName
                 $latest.Date = ConvertTo-DateText -Value $release.publishedAt
+                $stable = $repository.latestRelease
+                if ($Entry.Pre -and $stable -and $stable.tagName -ne $release.tagName -and
+                    (ConvertTo-DateText -Value $stable.publishedAt) -gt $latest.Date) {
+                    $latest.Note = "la version estable $($stable.tagName) es posterior"
+                }
             }
         }
         'GitHubTag' {
@@ -328,6 +365,7 @@ foreach ($entry in $entries) {
         $latest = Get-SourceVersion -Entry $entry -Repositories $repositories
         $row.Version = $latest.Version
         $row.Fecha = $latest.Date
+        if ($latest.Note) { $notes += $latest.Note }
         if ($latest.Archived) { $row.Estado = 'descontinuado'; $notes += 'repositorio archivado' }
         elseif (Test-Stale -Date $latest.Date) { $notes += "sin versiones desde $($latest.Date.Substring(0, 4))" }
     } catch {
