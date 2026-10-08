@@ -1,11 +1,17 @@
 <#
 .SYNOPSIS
-    Lists the Windows software that Mozilla, Cloudflare, GitHub and the author of Fenix publish today.
+    Lists the Windows software that the vendors of vendor_catalog.psd1 publish today (Mozilla, Cloudflare,
+    GitHub, Google, Amazon, Cursor and the author of Fenix) and installs it from the vendor, without Chocolatey.
 
 .DESCRIPTION
-    Read-only: nothing is packed, pushed or written to the repository.
+    Without -Install the script only reports: nothing is installed, packed, pushed or written to the repository.
 
-    The products come from two places:
+    With -Install it downloads the official installer of each product named, straight from the vendor (https
+    only), checks that Windows trusts its digital signature and that the publisher is the one the catalog
+    expects, and runs it silently. It asks before each product (-Yes skips the question, -WhatIf only shows
+    what would be done). Chocolatey takes no part in it.
+
+    The products of the report come from two places:
       - vendor_catalog.psd1: the products with a name, a channel and, when there is one, the ID of their
         package in the Chocolatey community repository.
       - GitHub (unless -NoDiscover): every other repository of the vendors' organizations whose latest
@@ -33,6 +39,18 @@
 .PARAMETER PassThru
     Return the rows as objects (for Export-Csv, ConvertTo-Json, Where-Object...) instead of printing tables.
 
+.PARAMETER Install
+    Install these products (comma separated): the names of the "Instalar" column of the report, such as
+    firefox, chrome, kiro, cursor, gh or aws-cli. The parameters of the report (-Vendor, -NoDiscover, -OutFile)
+    play no part: a product is installed whoever its vendor is.
+
+.PARAMETER Language
+    Language of the installers that come in several (Firefox, Thunderbird). Default: the display language of
+    Windows; English when the vendor has no installer in that language.
+
+.PARAMETER Yes
+    With -Install: do not ask before each product.
+
 .EXAMPLE
     .\vendor_catalog.ps1
 
@@ -41,13 +59,22 @@
 
 .EXAMPLE
     .\vendor_catalog.ps1 -PassThru | Where-Object { $_.Estado -eq 'actual' -and -not $_.Chocolatey } | Format-Table
+
+.EXAMPLE
+    .\vendor_catalog.ps1 -Install firefox,kiro -WhatIf
+
+.EXAMPLE
+    .\vendor_catalog.ps1 -Install chrome,gh -Yes
 #>
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [string[]] $Vendor,
     [switch] $NoDiscover,
     [string] $OutFile,
-    [switch] $PassThru
+    [switch] $PassThru,
+    [string[]] $Install,
+    [string] $Language,
+    [switch] $Yes
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,6 +91,7 @@ $script:RecentReleases = 'releases(first: 15, orderBy: {field: CREATED_AT, direc
 $script:WindowsAsset = '(\.(exe|msi|msix|appx)$)|((^|[^a-z])win(dows)?(32|64)?([^a-z]|$))|pc-windows'
 $script:NotSoftware = '\.(whl|json|txt|sig|asc|pem|sha256|sha512|sbom|ps1)$|-napi-'
 $script:GitHubHeaders = @{ 'User-Agent' = 'ChocoLateYPackages-vendor-catalog' }
+$script:GitHubFailure = ''
 $script:MozillaFiles = @{}
 $script:ChocolateyVersions = @{}
 
@@ -114,6 +142,17 @@ function Get-GitHubRepository([string[]] $Name) {
     $found
 }
 
+function Get-CatalogRepository([string[]] $Name) {
+    # The repositories of the products of the catalog. When GitHub fails only those products are left without
+    # an answer: the ones of other sources do not depend on it.
+    try {
+        Get-GitHubRepository -Name $Name
+    } catch {
+        $script:GitHubFailure = "GitHub no responde ($($_.Exception.Message))"
+        @{}
+    }
+}
+
 function Find-GitHubRepository([string] $Owner) {
     # Every repository of an organization or user that is not a fork, 100 per request
     $query = 'query($login: String!, $cursor: String) { repositoryOwner(login: $login) { repositories(first: 100, after: $cursor, ' +
@@ -148,10 +187,25 @@ function Get-WindowsAsset($Release) {
 }
 
 function ConvertTo-DateText($Value) {
-    # Windows PowerShell leaves ISO 8601 dates as text; PowerShell 7 turns them into [datetime]
+    # yyyy-MM-dd of a date as the sources give it. Windows PowerShell leaves ISO 8601 dates as text and
+    # PowerShell 7 turns them into [datetime]; an HTTP header says "Wed, 07 Oct 2026 14:51:10 GMT".
     if (-not $Value) { return '' }
     if ($Value -is [datetime]) { return $Value.ToUniversalTime().ToString('yyyy-MM-dd') }
-    "$Value".Substring(0, [Math]::Min(10, "$Value".Length))
+    if ("$Value" -match '^\d{4}-\d{2}-\d{2}') { return "$Value".Substring(0, 10) }
+    $parsed = [datetime]::MinValue
+    if ([datetime]::TryParse("$Value", [cultureinfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AdjustToUniversal, [ref] $parsed)) {
+        return $parsed.ToString('yyyy-MM-dd')
+    }
+    ''
+}
+
+function Get-JsonValue($Object, [string] $Path) {
+    # 'releases.0.updateTo.url': a property name or the index of an element at each step
+    foreach ($step in $Path -split '\.') {
+        if ($null -eq $Object) { return $null }
+        $Object = if ($step -match '^\d+$') { @($Object)[[int] $step] } else { $Object.$step }
+    }
+    $Object
 }
 
 function Test-Stale([string] $Date) {
@@ -221,19 +275,24 @@ function Get-SourceName($Entry) {
         'GitHubDesktop' { "central.github.com ($($Entry.Track))" }
         'Npm'           { "registry.npmjs.org/$($Entry.Package)" }
         'Listing'       { $Entry.Url }
+        'Chrome'        { "versionhistory.googleapis.com ($($Entry.Track))" }
+        'Json'          { $Entry.Url }
+        'Head'          { if ($Entry.Url) { $Entry.Url } else { $Entry.Installer.Url } }
         default         { "$($Entry.Source)" }
     }
 }
 
 function Get-SourceVersion($Entry, [hashtable] $Repositories) {
-    # Latest version of a product of the catalog: Version, Date (when the source has one), Archived and a Note
-    $latest = @{ Version = ''; Date = ''; Archived = $false; Note = '' }
+    # Latest version of a product of the catalog: Version, Date (when the source has one), Archived, a Note
+    # and, for an installer, the Download the source itself points to or the Assets of the GitHub release
+    $latest = @{ Version = ''; Date = ''; Archived = $false; Note = ''; Download = ''; Assets = @() }
     switch ($Entry.Source) {
         'Mozilla' {
             $latest.Version = Get-MozillaVersion -File $Entry.File -Key $Entry.Key
         }
         'GitHub' {
             if (-not $script:GitHubHeaders.ContainsKey('Authorization')) { throw 'sin token de GitHub' }
+            if ($script:GitHubFailure) { throw $script:GitHubFailure }
             $repository = $Repositories[$Entry.Repo]
             if (-not $repository) { throw 'GitHub no encuentra el repositorio' }
             $latest.Archived = [bool] $repository.isArchived
@@ -241,6 +300,7 @@ function Get-SourceVersion($Entry, [hashtable] $Repositories) {
             if ($release) {
                 $latest.Version = $release.tagName
                 $latest.Date = ConvertTo-DateText -Value $release.publishedAt
+                if ($release.releaseAssets) { $latest.Assets = @($release.releaseAssets.nodes | ForEach-Object { $_.name }) }
                 # A pre-release channel whose newest pre-release is older than the stable version, or has none
                 # among the releases asked for. The two dates are compared whole (same day, hours apart).
                 $stable = $repository.latestRelease
@@ -264,17 +324,41 @@ function Get-SourceVersion($Entry, [hashtable] $Repositories) {
             $item = $feed.items | Sort-Object { [version] $_.version } -Descending | Select-Object -First 1
             $latest.Version = $item.version
             $latest.Date = ConvertTo-DateText -Value $item.releaseDate
+            $latest.Download = $item.packageURL
         }
         'GitHubDesktop' {
             $release = Invoke-RestMethod -Uri "https://central.github.com/api/deployments/desktop/desktop/latest?env=$($Entry.Track)&os=windows&arch=x64"
             $latest.Version = $release.version
             $latest.Date = ConvertTo-DateText -Value $release.pub_date
+            # The API points to the update ZIP; the setup program is published next to it
+            $latest.Download = "$($release.url)" -replace 'GitHubDesktop-x64\.zip$', 'GitHubDesktopSetup-x64.exe'
+        }
+        'Chrome' {
+            $history = Invoke-RestMethod -Uri "https://versionhistory.googleapis.com/v1/chrome/platforms/win64/channels/$($Entry.Track)/versions?pageSize=1&order_by=version%20desc"
+            $latest.Version = @($history.versions)[0].version
+        }
+        'Json' {
+            $document = Invoke-RestMethod -Uri $Entry.Url
+            $latest.Version = Get-JsonValue -Object $document -Path $Entry.VersionPath
+            if ($Entry.DatePath) { $latest.Date = ConvertTo-DateText -Value (Get-JsonValue -Object $document -Path $Entry.DatePath) }
+            if ($Entry.DownloadPath) { $latest.Download = Get-JsonValue -Object $document -Path $Entry.DownloadPath }
+        }
+        'Head' {
+            # No version feed: the "latest" download itself tells when it changed and, when it redirects to a
+            # file with the version in its name, which version it is
+            $address = if ($Entry.Url) { $Entry.Url } else { $Entry.Installer.Url }
+            $response = Invoke-WebRequest -Uri $address -Method Head -UseBasicParsing
+            $latest.Date = ConvertTo-DateText -Value $response.Headers['Last-Modified']
+            $latest.Version = '(ultima)'
+            if ($Entry.Pattern -and "$($response.BaseResponse.ResponseUri)" -match $Entry.Pattern) { $latest.Version = $Matches[1] }
         }
         'Npm' {
             $latest.Version = (Invoke-RestMethod -Uri "https://registry.npmjs.org/$($Entry.Package)/latest").version
         }
         'Listing' {
             $page = (Invoke-WebRequest -Uri $Entry.Url -UseBasicParsing).Content
+            # Windows PowerShell gives bytes when the server does not say that the answer is text
+            if ($page -is [byte[]]) { $page = [System.Text.Encoding]::UTF8.GetString($page) }
             $latest.Version = [regex]::Matches($page, $Entry.Pattern) | ForEach-Object { $_.Groups[1].Value } |
                 Sort-Object { ConvertTo-PlainVersion -Text $_ } -Descending | Select-Object -First 1
         }
@@ -314,19 +398,78 @@ function Get-LocalStatus([string] $Id) {
     $text -join '; '
 }
 
+function Get-InstallerSpec($Entry, $Latest, [string] $Language) {
+    # Where the installer of a product is downloaded from, how it is run and who must have signed it
+    $installer = $Entry.Installer
+    $url = if ($installer.Asset) {
+        # A file of the GitHub release, by its name
+        $asset = @($Latest.Assets | Where-Object { $_ -match $installer.Asset })[0]
+        if (-not $asset) { throw "el release $($Latest.Version) no tiene ningun archivo que cumpla '$($installer.Asset)'" }
+        "https://github.com/$($Entry.Repo)/releases/download/$($Latest.Version)/$asset"
+    } elseif ($installer.Url) {
+        $installer.Url.Replace('{lang}', $Language).Replace('{version}', "$($Latest.Version)")
+    } else {
+        $Latest.Download  # the source of the version says where the installer is
+    }
+    if ("$url" -notmatch '^https://') { throw 'el catalogo no da una descarga https para este producto' }
+    $type = if ($installer.Type) { $installer.Type } elseif (([uri] $url).AbsolutePath -match '\.msi$') { 'msi' } else { 'exe' }
+    @{ Url = "$url"; Type = $type; Arguments = "$($installer.Arguments)"; Signer = "$($installer.Signer)"; PerUser = ($installer.Scope -eq 'user') }
+}
+
+function Save-Installer([string] $Url, [string] $Path) {
+    # Downloads an installer. An https download can be redirected anywhere: where the file really came from
+    # has to be https as well, or it is not kept (it would have travelled in the open).
+    $response = Invoke-WebRequest -Uri $Url -OutFile $Path -UseBasicParsing -PassThru
+    $origin = $response.BaseResponse.ResponseUri
+    if (-not $origin -or $origin.Scheme -ne 'https') {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        throw "la descarga termino en una direccion que no es https ($origin)"
+    }
+}
+
+function Get-InstallerPublisher([string] $Path, [string] $Signer) {
+    # Who signed a downloaded installer. Fails unless Windows trusts the signature and, when the catalog
+    # names the signer, it is that one: a file that is not the vendor's must never be run.
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ("$($signature.Status)" -ne 'Valid') { throw "la firma digital del instalador no es valida ($($signature.Status))" }
+    $publisher = $signature.SignerCertificate.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false)
+    if ($Signer -and $publisher -ne $Signer) { throw "el instalador esta firmado por '$publisher' y no por '$Signer'" }
+    $publisher
+}
+
+function Test-Administrator {
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    (New-Object System.Security.Principal.WindowsPrincipal $identity).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Invoke-Installer($Spec, [string] $Path) {
+    # Runs an installer silently and returns its exit code. An installer for the current user runs as the
+    # user; the others ask for elevation (UAC) unless the script is already elevated.
+    $start = @{ Wait = $true; PassThru = $true }
+    if ($Spec.Type -eq 'msi') {
+        $start.FilePath = Join-Path $env:SystemRoot 'System32\msiexec.exe'
+        $start.ArgumentList = ("/i `"$Path`" /qn /norestart $($Spec.Arguments)").Trim()
+    } else {
+        $start.FilePath = $Path
+        if ($Spec.Arguments) { $start.ArgumentList = $Spec.Arguments }
+    }
+    if (-not $Spec.PerUser -and -not (Test-Administrator)) { $start.Verb = 'RunAs' }
+    (Start-Process @start).ExitCode
+}
+
 # --- Vendors asked for ---
 $catalog = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot 'vendor_catalog.psd1')
 $vendors = @($catalog.Vendors)
 if ($Vendor) {
     # powershell -File passes "a,b" as a single string
-    $wanted = @($Vendor -split ',' | ForEach-Object Trim | Where-Object { $_ })
+    $wanted = @($Vendor -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     $unknown = @($wanted | Where-Object { $name = $_; -not ($vendors | Where-Object { $_ -like "$name*" }) })
     if ($unknown) { throw "Fabricante(s) desconocido(s): $($unknown -join ', '). Disponibles: $($vendors -join ', ')" }
     $vendors = @($vendors | Where-Object { $name = $_; $wanted | Where-Object { $name -like "$_*" } })
 }
 
 # --- Packages of this repository: active ones, retired IDs and the active package each bridge leads to ---
-$script:ActiveIds = @(Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\actuales') -Directory -ErrorAction SilentlyContinue | ForEach-Object Name)
+$script:ActiveIds = @(Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\actuales') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
 $script:RetiredIds = @()
 $script:Replaced = @{}
 foreach ($nuspec in Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\descontinuados\*\*.nuspec') -ErrorAction SilentlyContinue) {
@@ -349,19 +492,96 @@ if ($token) {
     Write-Host '[AVISO] Sin token de GitHub (GITHUB_TOKEN o "gh auth login"): los productos alojados en GitHub quedan sin version y no se buscan otros repositorios.' -ForegroundColor Yellow
 }
 
+# --- Install mode: official installers, straight from the vendor ---
+if ($Install) {
+    # powershell -File passes "a,b" as a single string
+    $ids = @($Install -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+    $installable = @($catalog.Products | Where-Object { $_.Id -and $_.Installer })
+    $available = @($installable | ForEach-Object { $_.Id })
+    $unknown = @($ids | Where-Object { $available -notcontains $_ })
+    if ($unknown) { throw "Sin instalador en el catalogo: $($unknown -join ', '). Se puede instalar: $(($available | Sort-Object) -join ', ')" }
+    if (-not $Language) { $Language = (Get-UICulture).Name }
+    $selected = @(foreach ($id in $ids) { $installable | Where-Object { $_.Id -eq $id } | Select-Object -First 1 })
+
+    $repositories = @{}
+    $names = @($selected | Where-Object { $_.Source -eq 'GitHub' } | ForEach-Object { $_.Repo } | Sort-Object -Unique)
+    if ($token -and $names) { $repositories = Get-CatalogRepository -Name $names }
+    $folder = Join-Path ([System.IO.Path]::GetTempPath()) 'vendor_catalog'
+
+    $results = @(foreach ($entry in $selected) {
+            $result = [pscustomobject][ordered]@{ Id = $entry.Id; Producto = "$($entry.Product) ($($entry.Channel))"; Version = ''; Descarga = ''; Resultado = '' }
+            $file = $null
+            try {
+                $latest = Get-SourceVersion -Entry $entry -Repositories $repositories
+                $spec = Get-InstallerSpec -Entry $entry -Latest $latest -Language $Language
+                $result.Version = $latest.Version
+                $result.Descarga = $spec.Url
+                Write-Host ">>> $($entry.Product) ($($entry.Channel)) $($latest.Version)" -ForegroundColor Cyan
+                Write-Host "    $($spec.Url)"
+                $proceed = if ($Yes -and -not $WhatIfPreference) { $true } else { $PSCmdlet.ShouldProcess("$($entry.Product) $($latest.Version) <$($spec.Url)>", 'Descargar e instalar') }
+                if (-not $proceed) {
+                    $result.Resultado = if ($WhatIfPreference) { 'simulado (-WhatIf)' } else { 'omitido' }
+                    $result
+                    continue
+                }
+
+                New-Item -ItemType Directory -Path $folder -Force | Out-Null
+                $file = Join-Path $folder "$($entry.Id).$($spec.Type)"
+                try {
+                    Save-Installer -Url $spec.Url -Path $file
+                } catch {
+                    # A vendor does not build its installer in every language: English is always there
+                    if ($entry.Installer.Url -notmatch '\{lang\}' -or $Language -eq 'en-US') { throw }
+                    Write-Host "    [AVISO] No hay instalador en $($Language): se descarga en en-US." -ForegroundColor Yellow
+                    $spec = Get-InstallerSpec -Entry $entry -Latest $latest -Language 'en-US'
+                    $result.Descarga = $spec.Url
+                    Save-Installer -Url $spec.Url -Path $file
+                }
+                $publisher = Get-InstallerPublisher -Path $file -Signer $spec.Signer
+                Write-Host "    Firmado por: $publisher"
+                Write-Host '    Instalando...'
+                $code = Invoke-Installer -Spec $spec -Path $file
+                $result.Resultado = switch ($code) {
+                    0 { 'instalado' }
+                    3010 { 'instalado (falta reiniciar Windows)' }
+                    1641 { 'instalado (Windows se esta reiniciando)' }
+                    default { "error: el instalador termino con el codigo $code" }
+                }
+            } catch {
+                $result.Resultado = "error: $($_.Exception.Message)"
+            } finally {
+                if ($file -and (Test-Path -LiteralPath $file)) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
+            }
+            $result
+        })
+
+    if ($PassThru) {
+        $results
+    } else {
+        Write-Host "`n========================================================"
+        Write-Host '                RESUMEN DE INSTALACION'
+        Write-Host '========================================================'
+        Write-Host (($results | Format-Table -Property Id, Producto, Version, Resultado -AutoSize -Wrap | Out-String -Width 200).Trim("`r", "`n"))
+    }
+    $failed = @($results | Where-Object { $_.Resultado -like 'error:*' } | ForEach-Object { $_.Id })
+    if ($failed) { throw "No se pudo instalar: $($failed -join ', ')" }
+    return
+}
+
 # --- 1. Products of the catalog ---
 $entries = @($catalog.Products | Where-Object { $vendors -contains $_.Vendor })
 Write-Host ">>> Consultando a los fabricantes: $($entries.Count) productos del catalogo ($($vendors -join ', '))..." -ForegroundColor Cyan
 $repositories = @{}
 $names = @($entries | Where-Object { $_.Source -eq 'GitHub' } | ForEach-Object { $_.Repo } | Sort-Object -Unique)
-if ($token -and $names) { $repositories = Get-GitHubRepository -Name $names }
+if ($token -and $names) { $repositories = Get-CatalogRepository -Name $names }
 
 $rows = New-Object System.Collections.Generic.List[object]
 foreach ($entry in $entries) {
     $row = [pscustomobject][ordered]@{
         Fabricante = $entry.Vendor; Producto = $entry.Product; Canal = $entry.Channel; Estado = 'actual'
         Version = ''; Fecha = ''; PaqueteChocolatey = "$($entry.Choco)"; Chocolatey = ''; AlDia = ''
-        EnRepo = (Get-LocalStatus -Id $entry.Choco); Nota = ''; Origen = 'catalogo'; Fuente = (Get-SourceName -Entry $entry)
+        EnRepo = (Get-LocalStatus -Id $entry.Choco); Instalar = $(if ($entry.Id -and $entry.Installer) { $entry.Id } else { '' })
+        Nota = ''; Origen = 'catalogo'; Fuente = (Get-SourceName -Entry $entry)
         Prerelease = [bool] $entry.Pre; Supuesto = $false
     }
     $notes = @()
@@ -401,7 +621,7 @@ if ($token -and -not $NoDiscover) {
                         Fabricante = $name; Producto = $fullName; Canal = ''
                         Estado = $(if ($repository.isArchived) { 'descontinuado' } else { 'actual' })
                         Version = $release.tagName; Fecha = $date; PaqueteChocolatey = $guess; Chocolatey = ''; AlDia = ''
-                        EnRepo = (Get-LocalStatus -Id $guess)
+                        EnRepo = (Get-LocalStatus -Id $guess); Instalar = ''
                         Nota = $(if ($repository.isArchived) { 'repositorio archivado' } elseif (Test-Stale -Date $date) { "sin versiones desde $($date.Substring(0, 4))" } else { '' })
                         Origen = 'GitHub'; Fuente = "github.com/$fullName"; Prerelease = $true; Supuesto = $true
                     })
@@ -438,12 +658,12 @@ $order = @{}
 for ($i = 0; $i -lt $catalog.Vendors.Count; $i++) { $order[$catalog.Vendors[$i]] = $i }
 # Vendors in the order of the catalog; for each one its named products first, then the repositories found
 $sorted = @($rows | Sort-Object -Property { $order[$_.Fabricante] }, { $_.Origen -ne 'catalogo' }, Producto, Canal)
-$public = 'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Nota', 'Origen', 'Fuente'
+$public = 'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Instalar', 'Nota', 'Origen', 'Fuente'
 $shown = @(
     'Fabricante', 'Producto', 'Canal', 'Version', 'Fecha'
     @{ Name = 'Chocolatey'; Expression = { if ($_.Chocolatey) { $_.Chocolatey + $(if ($_.AlDia -eq 'no') { ' (atrasado)' } else { '' }) } else { '-' } } }
     @{ Name = 'En este repo'; Expression = { $_.EnRepo } }
-    'Nota'
+    'Instalar', 'Nota'
 )
 $groups = [ordered]@{ 'ACTUALES' = 'actual'; 'DESCONTINUADOS' = 'descontinuado' }
 
@@ -453,7 +673,7 @@ if ($OutFile) {
         "Generado por ``vendor_catalog.ps1`` el $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')) UTC. Fabricantes: $($vendors -join ', ').", '')
     foreach ($title in $groups.Keys) {
         $lines += "## $($title.Substring(0, 1))$($title.Substring(1).ToLowerInvariant())", ''
-        $lines += '| Fabricante | Producto | Canal | Version | Fecha | Chocolatey | En este repo | Nota |', '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |'
+        $lines += '| Fabricante | Producto | Canal | Version | Fecha | Chocolatey | En este repo | Instalar | Nota |', '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |'
         foreach ($row in $sorted | Where-Object { $_.Estado -eq $groups[$title] } | Select-Object -Property $shown) {
             $lines += '| ' + (@($row.PSObject.Properties | ForEach-Object { "$($_.Value)" -replace '\|', '/' }) -join ' | ') + ' |'
         }
@@ -472,7 +692,7 @@ if ($PassThru) {
         Write-Host "  $title ($($group.Count))"
         Write-Host '========================================================'
         if ($group) {
-            Write-Host (($group | Select-Object -Property $shown | Format-Table -AutoSize | Out-String -Width 260).Trim("`r", "`n"))
+            Write-Host (($group | Select-Object -Property $shown | Format-Table -AutoSize | Out-String -Width 300).Trim("`r", "`n"))
         } else {
             Write-Host '  (ninguno)'
         }
@@ -483,4 +703,5 @@ if ($PassThru) {
             $current.Count, @($current | Where-Object { $_.Chocolatey -and $_.Chocolatey -notmatch 'sin version listada|no se pudo' }).Count,
         @($current | Where-Object { $_.AlDia -eq 'no' }).Count, @($current | Where-Object { $_.EnRepo }).Count, ($sorted.Count - $current.Count))
     Write-Host 'Chocolatey "(?)": existe un paquete con el mismo nombre que el repositorio; puede no ser el mismo programa.'
+    Write-Host 'Columna "Instalar": .\vendor_catalog.bat -Install <nombre>[,<nombre>] baja el instalador oficial del fabricante, comprueba su firma y lo instala, sin Chocolatey.'
 }

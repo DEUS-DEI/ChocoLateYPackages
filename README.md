@@ -50,7 +50,7 @@ Paquetes/
 icons/                            # Iconos de los paquetes (servidos por jsDelivr fijado a un commit)
 deprecated/<id>/README.md         # Avisos de «se movió»: no borrar (ver abajo)
 update_all.ps1 / .bat             # Orquestador: actualiza, publica y sincroniza Git
-vendor_catalog.ps1 / .bat / .psd1 # Catálogo del software de los fabricantes (solo consulta)
+vendor_catalog.ps1 / .bat / .psd1 # Catálogo del software de los fabricantes e instalación directa (-Install)
 menu.bat                          # Panel de control interactivo
 tests/                            # Pruebas Pester en Windows (tests/README.md)
 ```
@@ -104,7 +104,8 @@ Uso:
 | `.\update_all.bat -NoGit` | Publica en Chocolatey sin hacer commit/push en Git |
 | `.\push_deprecated.bat` | Publica los bridges de `Paquetes/descontinuados/`. Termina con código 1 si falla algún empaquetado o push; `--no-pause` no espera una tecla al final |
 | `cd Paquetes\actuales\nicepage` y `powershell -File update.ps1` | Prueba un solo paquete con AU |
-| `.\vendor_catalog.bat` | Lista el software para Windows de Mozilla, Cloudflare, GitHub y Fenix con su última versión y su paquete en Chocolatey. Solo consulta (ver «Catálogo de fabricantes») |
+| `.\vendor_catalog.bat` | Lista el software para Windows de Mozilla, Cloudflare, GitHub, Google, Amazon, Cursor y Fenix con su última versión y su paquete en Chocolatey. Solo consulta (ver «Catálogo de fabricantes e instalación directa») |
+| `.\vendor_catalog.bat -Install chrome,kiro` | Instala esos productos con el instalador oficial del fabricante, sin Chocolatey |
 
 En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede configurar desde la opción 4 de `menu.bat`).
 
@@ -120,27 +121,59 @@ En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede confi
 
 > **Nuevos iconos**: añade el PNG a `icons/`, haz commit y usa `https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@<commit>/icons/<id>.png`.
 
-### Catálogo de fabricantes (`vendor_catalog.ps1`)
+### Catálogo de fabricantes e instalación directa (`vendor_catalog.ps1`)
 
-Responde a «¿qué más publican estos fabricantes y qué falta empaquetar?». No empaqueta, no publica y no escribe en el repositorio. Para cada producto pregunta la última versión al fabricante y la del paquete a Chocolatey, y separa el resultado en **actuales** y **descontinuados**:
+El script hace dos cosas con el software para Windows de Mozilla, Cloudflare, GitHub, Google, Amazon (Kiro incluido), Cursor y el autor de Fenix:
+
+- **Informar** (sin `-Install`): qué publican hoy, en qué versión, y si tienen paquete en Chocolatey. Es solo consulta: no instala, no empaqueta, no publica y no escribe en el repositorio.
+- **Instalar** (`-Install`): baja el instalador oficial del fabricante y lo instala en esta PC, **sin pasar por Chocolatey**.
+
+#### Instalar
+
+```batch
+.\vendor_catalog.bat -Install firefox,kiro -WhatIf
+.\vendor_catalog.bat -Install chrome,gh
+```
+
+Para cada producto pedido el script:
+
+1. Pregunta la última versión al fabricante y resuelve la dirección de su instalador (solo `https`).
+2. Pide confirmación (`-Yes` no pregunta; `-WhatIf` enseña lo que haría y no descarga nada).
+3. Descarga el instalador a la carpeta temporal. Si la descarga acaba, por una redirección, en una dirección que no es `https`, se descarta.
+4. Comprueba su **firma digital**: Windows tiene que darla por válida y, si el catálogo dice quién firma (`Signer`), tiene que ser ese. Si no, el archivo se borra sin ejecutarlo.
+5. Lo ejecuta en silencio. Los instaladores para todos los usuarios piden elevación (UAC); los de usuario (Kiro, Cursor, GitHub Desktop) no.
+6. Borra la descarga y resume el resultado. Termina con error si algún producto no se instaló.
+
+Los nombres que acepta `-Install` son los de la columna **Instalar** del informe: `firefox`, `firefox-esr`, `firefox-beta`, `firefox-dev`, `firefox-nightly`, `thunderbird`, `thunderbird-esr`, `thunderbird-beta`, `thunderbird-daily`, `mozilla-vpn`, `warp`, `warp-beta`, `cloudflared`, `github-desktop`, `github-desktop-beta`, `gh`, `git-lfs`, `gcm`, `chrome`, `chrome-beta`, `chrome-dev`, `drive`, `earth-pro`, `chrome-remote-desktop`, `gcpw`, `gcloud`, `go`, `kiro`, `aws-cli`, `sam-cli`, `session-manager-plugin`, `corretto-21`, `corretto-25` y `cursor`.
+
+Firefox y Thunderbird se bajan en el idioma de Windows (`-Language es-MX` para elegir otro); si el fabricante no tiene ese idioma, en inglés. El script no desinstala ni lleva la cuenta de lo instalado: volver a ejecutarlo instala la versión que haya en ese momento, que es como se actualiza.
+
+`-Vendor`, `-NoDiscover` y `-OutFile` son del informe y no cuentan al instalar: un producto se instala sea del fabricante que sea. Si GitHub no responde, solo se quedan sin instalar los productos que salen de GitHub.
+
+Para añadir un producto instalable basta darle en `vendor_catalog.psd1` un `Id` y un `Installer` (dirección fija, archivo de un release de GitHub o la que dé su fuente de versiones; argumentos silenciosos; firmante).
+
+#### Informar
+
+Para cada producto pregunta la última versión al fabricante y la del paquete a Chocolatey, y separa el resultado en **actuales** y **descontinuados**:
 
 | Columna | Qué es |
 | :--- | :--- |
-| Versión, Fecha | Lo último que publica el fabricante (la fecha, cuando la fuente la da) |
+| Versión, Fecha | Lo último que publica el fabricante (la fecha, cuando la fuente la da). `(ultima)` cuando el fabricante solo ofrece una descarga «latest» sin decir la versión |
 | Chocolatey | ID y versión del paquete en el repositorio de la comunidad; `(atrasado)` si va por detrás del fabricante; `-` si no hay paquete |
 | En este repo | `actual` si el paquete está en `Paquetes/actuales/`, y a qué IDs retirados sustituye |
+| Instalar | El nombre para `-Install`, si el script sabe instalarlo |
 | Nota | `repositorio archivado`, `sin versiones desde <año>` (tres años sin publicar) o el motivo anotado en el catálogo |
 
 Los productos salen de dos sitios:
 
-- **`vendor_catalog.psd1`**: los que tienen nombre propio (Firefox, Thunderbird, WARP, cloudflared, GitHub Desktop, gh, NVM for Windows…), con su canal, de dónde se lee la versión y el ID de su paquete en Chocolatey. Para añadir uno basta una línea.
+- **`vendor_catalog.psd1`**: los que tienen nombre propio (Firefox, Thunderbird, WARP, Chrome, Google Drive, Kiro, AWS CLI, Cursor, GitHub Desktop, gh…), con su canal, de dónde se lee la versión y el ID de su paquete en Chocolatey. Para añadir uno basta una línea.
 - **Búsqueda en GitHub**: cualquier otro repositorio de las organizaciones de cada fabricante (lista `Owners` del `.psd1`) cuya última versión estable tenga una descarga para Windows. Aquí el único ID que se prueba en Chocolatey es el nombre del repositorio, y por eso lleva `(?)`: un paquete con el mismo nombre puede ser otro programa.
 
 Un producto es **descontinuado** si su repositorio está archivado o si el catálogo lo dice (`Status`); todo lo demás es actual.
 
 | Comando | Qué hace |
 | :--- | :--- |
-| `.\vendor_catalog.bat` | Todo: unos 100 productos en minuto y medio |
+| `.\vendor_catalog.bat` | Todo: unos 225 productos. Tarda unos cinco minutos, casi todo en recorrer las organizaciones de Google y Amazon en GitHub |
 | `.\vendor_catalog.bat -NoDiscover` | Solo los productos del `.psd1` (medio minuto) |
 | `.\vendor_catalog.bat -Vendor Cloudflare,GitHub` | Solo esos fabricantes (vale el principio del nombre: `Fenix`) |
 | `.\vendor_catalog.bat -OutFile catalogo.md` | Guarda además el informe en Markdown |
