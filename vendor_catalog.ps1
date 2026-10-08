@@ -241,10 +241,15 @@ function Get-SourceVersion($Entry, [hashtable] $Repositories) {
             if ($release) {
                 $latest.Version = $release.tagName
                 $latest.Date = ConvertTo-DateText -Value $release.publishedAt
+                # A pre-release channel whose newest pre-release is older than the stable version, or has none
+                # among the releases asked for. The two dates are compared whole (same day, hours apart).
                 $stable = $repository.latestRelease
-                if ($Entry.Pre -and $stable -and $stable.tagName -ne $release.tagName -and
-                    (ConvertTo-DateText -Value $stable.publishedAt) -gt $latest.Date) {
-                    $latest.Note = "la version estable $($stable.tagName) es posterior"
+                if ($Entry.Pre -and $stable) {
+                    if ($stable.tagName -eq $release.tagName) {
+                        $latest.Note = 'sin prereleases entre las ultimas versiones: es la estable'
+                    } elseif ($stable.publishedAt -gt $release.publishedAt) {
+                        $latest.Note = "la version estable $($stable.tagName) es posterior"
+                    }
                 }
             }
         }
