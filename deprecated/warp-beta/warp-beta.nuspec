@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>warp-beta</id>
+    <version>999.0.1-deprecated</version>
+    <packageSourceUrl>https://github.com/DEUS-DEI/ChocoLateYPackages/tree/main/deprecated/warp-beta</packageSourceUrl>
+    <title>[Deprecated] Cloudflare WARP Beta</title>
+    <authors>Cloudflare</authors>
+    <owners>DEUS-DEI</owners>
+    <projectUrl>https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/</projectUrl>
+    <licenseUrl>https://www.cloudflare.com/application/terms/</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description><![CDATA[## Deprecated
+
+This package ID has been retired. The same software is now published as **cloudflare-warp-pre**, which is installed automatically as a dependency of this package, so existing installations keep receiving updates.
+
+You may safely uninstall this package (warp-beta) after the upgrade.
+]]></description>
+    <summary>Transitional package towards cloudflare-warp-pre</summary>
+    <releaseNotes>999.0.1-deprecated: package deprecated in favour of cloudflare-warp-pre (installed as a dependency).</releaseNotes>
+    <tags>deprecated cloudflare warp</tags>
+    <dependencies>
+      <!-- cloudflare-warp-pre only publishes prerelease versions. choco only resolves a prerelease dependency for a package that is a prerelease itself, or when the user asks for prereleases: that is why this bridge is a prerelease version -->
+      <dependency id="cloudflare-warp-pre" version="2026.8.2033.1-pre" />
+    </dependencies>
+  </metadata>
+  <files />
+</package>

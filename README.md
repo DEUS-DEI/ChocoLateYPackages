@@ -19,7 +19,10 @@ GitHub Actions revisa, empaqueta y publica los paquetes **todos los días** (cro
 | `fenix-web-server-pre` | 🔀 Bridge | Redirige → `fenix-web-server` (pre-releases) | ⏳ `999.0.1-deprecated` enviado el 2026-10-08 |
 | `github-desktop-beta` | 🔀 Bridge | Redirige → `github-desktop-pre` | ⏳ `999.0.1-deprecated` enviado el 2026-10-04; retenido por CPMR0024 (explicado en su revisión el 2026-10-08) |
 | `thunderbird-beta` | 🔀 Bridge | Redirige → `thunderbird-mozilla` | ⏳ `999.0.1-deprecated` enviado el 2026-10-04; retenido por CPMR0024 (explicado en su revisión el 2026-10-08) |
-| `thunderbird-daily` | 🔀 Bridge | Redirige → `thunderbird-nightly` | ✅ `999.0.1-deprecated` exento desde el 2026-10-06 |
+| `thunderbird-daily` | 🔀 Bridge | Redirige → `thunderbird-nightly` | ✅ `999.0.1-deprecated` exento desde el 2026-10-06; versiones anteriores ocultas |
+| `warp-beta` | 🔀 Bridge | Redirige → `cloudflare-warp-pre` | ⏳ `999.0.1-deprecated` enviado el 2026-10-08 |
+
+**Cómo debe quedar un ID descontinuado** (guía oficial de deprecación): una sola versión listada, el bridge `999.x-deprecated` exento o aprobado, y todas las versiones anteriores ocultas (*unlisted*). Quien tenga instalado el ID antiguo pasa al paquete nuevo con `choco upgrade`, y quien lo instale de cero recibe el paquete nuevo como dependencia. Las versiones anteriores se ocultan solo cuando el bridge ya está listado; antes, el ID se quedaría sin ninguna versión instalable.
 
 La columna «Estado» de los bridges es una foto del 2026-10-08; el estado al día se ve en [la lista de paquetes de la cuenta](https://community.chocolatey.org/profiles/DEUS-DEI). Los bridges `999.0.0` de `fenix-web-server-beta` y `github-desktop-beta` se enviaron en abril de 2026 y Chocolatey los rechazó el 19 de mayo, porque su dependencia no se podía satisfacer; ver la nota «Bridges de deprecación» más abajo.
 
