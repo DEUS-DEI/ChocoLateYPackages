@@ -398,7 +398,7 @@ Describe 'vendor_catalog.ps1: the report' {
 
     Context 'a full run' {
         BeforeAll {
-            $script:FilesBefore = @(Get-ChildItem -LiteralPath $script:Work -Recurse -File | ForEach-Object { "$($_.FullName) $($_.Length)" })
+            $script:FilesBefore = @(Get-ChildItem -LiteralPath $script:Work -Recurse -File | ForEach-Object { "$($_.FullName) $((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)" })
             $script:Full = Invoke-Catalog -Parameters @{ PassThru = $true }
         }
 
@@ -540,7 +540,7 @@ Describe 'vendor_catalog.ps1: the report' {
         }
 
         It 'writes nothing in the repository' {
-            @(Get-ChildItem -LiteralPath $script:Work -Recurse -File | ForEach-Object { "$($_.FullName) $($_.Length)" }) | Should -Be $script:FilesBefore
+            @(Get-ChildItem -LiteralPath $script:Work -Recurse -File | ForEach-Object { "$($_.FullName) $((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)" }) | Should -Be $script:FilesBefore
         }
     }
 
