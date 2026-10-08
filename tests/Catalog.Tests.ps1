@@ -225,6 +225,76 @@ Describe 'vendor_catalog.ps1: which release and which downloads count' {
     }
 }
 
+Describe 'vendor_catalog.ps1: versions and installers of the winget index' {
+    BeforeAll {
+        Import-CatalogCode -Function 'ConvertTo-SortKey', 'ConvertFrom-WingetManifest'
+        $script:Hash = 'C' * 64
+        function script:Get-Manifest([string[]] $Installer) {
+            # A manifest with these installers, each "architecture" or "architecture/language"
+            $lines = @('PackageIdentifier: Acme.Sample', 'InstallerType: wix', 'Installers:')
+            foreach ($item in $Installer) {
+                $architecture, $locale = $item -split '/'
+                $lines += "- Architecture: $architecture"
+                if ($locale) { $lines += "  InstallerLocale: $locale" }
+                $lines += "  InstallerUrl: https://downloads.example.invalid/sample-$($item -replace '/', '-').msi", "  InstallerSha256: $script:Hash"
+            }
+            $lines -join "`n"
+        }
+    }
+
+    It '<Older> is older than <Newer>' -ForEach @(
+        @{ Older = '99.0.1'; Newer = '157.0.1' }, @{ Older = '1.9.0'; Newer = '1.10.0' }, @{ Older = '21.0.12.7'; Newer = '21.0.12.12' }
+        @{ Older = '1.2.0-beta.1'; Newer = '1.2.0' }, @{ Older = '1.2.0-beta.1'; Newer = '1.2.0-beta.2' }, @{ Older = '1.2.0-rc.3'; Newer = '1.2.1-beta.1' }
+        @{ Older = '158.0b5'; Newer = '158.0' }, @{ Older = '158.0b5'; Newer = '158.0b12' }, @{ Older = 'v1.0.78-3'; Newer = 'v1.0.93' }
+        @{ Older = '1.2'; Newer = '1.2.1' }, @{ Older = '2026.2.1.7'; Newer = '2026.2.1.8' }
+    ) {
+        $sorted = @($Newer, $Older | Sort-Object { ConvertTo-SortKey -Version $_ })
+        $sorted | Should -Be $Older, $Newer
+        # And '1.2' is the same version as '1.2.0'
+        (ConvertTo-SortKey -Version '1.2') | Should -BeExactly (ConvertTo-SortKey -Version '1.2.0')
+    }
+
+    It 'on <Bits>-bit Windows takes <Expected> of <Installers>' -ForEach @(
+        @{ Bits = 64; Installers = 'arm64', 'x86', 'x64'; Expected = 'x64' }
+        @{ Bits = 64; Installers = 'x86', 'neutral'; Expected = 'neutral' }
+        @{ Bits = 64; Installers = 'arm64', 'x86'; Expected = 'x86' }
+        @{ Bits = 32; Installers = 'x64', 'x86'; Expected = 'x86' }
+        @{ Bits = 32; Installers = 'x64', 'neutral'; Expected = 'neutral' }
+    ) {
+        $spec = ConvertFrom-WingetManifest -Text (Get-Manifest -Installer $Installers) -Language 'es-MX' -Is64Bit ($Bits -eq 64)
+        $spec.Url | Should -BeExactly "https://downloads.example.invalid/sample-$Expected.msi"
+        $spec.Sha256 | Should -BeExactly $script:Hash
+        $spec.Identifier | Should -BeExactly 'Acme.Sample'
+    }
+
+    It 'has no installer for <Bits>-bit Windows among <Installers>' -ForEach @(
+        @{ Bits = 32; Installers = 'x64', 'arm64' }, @{ Bits = 64; Installers = 'arm64', 'arm' }
+    ) {
+        { ConvertFrom-WingetManifest -Text (Get-Manifest -Installer $Installers) -Language 'es-MX' -Is64Bit ($Bits -eq 64) } | Should -Throw '*arquitectura*'
+    }
+
+    It 'asked for <Language> takes the installer in "<Expected>" of <Installers>' -ForEach @(
+        @{ Language = 'es-MX'; Installers = 'x64/en-US', 'x64/es-MX', 'x64/fr-FR'; Expected = 'es-MX' }
+        @{ Language = 'es-MX'; Installers = 'x64/fr-FR', 'x64'; Expected = '' }
+        @{ Language = 'es-MX'; Installers = 'x64/fr-FR', 'x64/en-US'; Expected = 'en-US' }
+        # Nothing closer: another language, and the caller is told which
+        @{ Language = 'es-MX'; Installers = 'x64/fr-FR', 'x64/de-DE'; Expected = 'fr-FR' }
+        # The architecture counts more than the language
+        @{ Language = 'es-MX'; Installers = 'x86/es-MX', 'x64/fr-FR'; Expected = 'fr-FR' }
+    ) {
+        (ConvertFrom-WingetManifest -Text (Get-Manifest -Installer $Installers) -Language $Language -Is64Bit $true).Locale | Should -BeExactly $Expected
+    }
+
+    It 'refuses a download at <Address>' -ForEach @(
+        @{ Address = 'http://downloads.example.invalid/setup.msi' }, @{ Address = 'https://10.0.0.5/setup.msi' }, @{ Address = 'https://[::1]/setup.msi' }
+        @{ Address = 'https://fileserver/setup.msi' }, @{ Address = 'https://build.corp/setup.msi' }, @{ Address = 'https://nas.local/setup.msi' }
+        @{ Address = 'https://localhost/setup.msi' }, @{ Address = 'ftp://downloads.example.invalid/setup.msi' }, @{ Address = 'setup.msi' }
+    ) {
+        $manifest = "InstallerType: wix`nInstallers:`n- Architecture: x64`n  InstallerUrl: $Address`n  InstallerSha256: $script:Hash"
+        { ConvertFrom-WingetManifest -Text $manifest -Language 'es-MX' -Is64Bit $true } | Should -Throw
+    }
+}
+
 Describe 'vendor_catalog.ps1: the report' {
     BeforeAll {
         # --- A repository with the script, an invented catalog and packages of its own ---
@@ -806,7 +876,13 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
                 return [pscustomobject]@{ Content = $(if ($Fake.WrongHash) { $Fake.Manifests[$address].Replace($Fake.Hash, ('0' * 64)) } else { $Fake.Manifests[$address] }) }
             }
             if (-not $OutFile) { throw "Peticion no simulada: $address" }
-            if ($Fake.Missing | Where-Object { $address -like $_ }) { throw 'Error en el servidor remoto: (404) No se encontro.' }
+            if ($Fake.Unreachable | Where-Object { $address -like $_ }) { throw 'No se puede resolver el nombre remoto' }
+            if ($Fake.Missing | Where-Object { $address -like $_ }) {
+                # As Invoke-WebRequest does: an exception that carries the answer of the server
+                $notFound = New-Object CatalogTestHttpException 'Error en el servidor remoto: (404) No se encontro.'
+                $notFound.Response = [pscustomobject]@{ StatusCode = 404 }
+                throw $notFound
+            }
             # A download: an empty file where the script asked for it
             Set-Content -LiteralPath $OutFile -Value 'not a real installer'
             $Fake.Downloads.Add([pscustomobject]@{ Uri = $address; File = $OutFile })
@@ -815,6 +891,10 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         }
 
         Mock Start-Sleep { }
+
+        if (-not ('CatalogTestHttpException' -as [type])) {
+            Add-Type -TypeDefinition 'public class CatalogTestHttpException : System.Exception { public object Response { get; set; } public CatalogTestHttpException(string message) : base(message) { } }'
+        }
 
         Mock Get-AuthenticodeSignature {
             $Fake.Checked.Add($LiteralPath)
@@ -865,9 +945,16 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
         }
         $root = 'manifests/a/Acme'
         $tree = @{
-            $root                           = Get-FakeEntry -Tree 'Tool', 'Suite', 'Kit', 'Bundle', 'Portable' -Blob 'README.md'
-            # Versions sort as numbers (1.10.0 is newer than 1.9.0); Beta is another package and es-MX a language
-            "$root/Tool"                    = Get-FakeEntry -Tree '1.9.0', '1.10.0', 'Beta', 'es-MX'
+            $root                           = Get-FakeEntry -Tree 'Tool', 'Suite', 'Kit', 'Bundle', 'Portable', 'Old', 'Wrong', 'Inner' -Blob 'README.md'
+            # Versions sort as numbers (1.10.0 is newer than 1.9.0) and a pre-release goes before its version
+            # (1.10.0-rc.2 is older than 1.10.0); Beta is another package and es-MX a language
+            "$root/Tool"                    = Get-FakeEntry -Tree '1.9.0', '1.10.0-rc.2', '1.10.0', 'Beta', 'es-MX'
+            "$root/Old"                     = Get-FakeEntry -Tree '3.1', '3.0'
+            "$root/Old/3.1"                 = Get-FakeEntry -Blob 'Acme.Old.yaml'
+            "$root/Wrong"                   = Get-FakeEntry -Tree '1.0'
+            "$root/Wrong/1.0"               = Get-FakeEntry -Blob 'Acme.Wrong.installer.yaml'
+            "$root/Inner"                   = Get-FakeEntry -Tree '1.0'
+            "$root/Inner/1.0"               = Get-FakeEntry -Blob 'Acme.Inner.installer.yaml'
             "$root/Tool/1.10.0"             = Get-FakeEntry -Blob 'Acme.Tool.installer.yaml', 'Acme.Tool.locale.en-US.yaml', 'Acme.Tool.yaml'
             "$root/Tool/Beta"               = Get-FakeEntry -Tree '1.11.0', 'EXE'
             "$root/Tool/Beta/1.11.0"        = Get-FakeEntry -Blob 'Acme.Tool.Beta.installer.yaml'
@@ -970,6 +1057,42 @@ Installers:
   InstallerUrl: https://downloads.example.invalid/bundle/setup.exe
   InstallerSha256: $($script:Fake.Hash)
 "@
+            # The old layout: one file for everything, and the items of the list indented
+            "$raw/Old/3.1/Acme.Old.yaml"                         = @"
+PackageIdentifier: Acme.Old
+PackageVersion: 3.1
+InstallerType: nullsoft
+Installers:
+  - Architecture: x86
+    InstallerUrl: https://downloads.example.invalid/old/old-3.1-x86.exe
+    InstallerSha256: $($script:Fake.Hash)
+  - Architecture: x64
+    InstallerUrl: https://downloads.example.invalid/old/old-3.1-x64.exe
+    InstallerSha256: $($script:Fake.Hash)
+    InstallerSwitches:
+      Custom: /NCRC
+    AppsAndFeaturesEntries:
+      - DisplayName: Acme Old
+ManifestType: singleton
+"@
+            # A manifest that is of another package
+            "$raw/Wrong/1.0/Acme.Wrong.installer.yaml"           = @"
+PackageIdentifier: Acme.Other
+InstallerType: wix
+Installers:
+- Architecture: x64
+  InstallerUrl: https://downloads.example.invalid/other/other.msi
+  InstallerSha256: $($script:Fake.Hash)
+"@
+            # A download that is not on the Internet
+            "$raw/Inner/1.0/Acme.Inner.installer.yaml"           = @"
+PackageIdentifier: Acme.Inner
+InstallerType: wix
+Installers:
+- Architecture: x64
+  InstallerUrl: https://10.0.0.5/inner.msi
+  InstallerSha256: $($script:Fake.Hash)
+"@
             # An archive with a program inside: winget's own business
             "$raw/Portable/1.0/Acme.Portable.installer.yaml"     = @"
 PackageIdentifier: Acme.Portable
@@ -992,6 +1115,7 @@ Installers:
         $script:Fake.SignatureStatus = 'Valid'
         $script:Fake.ExitCode = 0
         $script:Fake.Missing = @()
+        $script:Fake.Unreachable = @()
         $script:Fake.RedirectedTo = ''
         $script:Fake.GraphQLFailures = 0
         $script:Fake.WrongHash = $false
@@ -1143,6 +1267,17 @@ Installers:
         $script:Fake.Started.Count | Should -Be 0
     }
 
+    It 'does not take a network failure for a missing language' {
+        $script:Fake.Unreachable = @('*lang=es-MX')
+        $failure = $null
+        $text = ''
+        try { $text = (Invoke-Install -Parameters @{ Install = 'browser'; Language = 'es-MX'; Yes = $true }).Text } catch { $failure = $_ }
+        "$failure" | Should -BeExactly 'No se pudo instalar: browser'
+        $script:Fake.Downloads.Count | Should -Be 0
+        $text | Should -Not -Match 'No hay instalador en'
+        @($script:Fake.Requests | Where-Object { $_ -like '*lang=en-US' }) | Should -BeNullOrEmpty
+    }
+
     It 'still installs the products of other vendors when GitHub does not answer' {
         $script:Fake.GraphQLFailures = 3
         $failure = $null
@@ -1187,11 +1322,11 @@ Installers:
             foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started', 'Folders') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
             $rows = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -PassThru 6>$null | Where-Object { $_.Origen -eq 'winget' })
             @($rows | ForEach-Object { "$($_.Producto) $($_.Version)" }) | Should -Be @(
-                'Acme.Bundle 2.0', 'Acme.Kit 0.9', 'Acme.Portable 1.0', 'Acme.Suite.21.JDK 21.0.12.12', 'Acme.Suite.25.JDK 25.0.4.10'
-                'Acme.Tool 1.10.0', 'Acme.Tool.Beta 1.11.0', 'Acme.Tool.Beta.EXE 1.11.0')
+                'Acme.Bundle 2.0', 'Acme.Inner 1.0', 'Acme.Kit 0.9', 'Acme.Old 3.1', 'Acme.Portable 1.0', 'Acme.Suite.21.JDK 21.0.12.12'
+                'Acme.Suite.25.JDK 25.0.4.10', 'Acme.Tool 1.10.0', 'Acme.Tool.Beta 1.11.0', 'Acme.Tool.Beta.EXE 1.11.0', 'Acme.Wrong 1.0')
             # The name to install it with is the one of the index, and it is the vendor's row
             @($rows | Where-Object { $_.Instalar -cne $_.Producto -or $_.Fabricante -ne 'Acme' -or $_.Estado -ne 'actual' }) | Should -BeNullOrEmpty
-            $rows[5].Fuente | Should -BeExactly 'github.com/microsoft/winget-pkgs/tree/master/manifests/a/Acme/Tool/1.10.0'
+            $rows[7].Fuente | Should -BeExactly 'github.com/microsoft/winget-pkgs/tree/master/manifests/a/Acme/Tool/1.10.0'
             # A language (es-MX) is not a package, and no folder is asked for twice
             @($script:Fake.Folders | Where-Object { $_ -like '*es-MX*' }) | Should -BeNullOrEmpty
             @($script:Fake.Folders | Group-Object | Where-Object Count -GT 1) | Should -BeNullOrEmpty
@@ -1202,7 +1337,7 @@ Installers:
             foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started', 'Folders') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
             $output = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -OutFile $report 6>&1 3>&1)
             $text = @($output | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { "$_" }) -join "`n"
-            $text | Should -Match '(?m)^  INDICE DE WINGET \(8\)$'
+            $text | Should -Match '(?m)^  INDICE DE WINGET \(11\)$'
             $text | Should -Match '(?m)^Acme\s+Acme\.Suite\.21\.JDK\s+21\.0\.12\.12\s*$'
             # The tables of the catalog do not count the rows of the index
             $text | Should -Match '(?m)^  ACTUALES \(10\)$'
@@ -1233,7 +1368,7 @@ Installers:
             $run.Text | Should -Match 'Firmado por: Acme Corporation'
             $file | Should -Not -Exist
             # Only the folder of the package is read, not the whole index
-            $script:Fake.Folders.ToArray() | Should -Be 'manifests/a/Acme/Tool'
+            $script:Fake.Folders.ToArray() | Should -Be 'manifests/a/Acme/Tool', 'manifests/a/Acme/Tool/1.10.0'
             $script:Fake.Searches | Should -Be 0
         }
 
@@ -1280,6 +1415,17 @@ Installers:
             $run.Rows[0].Resultado | Should -BeExactly 'instalado'
             @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be $Url
             $script:Fake.Started[0].Arguments | Should -BeExactly '--silent'
+            # Told when it is not the language asked for
+            if ($Language -eq 'fr-FR') { $run.Text | Should -Match '\[AVISO\] El indice no tiene este instalador en fr-FR: es el de en-US' }
+            else { $run.Text | Should -Not -Match 'El indice no tiene este instalador' }
+        }
+
+        It 'reads a manifest in a single file, with the items of its list indented' {
+            $run = Invoke-Install -Parameters @{ Install = 'Acme.Old'; Yes = $true }
+            $run.Rows[0].Resultado | Should -BeExactly 'instalado'
+            $run.Rows[0].Version | Should -BeExactly '3.1'
+            @($script:Fake.Downloads | ForEach-Object Uri) | Should -Be 'https://downloads.example.invalid/old/old-3.1-x64.exe'
+            $script:Fake.Started[0].Arguments | Should -BeExactly '/S /NCRC'
         }
 
         It 'does not download <Id>: <Why>' -ForEach @(
@@ -1287,6 +1433,8 @@ Installers:
             @{ Id = 'Acme.Portable'; Why = 'an archive, which winget installs itself' }
             @{ Id = 'Acme.Suite'; Why = 'a folder of packages, not a package' }
             @{ Id = 'Acme.Missing'; Why = 'not in the index' }
+            @{ Id = 'Acme.Wrong'; Why = 'its manifest is of another package' }
+            @{ Id = 'Acme.Inner'; Why = 'its manifest points to an address that is not public' }
             @{ Id = 'acme.tool'; Why = 'the names of the index are case-sensitive' }
         ) {
             { Invoke-Install -Parameters @{ Install = $Id; Yes = $true } } | Should -Throw "*No se pudo instalar: $Id*"

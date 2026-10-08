@@ -477,8 +477,15 @@ function Get-WingetFolder([string[]] $Path) {
 }
 
 function ConvertTo-SortKey([string] $Version) {
-    # Text that sorts versions as numbers: '99.0.1' goes before '157.0.1'
-    @($Version -split '[^0-9]+' | Where-Object { $_ } | ForEach-Object { $_.PadLeft(12, '0') }) -join '.'
+    # Text that sorts versions: numbers as numbers ('99.0.1' before '157.0.1', '1.9.0' before '1.10.0') and a
+    # pre-release ('1.2.0-beta.1', '158.0b5') before the version it leads to ('1.2.0', '158.0')
+    $clean = $Version -replace '^[vV]'
+    $core = [regex]::Match($clean, '^\d+(\.\d+)*').Value
+    $rest = $clean.Substring($core.Length)
+    $numbers = @($core -split '\.' | Where-Object { $_ }) + @('0') * 6 | Select-Object -First 6
+    $key = @($numbers | ForEach-Object { $_.PadLeft(12, '0') }) -join '.'
+    if (-not $rest) { return "$key.1" }
+    "$key.0." + (@($rest -split '[^0-9]+' | Where-Object { $_ } | ForEach-Object { $_.PadLeft(12, '0') }) -join '.')
 }
 
 function Get-WingetPackage([string[]] $Publisher) {
@@ -525,35 +532,41 @@ function Get-WingetPackage([string[]] $Publisher) {
     }
 }
 
-function ConvertFrom-WingetManifest([string] $Text, [string] $Language) {
-    # The installer of a winget manifest for this PC and how to run it: x64 first, then one for any
-    # architecture, then x86; in the language asked when there is one per language. Only the fields needed are
-    # read, line by line: what is written for one installer wins over what is written for all of them.
+function ConvertFrom-WingetManifest([string] $Text, [string] $Language, [bool] $Is64Bit = [System.Environment]::Is64BitOperatingSystem) {
+    # The installer of a winget manifest for this PC and how to run it. On 64-bit Windows: x64 first, then one
+    # for any architecture, then x86; on 32-bit Windows, x86 or any. In the language asked when there is one
+    # per language, else one for every language, else English, else whatever there is.
+    # Only the fields needed are read, line by line: what is written for one installer wins over what is
+    # written for all of them. The items of the list may be indented or not, as YAML allows.
     $shared = @{}
     $installers = @()
     $current = $null
     $inList = $false
+    $indent = -1
     foreach ($line in $Text -split "`r?`n") {
         if ($line -match '^Installers:\s*$') { $inList = $true; continue }
         if ($inList -and $line -match '^\S' -and $line -notmatch '^- ') { $inList = $false; $current = $null }
-        if ($inList -and $line -match '^- ') { $current = @{}; $installers += $current }
-        if ($line -match '^\s*(?:- )?(?<key>Architecture|InstallerType|NestedInstallerType|Scope|InstallerUrl|InstallerSha256|InstallerLocale|Silent|Custom):\s*(?<value>\S.*?)\s*$') {
+        if ($inList -and $line -match '^(?<spaces>\s*)- ') {
+            if ($indent -lt 0) { $indent = $Matches.spaces.Length }
+            if ($Matches.spaces.Length -eq $indent) { $current = @{}; $installers += $current }
+        }
+        if ($line -match '^\s*(?:- )?(?<key>PackageIdentifier|Architecture|InstallerType|NestedInstallerType|Scope|InstallerUrl|InstallerSha256|InstallerLocale|Silent|Custom):\s*(?<value>\S.*?)\s*$') {
             $key = $Matches.key
             $value = $Matches.value -replace "^(['`"])(.*)\1$", '$2'
             $target = if ($inList -and $current) { $current } else { $shared }
             if (-not $target.ContainsKey($key)) { $target[$key] = $value }
         }
     }
-    $rank = @{ x64 = 3; neutral = 2; x86 = 1 }
+    $rank = if ($Is64Bit) { @{ x64 = 3; neutral = 2; x86 = 1 } } else { @{ x86 = 3; neutral = 2 } }
     $chosen = $null
     $best = 0
     foreach ($installer in $installers | Where-Object { $_.InstallerUrl }) {
         $score = 10 * [int] $rank["$($installer.Architecture)"]
-        if (-not $score) { continue }  # arm, arm64
-        $score += if (-not $installer.InstallerLocale) { 2 } elseif ($installer.InstallerLocale -eq $Language) { 3 } elseif ($installer.InstallerLocale -eq 'en-US') { 1 } else { 0 }
+        if (-not $score) { continue }  # arm, arm64, or x64 on 32-bit Windows
+        $score += if ($installer.InstallerLocale -eq $Language) { 4 } elseif (-not $installer.InstallerLocale) { 3 } elseif ($installer.InstallerLocale -eq 'en-US') { 2 } else { 1 }
         if ($score -gt $best) { $best = $score; $chosen = $installer }
     }
-    if (-not $chosen) { throw 'el manifiesto de winget no tiene instalador para x64 ni x86' }
+    if (-not $chosen) { throw 'el manifiesto de winget no tiene instalador para la arquitectura de este Windows' }
     foreach ($key in $shared.Keys) { if (-not $chosen.ContainsKey($key)) { $chosen[$key] = $shared[$key] } }
 
     # What each kind of installer needs to run silently, unless the manifest says otherwise. An .msi gets its
@@ -563,12 +576,18 @@ function ConvertFrom-WingetManifest([string] $Text, [string] $Language) {
     if ($kind -notin 'msi', 'wix', 'inno', 'nullsoft', 'burn', 'exe') { throw "este script no sabe instalar un paquete de tipo '$kind' (zip, msix y portables los instala winget)" }
     $arguments = if ($kind -in 'msi', 'wix') { '' } elseif ($chosen.Silent) { "$($chosen.Silent)" } else { "$($silent[$kind])" }
     if ($kind -eq 'exe' -and -not $arguments) { throw 'el manifiesto de winget no dice como instalarlo en silencio' }
-    if ("$($chosen.InstallerUrl)" -notmatch '^https://') { throw 'el manifiesto de winget no da una descarga https' }
     if ("$($chosen.InstallerSha256)" -notmatch '^[0-9A-Fa-f]{64}$') { throw 'el manifiesto de winget no trae el SHA256 del instalador' }
+    # The download has to be public: https, a host name with a domain, and neither an address nor a name of
+    # the local network. The index is moderated, but a manifest must not be able to point this PC anywhere.
+    $address = $null
+    if (-not [uri]::TryCreate("$($chosen.InstallerUrl)", [System.UriKind]::Absolute, [ref] $address) -or $address.Scheme -ne 'https') { throw 'el manifiesto de winget no da una descarga https' }
+    if ($address.HostNameType -ne [System.UriHostNameType]::Dns -or $address.Host -notmatch '\.[a-z]{2,}$' -or $address.Host -match '(^|\.)(localhost|local|internal|intranet|lan|home|corp)$') {
+        throw "el manifiesto de winget apunta a una direccion que no es publica ($($address.Host))"
+    }
     @{
-        Url = "$($chosen.InstallerUrl)"; Type = $(if ($kind -in 'msi', 'wix') { 'msi' } else { 'exe' })
+        Url = $address.AbsoluteUri; Type = $(if ($kind -in 'msi', 'wix') { 'msi' } else { 'exe' })
         Arguments = ("$arguments $($chosen.Custom)").Trim(); Signer = ''; Sha256 = "$($chosen.InstallerSha256)".ToUpperInvariant()
-        PerUser = ($chosen.Scope -eq 'user'); Version = ''
+        PerUser = ($chosen.Scope -eq 'user'); Version = ''; Locale = "$($chosen.InstallerLocale)"; Identifier = "$($chosen.PackageIdentifier)"
     }
 }
 
@@ -580,13 +599,14 @@ function Get-WingetInstaller([string] $Id, [string] $Language) {
     $version = @($folder[$path] | Where-Object { $_.type -eq 'tree' -and $_.name -match '^v?\d' } |
         Sort-Object { ConvertTo-SortKey -Version $_.name } -Descending | ForEach-Object { $_.name })[0]
     if (-not $version) { throw "el indice de winget no tiene ninguna version de $Id (el nombre distingue mayusculas)" }
-    try {
-        $manifest = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/$path/$version/$Id.installer.yaml" -UseBasicParsing).Content
-    } catch {
-        throw "el indice de winget no tiene el manifiesto de $Id $version (si agrupa otros paquetes, el nombre completo sale en el informe)"
-    }
+    # The installer is in "<Id>.installer.yaml" or, in the old layout with a single file, in "<Id>.yaml"
+    $files = @((Get-WingetFolder -Path @("$path/$version"))["$path/$version"] | Where-Object { $_.type -eq 'blob' } | ForEach-Object { $_.name })
+    $file = @("$Id.installer.yaml", "$Id.yaml" | Where-Object { $files -ccontains $_ })[0]
+    if (-not $file) { throw "$Id no es un paquete del indice de winget: agrupa otros, cuyo nombre completo sale en el informe" }
+    $manifest = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/$path/$version/$file" -UseBasicParsing).Content
     if ($manifest -is [byte[]]) { $manifest = [System.Text.Encoding]::UTF8.GetString($manifest) }
     $spec = ConvertFrom-WingetManifest -Text $manifest -Language $Language
+    if ($spec.Identifier -cne $Id) { throw "el manifiesto leido es de '$($spec.Identifier)' y no de $Id" }
     $spec.Version = $version
     $spec
 }
@@ -688,6 +708,7 @@ if ($Install) {
                 $result.Descarga = $spec.Url
                 Write-Host ">>> $($entry.Product) ($($entry.Channel)) $($latest.Version)" -ForegroundColor Cyan
                 Write-Host "    $($spec.Url)"
+                if ($spec.Locale -and $spec.Locale -ne $Language) { Write-Host "    [AVISO] El indice no tiene este instalador en $($Language): es el de $($spec.Locale)." -ForegroundColor Yellow }
                 $proceed = if ($Yes -and -not $WhatIfPreference) { $true } else { $PSCmdlet.ShouldProcess("$($entry.Product) $($latest.Version) <$($spec.Url)>", 'Descargar e instalar') }
                 if (-not $proceed) {
                     $result.Resultado = if ($WhatIfPreference) { 'simulado (-WhatIf)' } else { 'omitido' }
@@ -701,10 +722,10 @@ if ($Install) {
                     Save-Installer -Url $spec.Url -Path $file
                 } catch {
                     # A vendor does not build its installer in every language: English is always there. Only
-                    # "not found" means that; a download taken away from https or a server error does not.
-                    $status = if ($_.Exception.Response) { [int] $_.Exception.Response.StatusCode } else { 404 }
-                    if ($entry.Winget -or $entry.Installer.Url -notmatch '\{lang\}' -or $Language -eq 'en-US' -or
-                        $status -ne 404 -or $_.Exception -is [System.Security.SecurityException]) { throw }
+                    # an answer "not found" means that: a download taken away from https, a server error or a
+                    # network failure (no answer at all) says nothing about the language.
+                    $status = if ($_.Exception.Response) { [int] $_.Exception.Response.StatusCode } else { 0 }
+                    if ($entry.Winget -or $entry.Installer.Url -notmatch '\{lang\}' -or $Language -eq 'en-US' -or $status -ne 404) { throw }
                     Write-Host "    [AVISO] No hay instalador en $($Language): se descarga en en-US." -ForegroundColor Yellow
                     $spec = Get-InstallerSpec -Entry $entry -Latest $latest -Language 'en-US'
                     $result.Descarga = $spec.Url
