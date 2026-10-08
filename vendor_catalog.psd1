@@ -16,6 +16,20 @@
         'Fenix (Corey Butler)' = @('coreybutler', 'nvm-windows')
     }
 
+    # Publishers of each vendor in the winget community repository (github.com/microsoft/winget-pkgs), the
+    # fullest public list of what a vendor ships for Windows. Everything it has of them is listed (skipped with
+    # -NoDiscover) and can be installed with -Install <Publisher.Package>: the script reads the vendor's address,
+    # the SHA256 and the arguments from the manifest and downloads and runs the installer itself.
+    Winget   = @{
+        'Mozilla'              = @('Mozilla')
+        'Cloudflare'           = @('Cloudflare')
+        'GitHub'               = @('GitHub')
+        'Google'               = @('Google')
+        'Amazon'               = @('Amazon')
+        'Cursor (Anysphere)'   = @('Anysphere')
+        'Fenix (Corey Butler)' = @('CoreyButler')
+    }
+
     # Repositories that publish files for Windows but are not a program to install (regular expressions)
     Ignore   = @(
         '^actions/(.+-versions|runner-images)$'  # tool caches and virtual machine images of the runners

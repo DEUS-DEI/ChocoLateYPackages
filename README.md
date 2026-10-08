@@ -105,7 +105,7 @@ Uso:
 | `.\push_deprecated.bat` | Publica los bridges de `Paquetes/descontinuados/`. Termina con código 1 si falla algún empaquetado o push; `--no-pause` no espera una tecla al final |
 | `cd Paquetes\actuales\nicepage` y `powershell -File update.ps1` | Prueba un solo paquete con AU |
 | `.\vendor_catalog.bat` | Lista el software para Windows de Mozilla, Cloudflare, GitHub, Google, Amazon, Cursor y Fenix con su última versión y su paquete en Chocolatey. Solo consulta (ver «Catálogo de fabricantes e instalación directa») |
-| `.\vendor_catalog.bat -Install chrome,kiro` | Instala esos productos con el instalador oficial del fabricante, sin Chocolatey |
+| `.\vendor_catalog.bat -Install chrome,kiro` | Instala esos productos con el instalador oficial del fabricante, sin Chocolatey. También acepta nombres del índice de winget (`Google.QuickShare`) |
 
 En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede configurar desde la opción 4 de `menu.bat`).
 
@@ -150,6 +150,18 @@ Firefox y Thunderbird se bajan en el idioma de Windows (`-Language es-MX` para e
 
 `-Vendor`, `-NoDiscover` y `-OutFile` son del informe y no cuentan al instalar: un producto se instala sea del fabricante que sea. Si GitHub no responde, solo se quedan sin instalar los productos que salen de GitHub.
 
+##### Todo lo demás: el índice de winget
+
+No hay una lista oficial de todo lo que publica cada fabricante. La más completa es el [índice público de winget](https://github.com/microsoft/winget-pkgs), que mantiene la comunidad y valida Microsoft: unos 135 paquetes de estos fabricantes (Kindle, Amazon Music, WorkSpaces, todas las versiones de Corretto, Quick Share, Play Games, Antigravity, Android Studio, Gemini…). El informe los lista en una tabla aparte y `-Install` acepta sus nombres **tal cual están escritos allí**:
+
+```batch
+.\vendor_catalog.bat -Install Google.QuickShare,Amazon.Kindle -WhatIf
+```
+
+Con esos paquetes el script lee el manifiesto de su última versión y saca de ahí la dirección del instalador en el servidor del fabricante, su SHA256 y los argumentos silenciosos; descarga e instala él mismo, sin llamar a `winget` ni a Chocolatey. La regla de seguridad cambia en un punto: el archivo solo se ejecuta si su **SHA256 es el del manifiesto**, y entonces se acepta también un instalador sin firma digital (hay herramientas libres que no la llevan; el script lo avisa). Una firma rota se rechaza siempre.
+
+Límites: solo paquetes de los editores del catálogo (`Winget` en el `.psd1`); solo instaladores `.msi` y `.exe` (los `.zip`, `.msix` y portables se dejan a `winget`); y un `.exe` cuyo manifiesto no diga cómo instalarlo en silencio no se instala. El índice puede ir unos días por detrás del fabricante y no dice si un producto sigue vivo: ahí siguen Picasa, Google Talk o Amazon Chime.
+
 Para añadir un producto instalable basta darle en `vendor_catalog.psd1` un `Id` y un `Installer` (dirección fija, archivo de un release de GitHub o la que dé su fuente de versiones; argumentos silenciosos; firmante).
 
 #### Informar
@@ -164,17 +176,19 @@ Para cada producto pregunta la última versión al fabricante y la del paquete a
 | Instalar | El nombre para `-Install`, si el script sabe instalarlo |
 | Nota | `repositorio archivado`, `sin versiones desde <año>` (tres años sin publicar) o el motivo anotado en el catálogo |
 
-Los productos salen de dos sitios:
+Los productos salen de tres sitios:
 
 - **`vendor_catalog.psd1`**: los que tienen nombre propio (Firefox, Thunderbird, WARP, Chrome, Google Drive, Kiro, AWS CLI, Cursor, GitHub Desktop, gh…), con su canal, de dónde se lee la versión y el ID de su paquete en Chocolatey. Para añadir uno basta una línea.
 - **Búsqueda en GitHub**: cualquier otro repositorio de las organizaciones de cada fabricante (lista `Owners` del `.psd1`) cuya última versión estable tenga una descarga para Windows. Aquí el único ID que se prueba en Chocolatey es el nombre del repositorio, y por eso lleva `(?)`: un paquete con el mismo nombre puede ser otro programa.
+
+- **Índice de winget**: todo lo que registra de los editores de cada fabricante, en su propia tabla, con la versión que tiene el índice y el nombre para `-Install`.
 
 Un producto es **descontinuado** si su repositorio está archivado o si el catálogo lo dice (`Status`); todo lo demás es actual.
 
 | Comando | Qué hace |
 | :--- | :--- |
 | `.\vendor_catalog.bat` | Todo: unos 225 productos. Tarda unos cinco minutos, casi todo en recorrer las organizaciones de Google y Amazon en GitHub |
-| `.\vendor_catalog.bat -NoDiscover` | Solo los productos del `.psd1` (medio minuto) |
+| `.\vendor_catalog.bat -NoDiscover` | Solo los productos del `.psd1` (medio minuto), sin buscar en GitHub ni leer el índice de winget |
 | `.\vendor_catalog.bat -Vendor Cloudflare,GitHub` | Solo esos fabricantes (vale el principio del nombre: `Fenix`) |
 | `.\vendor_catalog.bat -OutFile catalogo.md` | Guarda además el informe en Markdown |
 | `.\vendor_catalog.ps1 -PassThru` | Devuelve objetos en vez de tablas, para `Where-Object`, `Export-Csv`… |
