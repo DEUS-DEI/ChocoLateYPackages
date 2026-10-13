@@ -9,6 +9,15 @@ y como mantenerlo.
 - Los cambios van por PR a `main`. La accion `.github/workflows/update_packages.yml` publica en Chocolatey y hace
   commits en `main` todos los dias a las 04:47 UTC: no ejecutarla, no empaquetar ni publicar nada, y contar con que
   `main` avanza sola (traer `main` antes de subir una rama).
+- Con el CI en verde se fusiona, sin esperar a que el usuario lo pida (lo pidio el 2026-10-13, para todos sus
+  repositorios). Un PR abierto en la sesion se fusiona con commit de merge (`gh pr merge --merge`) en cuanto su
+  ultimo commit tiene en verde `Tests / test` y el estado `Devin Review`, GitHub lo da por fusionable (sin
+  conflictos) y no queda ningun comentario de revision por contestar; GitHub borra la rama al fusionar. Rojo,
+  pendiente o con conflicto: se arregla primero. No cambia lo de "Antes de subir" ni vale para un PR que el usuario
+  pida no fusionar o que no abrio la sesion (el repositorio es publico: el PR de un tercero nunca se fusiona sin que
+  el usuario lo diga). La fusion automatica de GitHub (auto-merge) esta activada, pero `main` no exige comprobaciones
+  (el ruleset "Proteger main" solo impide borrarla y el push forzado), asi que nada hace esperar a
+  `gh pr merge --auto`: la fusion la hace la sesion.
 
 ## Estructura
 - `Paquetes/actuales/<id>/`: paquetes activos. Los revisa y publica `update_all.ps1`, que toma cualquier carpeta de
