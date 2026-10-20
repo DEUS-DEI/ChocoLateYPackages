@@ -13,10 +13,10 @@ y como mantenerlo.
   repositorios). Un PR abierto en la sesion se fusiona con commit de merge (`gh pr merge --merge`) en cuanto su
   ultimo commit tiene en verde `Tests / test` y el estado `Devin Review`, GitHub lo da por fusionable (sin
   conflictos) y no queda ningun comentario de revision por contestar; GitHub borra la rama al fusionar. Rojo,
-  pendiente o con conflicto: se arregla primero. No cambia lo de "Antes de subir" ni vale para un PR que el usuario
-  pida no fusionar o que no abrio la sesion (el repositorio es publico: el PR de un tercero nunca se fusiona sin que
-  el usuario lo diga). La fusion automatica de GitHub (auto-merge) esta activada, pero `main` no exige comprobaciones
-  (el ruleset "Proteger main" solo impide borrarla y el push forzado), asi que nada hace esperar a
+  pendiente o con conflicto: se arregla primero. No cambia lo de "Sin pruebas ni tests" ni vale para un PR que el
+  usuario pida no fusionar o que no abrio la sesion (el repositorio es publico: el PR de un tercero nunca se fusiona
+  sin que el usuario lo diga). La fusion automatica de GitHub (auto-merge) esta activada, pero `main` no exige
+  comprobaciones (el ruleset "Proteger main" solo impide borrarla y el push forzado), asi que nada hace esperar a
   `gh pr merge --auto`: la fusion la hace la sesion.
 
 ## Estructura
@@ -36,8 +36,9 @@ y como mantenerlo.
 
 ## Compatibilidad
 - Los scripts de `Paquetes/actuales/*/tools/` se ejecutan al instalar y tienen que funcionar en **PowerShell v2**
-  (regla de los moderadores). PSScriptAnalyzer no puede comprobarlo: pasar ademas la busqueda con `Select-String` del
-  README (seccion "Analisis estatico") y, ante la duda, evitar cualquier cosa de v3 o posterior.
+  (regla de los moderadores). PSScriptAnalyzer no puede comprobarlo; lo mira la busqueda con `Select-String` del
+  README (seccion "Analisis estatico"), que solo se corre si el usuario pide pruebas ("Sin pruebas ni tests"). Ante
+  la duda, evitar cualquier cosa de v3 o posterior.
 - En esos scripts, el checksum de cada descarga (`Install-ChocolateyPackage`, `Install-ChocolateyZipPackage`,
   `Get-ChocolateyWebFile`) va escrito en el script: un literal, o una variable que solo recibe literales. El
   validador de Chocolatey no ejecuta el script (regla CPMR0073): si el checksum sale de un objeto, una tabla o un
@@ -45,14 +46,19 @@ y como mantenerlo.
   `tests/Packages.Tests.ps1`; README, "Cumplimiento" punto 9 y nota "Push rechazado con 403".
 - `update_all.ps1` y los `update.ps1` corren en Windows PowerShell 5.1 (`update_all.bat`, `menu.bat` y el workflow).
 - Codificacion: los `chocolateyinstall.ps1` son UTF-8 con BOM; los demas `.ps1`, ASCII. Los `.bat` en CRLF.
-
-## Antes de subir
-- `Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1`: cero avisos. Una regla solo se
-  apaga con un comentario que diga por que no aplica.
-- `Invoke-Pester .\tests` (Pester 5, Windows PowerShell 5.1): todo en verde. Usa un `choco` falso y no publica nada
-  (`tests/README.md`); cualquier prueba nueva tiene que seguir sin tocar Chocolatey, GitHub ni el sistema.
 - Las funciones `au_GetLatest` y `au_SearchReplace` las llama Chocolatey-AU con su firma; no cambiarlas de forma.
   `au_GetLatest` debe devolver solo lo que AU espera (nada de `Write-Output` extra).
+
+## Sin pruebas ni tests
+- Lo pidio el usuario el 2026-10-20, para acelerar el trabajo: antes de subir no se corren tests ni pruebas (ni
+  `Invoke-ScriptAnalyzer`, ni `Invoke-Pester`, ni la busqueda del README, ni nada que "compruebe" el cambio), no se
+  escriben pruebas nuevas ni se rompe nada a proposito para comprobarlas. Se hace el cambio, se sube y listo; el PR
+  se fusiona con el CI en verde, como arriba. Si el usuario detecta un error, lo pide y se arregla.
+- Solo se corren pruebas si el usuario las pide expresamente; entonces, las de siempre:
+  `Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1` (cero avisos; una regla solo se
+  apaga con un comentario que diga por que no aplica) e `Invoke-Pester .\tests` (Pester 5, Windows PowerShell 5.1).
+  Las pruebas usan un `choco` falso y no publican nada (`tests/README.md`); una prueba nueva tiene que seguir sin
+  tocar Chocolatey, GitHub ni el sistema.
 
 ## Secretos
 - La API key de Chocolatey vive en el secreto `CHOCO_API_KEY` de GitHub y en `choco apikey` de la PC. Nunca
