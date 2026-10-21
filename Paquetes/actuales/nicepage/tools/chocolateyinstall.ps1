@@ -5,8 +5,8 @@
 $packageArgs = @{
   packageName    = $env:ChocolateyPackageName
   fileType       = 'exe'
-  url            = 'https://get.nicepage.com/Nicepage-8.7.6-full.exe'
-  checksum       = '55b975c26b359a8dde496d457a4a8307e9340f5eb223fdf55b75838db86d0771'
+  url            = 'https://get.nicepage.com/Nicepage-8.8.2-full.exe'
+  checksum       = 'fea9b64fd86ff522c9f6c1523ce820e79b96db5da04c26c71cb23c01707f865d'
   checksumType   = 'sha256'
   softwareName   = 'Nicepage*'
   silentArgs     = '/S'
