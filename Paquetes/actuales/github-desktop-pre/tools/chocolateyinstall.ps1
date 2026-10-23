@@ -10,8 +10,8 @@ if ([System.Environment]::OSVersion.Version -lt [version]'10.0') {
 $packageArgs = @{
   packageName    = $env:ChocolateyPackageName
   fileType       = 'exe'
-  url64bit       = 'https://desktop.githubusercontent.com/releases/3.6.8-beta3-a9cbfe32/GitHubDesktopSetup-x64.exe'
-  checksum64     = '17b29dc46012f24f57e6fd14395bcda40358ffab02e6e2cbb1e39350abd885bf'
+  url64bit       = 'https://desktop.githubusercontent.com/releases/3.6.8-beta4-288f99ee/GitHubDesktopSetup-x64.exe'
+  checksum64     = 'ae9a4e2348683eb03ee09c5a63edc3596de77cc75c4343108191087b769025b1'
   checksumType64 = 'sha256'
   softwareName   = 'GitHub Desktop*'
   silentArgs     = '-s'
