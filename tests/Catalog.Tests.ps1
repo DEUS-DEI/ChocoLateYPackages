@@ -508,7 +508,8 @@ Describe 'vendor_catalog.ps1: the report' {
         It 'returns a row per product and per repository found, vendors in catalog order and named products first' {
             $script:Full.Rows.Count | Should -Be 19
             @($script:Full.Rows[0].PSObject.Properties.Name) | Should -Be @(
-                'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Instalar', 'Nota', 'Origen', 'Fuente')
+                'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Instalar', 'Nota',
+                'Winget', 'Descarga', 'SePuedeChoco', 'SePuedeWinget', 'Origen', 'Fuente')
             @($script:Full.Rows | ForEach-Object { "$($_.Fabricante): $($_.Producto) $($_.Canal)".Trim() }) | Should -Be @(
                 'Acme: Browser estable', 'Acme: Browser Beta beta', 'Acme: Build Kit estable', 'Acme: Client beta', 'Acme: Client estable'
                 'Acme: ctl estable', 'Acme: Deployer estable', 'Acme: Desktop estable', 'Acme: Dropped estable', 'Acme: Missing estable'
@@ -678,12 +679,13 @@ Describe 'vendor_catalog.ps1: the report' {
             $discontinued = [array]::IndexOf($lines, '## Descontinuados')
             $current | Should -BeGreaterThan 0
             $discontinued | Should -BeGreaterThan $current
-            @($lines | Where-Object { $_ -eq '| Fabricante | Producto | Canal | Version | Fecha | Chocolatey | En este repo | Instalar | Nota |' }).Count | Should -Be 2
-            $tunnel = [array]::IndexOf($lines, "| Acme | Tunnel | estable | v2.5.0 | $script:RecentDay | tunnel 2.4.0 (atrasado) |  |  |  |")
+            @($lines | Where-Object { $_ -eq '| Fabricante | Producto | Canal | Version | Fecha | Chocolatey | En este repo | Instalar | Nota | winget | Descarga | Se puede (choco) | Se puede (winget) |' }).Count | Should -Be 2
+            # Without the winget index (-NoDiscover) the column winget is empty and nothing tells whether winget has it
+            $tunnel = [array]::IndexOf($lines, "| Acme | Tunnel | estable | v2.5.0 | $script:RecentDay | tunnel 2.4.0 (atrasado) |  |  |  |  | msi | ya | ? |")
             $tunnel | Should -BeGreaterThan $current
             $tunnel | Should -BeLessThan $discontinued
-            [array]::IndexOf($lines, '| Acme | Old Editor | estable | v1.60.0 | 2022-03-08 | old-editor 1.60.0 |  |  | repositorio archivado |') | Should -BeGreaterThan $discontinued
-            [array]::IndexOf($lines, '| Acme | Deployer | estable | 4.148.0 |  | - |  |  |  |') | Should -BeGreaterThan $current
+            [array]::IndexOf($lines, '| Acme | Old Editor | estable | v1.60.0 | 2022-03-08 | old-editor 1.60.0 |  |  | repositorio archivado |  |  | ya | no (descontinuado) |') | Should -BeGreaterThan $discontinued
+            [array]::IndexOf($lines, '| Acme | Deployer | estable | 4.148.0 |  | - |  |  |  |  | npm | si (con Node.js) | no (solo npm) |') | Should -BeGreaterThan $current
         }
     }
 
@@ -1339,13 +1341,13 @@ Installers:
             $output = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -OutFile $report 6>&1 3>&1)
             $text = @($output | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { "$_" }) -join "`n"
             $text | Should -Match '(?m)^  INDICE DE WINGET \(11\)$'
-            $text | Should -Match '(?m)^Acme\s+Acme\.Suite\.21\.JDK\s+21\.0\.12\.12\s*$'
+            $text | Should -Match '(?m)^Acme\s+Acme\.Suite\.21\.JDK\s+21\.0\.12\.12\s+-\s+si\s*$'
             # The tables of the catalog do not count the rows of the index
             $text | Should -Match '(?m)^  ACTUALES \(10\)$'
             $lines = @(Get-Content -LiteralPath $report)
             $index = [array]::IndexOf($lines, '## Indice de winget')
             $index | Should -BeGreaterThan ([array]::IndexOf($lines, '## Descontinuados'))
-            [array]::IndexOf($lines, '| Acme | Acme.Tool.Beta | 1.11.0 |') | Should -BeGreaterThan $index
+            [array]::IndexOf($lines, '| Acme | Acme.Tool.Beta | 1.11.0 | - | si |') | Should -BeGreaterThan $index
         }
 
         It '-NoDiscover does not read the index' {

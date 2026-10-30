@@ -2,7 +2,7 @@
 
 Generado por `vendor_catalog.ps1` el 2026-10-08 12:17 UTC. Fabricantes: Mozilla, Cloudflare, GitHub, Google, Amazon, Cursor (Anysphere), Fenix (Corey Butler).
 
-**Columnas anadidas el 2026-10-30, a mano**: `vendor_catalog.ps1` todavia no las genera, asi que volver a guardar el informe con `-OutFile catalogo-fabricantes.md` las quitaria. El resto de cada fila es del 2026-10-08.
+**Columnas anadidas el 2026-10-30, a mano**; el resto de cada fila es del 2026-10-08. Desde entonces `vendor_catalog.ps1` las genera solo: al volver a guardar el informe con `-OutFile catalogo-fabricantes.md` salen igual, con los datos de ese dia.
 
 - **winget**: el paquete del producto en el indice de winget y su version en el indice del 2026-10-30.
 - **Descarga**: el formato de lo que el fabricante publica para Windows (archivos del release de GitHub o pagina de descarga).
