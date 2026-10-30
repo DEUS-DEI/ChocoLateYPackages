@@ -10,7 +10,7 @@ Generado por `vendor_catalog.ps1` el 2026-10-08 12:17 UTC. Fabricantes: Mozilla,
 
 Chocolatey instala cualquier formato (msi, exe, zip, tar.gz, 7z...). winget solo admite msi, exe, msix y zip, la instalacion tiene que ser desatendida y no puede pasar por un script. Una extension de `gh`, una biblioteca o un complemento de otro programa no se empaqueta. En la tabla del indice de winget, la columna Chocolatey es del 2026-10-30.
 
-Resumen de los 177 actuales: en Chocolatey, 55 ya tienen paquete, 94 se podrian hacer y 28 no; en winget, 49 ya estan, 3 los prepara este repositorio, 77 se podrian hacer y 48 no.
+Resumen de los 177 actuales: en Chocolatey, 56 ya tienen paquete, 93 se podrian hacer y 28 no; en winget, 49 ya estan, 3 los prepara este repositorio, 77 se podrian hacer y 48 no.
 
 ## Actuales
 
@@ -117,7 +117,7 @@ Resumen de los 177 actuales: en Chocolatey, 55 ya tienen paquete, 94 se podrian 
 | Google | google/dawn |  | v20261007.202641 | 2026-10-08 | - |  |  |  | - | tar.gz | no (biblioteca) | no (biblioteca) |
 | Google | google/EtwToPprof |  | v0.3 | 2021-08-26 | - |  |  | sin versiones desde 2021 | - | exe | si | si |
 | Google | google/filament |  | v1.77.2 | 2026-09-28 | - |  |  |  | - | tar.gz | no (biblioteca) | no (biblioteca) |
-| Google | google/flatbuffers |  | v25.12.19-2026-02-06-03fffb2 | 2026-02-06 | - |  |  |  | Google.flatbuffers 25.12.19 | zip | si | ya |
+| Google | google/flatbuffers |  | v25.12.19-2026-02-06-03fffb2 | 2026-02-06 | - |  |  |  | Google.flatbuffers 25.12.19 | zip | ya: flatc (atrasado) | ya |
 | Google | google/gapid |  | v1.6.1 | 2019-08-02 | - |  |  | sin versiones desde 2019 | - | msi, zip | si | si |
 | Google | google/gce-tcb-verifier |  | v0.3.1 | 2025-03-01 | - |  |  |  | - | tar.gz | si | no (tar.gz) |
 | Google | google/gke-policy-automation |  | v1.4.8 | 2026-09-04 | - |  |  |  | - | zip | si | si |
