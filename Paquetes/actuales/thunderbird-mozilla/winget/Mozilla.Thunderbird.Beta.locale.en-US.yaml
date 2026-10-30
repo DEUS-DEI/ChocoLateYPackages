@@ -1,0 +1,29 @@
+# Template of update_all.ps1 (README, "winget"): the values in double braces are filled in for each version
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
+
+PackageIdentifier: Mozilla.Thunderbird.Beta
+PackageVersion: "{{Version}}"
+PackageLocale: en-US
+Publisher: Mozilla
+PublisherUrl: https://www.mozilla.org/
+PublisherSupportUrl: https://support.mozilla.org/
+PrivacyUrl: https://www.mozilla.org/privacy/thunderbird/
+Author: Mozilla Foundation
+PackageName: Mozilla Thunderbird Beta (en-US)
+PackageUrl: https://www.thunderbird.net/en-US/download/beta/
+License: MPL-2.0
+LicenseUrl: https://www.mozilla.org/MPL/2.0
+CopyrightUrl: https://www.mozilla.org/foundation/trademarks/policy
+ShortDescription: Beta builds of Thunderbird, the free email application, with the features of the next release.
+Description: |-
+  Thunderbird Beta is the early-access channel of Thunderbird, the free and open source email, newsfeed, chat and calendaring client. Use it to test the features of the next release before they reach the stable channel.
+  Thunderbird makes email better for you, bringing together speed, privacy and the latest technologies, with a calendar fully integrated with your email and add-ons to change its look and feel.
+Moniker: thunderbird-beta
+Tags:
+- beta
+- calendar
+- email
+- mail
+ReleaseNotesUrl: {{ReleaseNotesUrl}}
+ManifestType: defaultLocale
+ManifestVersion: 1.28.0

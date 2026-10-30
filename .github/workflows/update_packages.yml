@@ -39,13 +39,33 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
+      # Komac prepara (y, con WINGET_SUBMIT, envia) las versiones para winget (README, "winget").
+      # Version fija, comprobada por su SHA256 antes de usarla. Si falla, Chocolatey se publica igual.
+      - name: Install Komac
+        continue-on-error: true
+        shell: powershell
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $folder = Join-Path $env:RUNNER_TEMP 'komac'
+          New-Item -ItemType Directory -Path $folder -Force | Out-Null
+          $exe = Join-Path $folder 'komac.exe'
+          Invoke-WebRequest -Uri 'https://github.com/russellbanks/Komac/releases/download/v2.17.1/komac-2.17.1-x86_64-pc-windows-msvc.exe' -OutFile $exe -UseBasicParsing
+          if ((Get-FileHash -Path $exe -Algorithm SHA256).Hash -ne 'A97C002C5FFA15F232AF117EFAC6774E755D27ACC47EBA00F1661033267D7438') {
+            Remove-Item -Path $exe -Force
+            throw 'komac.exe no tiene el SHA256 esperado'
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $folder
+
       # update_all.ps1 actualiza, sube a Chocolatey y hace commit + push solo de lo publicado.
       # Termina con codigo 1 si algun paquete fallo, para que el workflow se marque en rojo.
+      # winget: solo se envia si la variable WINGET_SUBMIT es 'true' y existe el secreto WINGET_TOKEN.
       - name: Update, push to Chocolatey and sync Git
         shell: powershell
         env:
           CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Evita el limite de 60 peticiones/hora de la API de GitHub
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }} # Token clasico (public_repo) de la cuenta que abre los PR en winget-pkgs
+          WINGET_SUBMIT: ${{ vars.WINGET_SUBMIT }} # 'true' = enviar a winget; cualquier otra cosa = solo preparar
           PACKAGES: ${{ inputs.packages }}
           FORCE: ${{ inputs.force }}
         run: |
@@ -54,3 +74,13 @@ jobs:
           if ($env:FORCE -eq 'true') { $params.Force = $true }
           .\update_all.ps1 @params
           exit $LASTEXITCODE
+
+      # Los manifiestos de winget hechos con plantillas, para revisarlos o probarlos (winget install --manifest)
+      - name: Upload winget manifests
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: winget-manifests
+          path: winget-manifests/
+          if-no-files-found: ignore
+          retention-days: 30

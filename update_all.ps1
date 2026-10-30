@@ -12,6 +12,11 @@
     skips it because it already exists in the Chocolatey feed. The script detects that case, updates
     the package files without pushing again and commits them (state 'Registrado').
 
+    A package with a winget\winget.psd1 also goes to the winget community repository (microsoft/winget-pkgs):
+    for each version published to Chocolatey the script prepares its winget manifests and submits them with
+    Komac only when the environment variable WINGET_SUBMIT is 'true' and WINGET_TOKEN holds the GitHub token
+    (README, "winget"). Otherwise nothing is sent.
+
 .PARAMETER Package
     Only process these packages (folder names, comma separated). Default: all active packages.
 
@@ -26,6 +31,9 @@
 .PARAMETER NoGit
     Push to Chocolatey but do not commit/push the changes to Git.
 
+.PARAMETER NoWinget
+    Do not prepare (nor submit) the winget manifests of the published versions.
+
 .EXAMPLE
     .\update_all.ps1
 
@@ -37,12 +45,14 @@ param(
     [string[]] $Package,
     [switch] $Force,
     [switch] $NoPush,
-    [switch] $NoGit
+    [switch] $NoGit,
+    [switch] $NoWinget
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Windows PowerShell downloads are much slower with the progress bar
 $pushSource = 'https://push.chocolatey.org/'
+$wingetFolder = 'winget'  # folder of a package with its winget data (winget.psd1) and its manifest templates, if any
 
 Write-Host '========================================================'
 Write-Host 'AU Maestro: Actualizacion, Push y Git Sync'
@@ -91,6 +101,7 @@ if ($Package) {
 }
 
 $report = [System.Collections.Generic.List[object]]::new()
+$wingetQueue = [System.Collections.Generic.List[object]]::new()
 
 foreach ($dir in $packageDirs) {
     $name = $dir.Name
@@ -202,6 +213,18 @@ foreach ($dir in $packageDirs) {
                 }
             }
         }
+
+        # winget: the version just published is prepared for winget after the Git sync. AU's data of this
+        # package ($Latest: version, download addresses...) is kept now, before the next package replaces it.
+        # Not in a variable called $latest: the AU hooks of the next packages read $Latest and would find it.
+        if ($row.Estado -eq 'Actualizado' -and -not $NoWinget -and (Test-Path -Path (Join-Path $wingetFolder 'winget.psd1'))) {
+            $auLatest = Get-Variable -Name Latest -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+            $wingetQueue.Add([pscustomobject]@{
+                Paquete = $name
+                Carpeta = Join-Path $dir.FullName $wingetFolder
+                Latest  = $(if ($auLatest -is [hashtable]) { $auLatest.Clone() } else { @{} })
+            })
+        }
     } catch {
         Write-Host "[ERROR] $name : $_" -ForegroundColor Red
     } finally {
@@ -288,5 +311,144 @@ if ($NoPush -or $NoGit) {
     }
 }
 
-$failed = @($report | Where-Object Estado -In 'Error', 'Push fallido', 'Push parcial')
+# --- WINGET: the versions published above, for the winget community repository (README, "winget") ---
+function Expand-WingetValue([string] $Template, [hashtable] $Data) {
+    # Replaces each {Key} of a value of winget.psd1 with the value of Key in AU's $Latest
+    $text = $Template
+    foreach ($key in @([regex]::Matches($Template, '\{(\w+)\}') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)) {
+        $value = "$($Data[$key])"
+        if (-not $value) { throw "winget.psd1 usa {$key}, que no esta en los datos de Chocolatey-AU (`$Latest)" }
+        $text = $text.Replace("{$key}", $value)
+    }
+    $text
+}
+
+function Resolve-WingetPackage([pscustomobject] $Item) {
+    # Identifier, version and installers for winget of a version published to Chocolatey (winget\winget.psd1)
+    $config = Import-PowerShellDataFile -Path (Join-Path $Item.Carpeta 'winget.psd1')
+    if ("$($config.Id)" -notmatch '^[\w+-]+(\.[\w+-]+)+$') { throw "Id de winget.psd1 no valido: '$($config.Id)'" }
+    $version = Expand-WingetValue -Template $config.Version -Data $Item.Latest
+    if ($config.VersionPattern) {
+        # A version with another shape stops here: nothing goes to winget with a wrong version
+        if ($version -match $config.VersionPattern) {
+            $version = $Matches.v
+        } else {
+            throw "la version $version no tiene la forma de VersionPattern ($($config.VersionPattern))"
+        }
+    }
+    if ($version -notmatch '^\w[\w.+-]*$') { throw "version de winget no valida: '$version'" }
+    $installers = [ordered]@{}
+    foreach ($key in @($config.Installers.Keys | Sort-Object)) {
+        $installers[$key] = Expand-WingetValue -Template $config.Installers[$key] -Data $Item.Latest
+        if ($installers[$key] -notmatch '^https://') { throw "el instalador $key no es una descarga https: $($installers[$key])" }
+    }
+    if (-not $installers.Count) { throw 'winget.psd1 no tiene Installers' }
+    [pscustomobject]@{
+        Id              = $config.Id
+        Version         = $version
+        Installers      = $installers
+        ReleaseNotesUrl = $(if ($config.ReleaseNotesUrl) { Expand-WingetValue -Template $config.ReleaseNotesUrl -Data $Item.Latest })
+    }
+}
+
+function Export-WingetManifest([pscustomobject] $Winget, [string] $Template, [string] $Destination) {
+    # Fills the manifest templates (*.yaml) of a package into $Destination. Their placeholders, in double braces:
+    # Version, ReleaseNotesUrl and, for each installer of winget.psd1, <name>.Url and <name>.Sha256 (the
+    # installer is downloaded to hash it)
+    $values = @{ Version = $Winget.Version; ReleaseNotesUrl = $Winget.ReleaseNotesUrl }
+    foreach ($name in $Winget.Installers.Keys) {
+        $download = Join-Path ([System.IO.Path]::GetTempPath()) "winget-$([guid]::NewGuid().ToString('N'))"
+        try {
+            Write-Host "    Descargando $($Winget.Installers[$name])"
+            (New-Object -TypeName System.Net.WebClient).DownloadFile($Winget.Installers[$name], $download)
+            $values["$name.Url"] = $Winget.Installers[$name]
+            $values["$name.Sha256"] = (Get-FileHash -Path $download -Algorithm SHA256).Hash
+        } finally {
+            Remove-Item -Path $download -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Remove-Item -Path $Destination -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    foreach ($file in Get-ChildItem -Path $Template -Filter '*.yaml') {
+        $text = [System.IO.File]::ReadAllText($file.FullName)
+        foreach ($key in @([regex]::Matches($text, '\{\{([\w.-]+)\}\}') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)) {
+            if (-not $values[$key]) { throw "la plantilla $($file.Name) usa {{$key}}, que no tiene valor" }
+            $text = $text.Replace("{{$key}}", $values[$key])
+        }
+        [System.IO.File]::WriteAllText((Join-Path $Destination $file.Name), $text, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false))
+    }
+}
+
+$wingetReport = [System.Collections.Generic.List[object]]::new()
+if ($wingetQueue.Count) {
+    Write-Host "`n>>> winget: manifiestos de las versiones publicadas" -ForegroundColor Cyan
+    # Nothing is submitted unless WINGET_SUBMIT is 'true' and WINGET_TOKEN holds the GitHub token (classic, with
+    # public_repo) of the account that opens the pull requests in winget-pkgs; otherwise they are only prepared
+    $wingetSubmit = $env:WINGET_SUBMIT -eq 'true'
+    if ($wingetSubmit -and -not $env:WINGET_TOKEN) {
+        Write-Host '[ERROR] WINGET_SUBMIT es true pero falta WINGET_TOKEN: no se envia nada a winget.' -ForegroundColor Red
+        $wingetSubmit = $false
+        $wingetReport.Add([pscustomobject]@{ Paquete = 'winget'; Id = ''; Version = ''; Estado = 'Error' })
+    } elseif (-not $wingetSubmit) {
+        Write-Host '    Solo se preparan: no se envia nada (WINGET_SUBMIT no es true).' -ForegroundColor Gray
+    }
+    $wingetOutput = if ($env:WINGET_OUTPUT) { $env:WINGET_OUTPUT } else { Join-Path $PSScriptRoot 'winget-manifests' }
+    $komac = Get-Command -Name komac -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    # Komac reads the token from GITHUB_TOKEN (so it never goes on its command line). Only looking (komac
+    # update --dry-run) works with any token that can read GitHub, such as the workflow's own
+    $githubToken = $env:GITHUB_TOKEN
+    $komacToken = if ($wingetSubmit -or $env:WINGET_TOKEN) { $env:WINGET_TOKEN } else { $githubToken }
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
+    foreach ($item in $wingetQueue) {
+        $wingetRow = [pscustomobject]@{ Paquete = $item.Paquete; Id = '?'; Version = '?'; Estado = 'Error' }
+        try {
+            $winget = Resolve-WingetPackage -Item $item
+            $wingetRow.Id = $winget.Id
+            $wingetRow.Version = $winget.Version
+            Write-Host "`n>>> winget: $($winget.Id) $($winget.Version)" -ForegroundColor Cyan
+            $komacArgs = @()
+            if (Get-ChildItem -Path $item.Carpeta -Filter '*.yaml') {
+                # Manifests made from the package's templates, submitted as they are
+                $destination = Join-Path $wingetOutput "$($winget.Id)\$($winget.Version)"
+                Export-WingetManifest -Winget $winget -Template $item.Carpeta -Destination $destination
+                foreach ($file in Get-ChildItem -Path $destination) {
+                    Write-Host "--- $($file.Name)"
+                    Get-Content -Path $file.FullName | Write-Host
+                }
+                if ($wingetSubmit) { $komacArgs = @('submit', '--yes', $destination) }
+            } else {
+                # Komac makes the manifests from those of the previous version in winget and the new installers
+                $komacArgs = @('update', $winget.Id, '--version', $winget.Version, '--urls') + @($winget.Installers.Values)
+                if ($winget.ReleaseNotesUrl) { $komacArgs += @('--release-notes-url', $winget.ReleaseNotesUrl) }
+                $komacArgs += $(if ($wingetSubmit) { '--submit' } else { '--dry-run' })
+            }
+
+            if (-not $komacArgs) {
+                $wingetRow.Estado = 'Preparado'
+            } elseif (-not $komac) {
+                throw 'komac no esta instalado (https://github.com/russellbanks/Komac)'
+            } elseif (-not $komacToken) {
+                throw 'komac necesita un token de GitHub: WINGET_TOKEN (o GITHUB_TOKEN, solo para mirar)'
+            } else {
+                $env:GITHUB_TOKEN = $komacToken
+                try {
+                    Invoke-Tool $komac.Source @komacArgs | Out-Host
+                } finally {
+                    $env:GITHUB_TOKEN = $githubToken
+                }
+                if ($LASTEXITCODE -ne 0) { throw "komac fallo (codigo $LASTEXITCODE)" }
+                $wingetRow.Estado = if ($wingetSubmit) { 'Enviado' } else { 'Preparado' }
+            }
+        } catch {
+            # While only preparing, a problem is a warning: the version is already in Chocolatey and in Git
+            $wingetRow.Estado = if ($wingetSubmit) { 'Error' } else { 'Aviso' }
+            Write-Host "[$($wingetRow.Estado.ToUpper())] winget $($wingetRow.Id) ($($item.Paquete)): $_" -ForegroundColor $(if ($wingetSubmit) { 'Red' } else { 'Yellow' })
+        }
+        $wingetReport.Add($wingetRow)
+    }
+    $wingetReport | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+}
+
+$failed = @($report | Where-Object Estado -In 'Error', 'Push fallido', 'Push parcial') + @($wingetReport | Where-Object Estado -EQ 'Error')
 exit $(if ($failed) { 1 } else { 0 })

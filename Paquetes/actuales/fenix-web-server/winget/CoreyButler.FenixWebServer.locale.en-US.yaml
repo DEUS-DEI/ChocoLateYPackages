@@ -1,0 +1,29 @@
+# Fenix 2.0.0 for winget, sent once by hand (README, "winget"): update_all.ps1 does not handle this package
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
+
+PackageIdentifier: CoreyButler.FenixWebServer
+PackageVersion: 2.0.0
+PackageLocale: en-US
+Publisher: Ecor Ventures, LLC
+PublisherUrl: https://github.com/coreybutler
+PublisherSupportUrl: https://github.com/coreybutler/fenix/issues
+Author: Corey Butler
+PackageName: Fenix Web Server
+PackageUrl: https://github.com/coreybutler/fenix
+License: GPL-3.0
+LicenseUrl: https://github.com/coreybutler/fenix/blob/master/LICENSE
+Copyright: Copyright (c) 2017 Ecor Ventures LLC
+ShortDescription: A desktop web server for smart devs. Develop locally. Demo publicly. Done effortlessly.
+Description: |-
+  Fenix is a desktop web server: create and manage local web servers with a GUI, keep their settings for later, change them with simple toggles and share your local work with a secure public link.
+  It also has a CLI and an API to create and configure servers programmatically.
+Moniker: fenix
+Tags:
+- development
+- localhost
+- static-sites
+- web-server
+- webserver
+ReleaseNotesUrl: https://github.com/coreybutler/fenix/releases/tag/v2.0.0
+ManifestType: defaultLocale
+ManifestVersion: 1.28.0

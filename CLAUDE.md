@@ -26,6 +26,10 @@ y como mantenerlo.
 - `deprecated/<id>/README.md`: avisos de "se movio". No borrarlos: las versiones ya publicadas en Chocolatey enlazan
   a esa ruta como "Package Source" y un bridge no se vuelve a publicar.
 - Al mover o renombrar la carpeta de un paquete, actualizar su `packageSourceUrl`.
+- `Paquetes/actuales/<id>/winget/`: lo que va a winget (README, seccion "winget"). `update_all.ps1` prepara los
+  manifiestos de cada version que publica y solo los envia con `WINGET_SUBMIT=true` y `WINGET_TOKEN`. El usuario
+  pidio el 2026-10-30 que no se envie nada todavia: no crear esa variable ni ese secreto, ni ejecutar
+  `komac submit` o `komac update --submit`, salvo que lo pida. Las plantillas `*.yaml` y los `winget.psd1`, en ASCII.
 - `vendor_catalog.ps1` (datos en `vendor_catalog.psd1`): catalogo del software de los fabricantes. Sin `-Install` solo
   consulta a los fabricantes, a GitHub y a Chocolatey; no empaqueta, no publica y no escribe en el repositorio.
 - `vendor_catalog.ps1 -Install <nombre>` descarga y ejecuta instaladores en la PC del usuario. No ejecutarlo sin
@@ -62,4 +66,4 @@ y como mantenerlo.
 
 ## Secretos
 - La API key de Chocolatey vive en el secreto `CHOCO_API_KEY` de GitHub y en `choco apikey` de la PC. Nunca
-  imprimirla ni escribirla en el repositorio.
+  imprimirla ni escribirla en el repositorio. Lo mismo con el token de winget (`WINGET_TOKEN`), cuando exista.
