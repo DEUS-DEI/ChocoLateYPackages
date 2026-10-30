@@ -82,7 +82,7 @@
             Id = 'firefox-nightly'; Installer = @{ Url = 'https://download.mozilla.org/?product=firefox-nightly-latest-l10n-ssl&os=win64&lang={lang}'; Arguments = '/S'; Signer = 'Mozilla Corporation' } }
         @{ Vendor = 'Mozilla'; Product = 'Thunderbird'; Channel = 'estable'; Source = 'Mozilla'; File = 'thunderbird_versions.json'; Key = 'LATEST_THUNDERBIRD_VERSION'; Choco = 'thunderbird'
             Id = 'thunderbird'; Installer = @{ Url = 'https://download.mozilla.org/?product=thunderbird-latest-SSL&os=win64&lang={lang}'; Arguments = '/S'; Signer = 'Mozilla Corporation' } }
-        @{ Vendor = 'Mozilla'; Product = 'Thunderbird ESR'; Channel = 'esr'; Source = 'Mozilla'; File = 'thunderbird_versions.json'; Key = 'THUNDERBIRD_ESR'
+        @{ Vendor = 'Mozilla'; Product = 'Thunderbird ESR'; Channel = 'esr'; Source = 'Mozilla'; File = 'thunderbird_versions.json'; Key = 'THUNDERBIRD_ESR'; Choco = 'thunderbirdesr'
             Id = 'thunderbird-esr'; Installer = @{ Url = 'https://download.mozilla.org/?product=thunderbird-esr-latest-SSL&os=win64&lang={lang}'; Arguments = '/S'; Signer = 'Mozilla Corporation' } }
         @{ Vendor = 'Mozilla'; Product = 'Thunderbird Beta'; Channel = 'beta'; Source = 'Mozilla'; File = 'thunderbird_versions.json'; Key = 'LATEST_THUNDERBIRD_DEVEL_VERSION'; Choco = 'thunderbird-mozilla'; Pre = $true
             Id = 'thunderbird-beta'; Installer = @{ Url = 'https://download.mozilla.org/?product=thunderbird-beta-latest-SSL&os=win64&lang={lang}'; Arguments = '/S'; Signer = 'Mozilla Corporation' } }
@@ -135,9 +135,9 @@
             Id = 'chrome'; Installer = @{ Url = 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi'; Signer = 'Google LLC' } }
         @{ Vendor = 'Google'; Product = 'Google Chrome'; Channel = 'beta'; Source = 'Chrome'; Track = 'beta'; Choco = 'googlechromebeta'; Pre = $true
             Id = 'chrome-beta'; Installer = @{ Url = 'https://dl.google.com/dl/chrome/install/beta/googlechromebetastandaloneenterprise64.msi'; Signer = 'Google LLC' } }
-        @{ Vendor = 'Google'; Product = 'Google Chrome'; Channel = 'dev'; Source = 'Chrome'; Track = 'dev'
+        @{ Vendor = 'Google'; Product = 'Google Chrome'; Channel = 'dev'; Source = 'Chrome'; Track = 'dev'; Choco = 'googlechromedev'; Pre = $true
             Id = 'chrome-dev'; Installer = @{ Url = 'https://dl.google.com/dl/chrome/install/dev/googlechromedevstandaloneenterprise64.msi'; Signer = 'Google LLC' } }
-        @{ Vendor = 'Google'; Product = 'Google Chrome'; Channel = 'canary'; Source = 'Chrome'; Track = 'canary' }
+        @{ Vendor = 'Google'; Product = 'Google Chrome'; Channel = 'canary'; Source = 'Chrome'; Track = 'canary'; Choco = 'googlechromecanary'; Pre = $true }
         @{ Vendor = 'Google'; Product = 'Google Drive'; Channel = 'estable'; Source = 'Head'; Choco = 'googledrive'
             Id = 'drive'; Installer = @{ Url = 'https://dl.google.com/drive-file-stream/GoogleDriveSetup.exe'; Arguments = '--silent --desktop_shortcut'; Signer = 'Google LLC' } }
         @{ Vendor = 'Google'; Product = 'Google Earth Pro'; Channel = 'estable'; Source = 'Head'; Choco = 'googleearthpro'

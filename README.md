@@ -226,6 +226,8 @@ Los productos salen de tres sitios:
 
 Un producto es **descontinuado** si su repositorio está archivado o si el catálogo lo dice (`Status`); todo lo demás es actual.
 
+El informe guardado en [`catalogo-fabricantes.md`](catalogo-fabricantes.md) lleva además cuatro columnas añadidas a mano el 2026-10-30, que el script todavía no genera: **winget** (el paquete del producto en el índice de winget), **Descarga** (formato de lo que publica el fabricante para Windows) y **Se puede (choco)** / **Se puede (winget)** (`ya`, `si` o `no` con el motivo: winget no admite `.tar.gz`, `.gz` ni `.7z`, ni instaladores que necesiten un script; las extensiones de `gh`, las bibliotecas y los complementos no se empaquetan). Volver a guardarlo con `-OutFile` las quitaría.
+
 | Comando | Qué hace |
 | :--- | :--- |
 | `.\vendor_catalog.bat` | Todo: unos 225 productos. Tarda unos cinco minutos, casi todo en recorrer las organizaciones de Google y Amazon en GitHub |
