@@ -216,6 +216,16 @@ Para cada producto pregunta la última versión al fabricante y la del paquete a
 | En este repo | `actual` si el paquete está en `Paquetes/actuales/`, y a qué IDs retirados sustituye |
 | Instalar | El nombre para `-Install`, si el script sabe instalarlo |
 | Nota | `repositorio archivado`, `sin versiones desde <año>` (tres años sin publicar) o el motivo anotado en el catálogo |
+| winget | El paquete del producto en el índice de winget y su última versión; `-` si no lo tiene. Vacía con `-NoDiscover` o sin token, porque entonces no se lee el índice |
+| Descarga | Lo que publica el fabricante para Windows (`exe, msi`, `zip`, `tar.gz`, `npm`…): los archivos del release de GitHub o, si no, lo que dice `Format` en el `.psd1` |
+| Se puede (choco), Se puede (winget) | `ya` (hay paquete; `ya (?)`, uno con el nombre del repositorio), `si` (se podría hacer), `no (motivo)`, `preparado: <ID>` (este repositorio lo deja listo para winget, sección «winget») o `?` (no hay datos) |
+
+Las columnas winget, Descarga y Se puede salen en el Markdown dentro de cada tabla y en la consola en una tabla aparte, **CHOCOLATEY Y WINGET**, con un resumen al final. Cómo decide «Se puede»:
+
+- Chocolatey instala cualquier formato, así que basta una descarga para Windows; un paquete de npm solo se puede con Node.js como dependencia.
+- winget solo admite `msi`, `msix`, `exe` y `zip`, sin scripts y sin preguntas: un `.tar.gz`, un `.7z` o una DLL suelta dan `no`. Sin el índice no se sabe si ya está, y sale `?`.
+- Lo que no se ve en los archivos va en el `.psd1`: `Winget` (ID del paquete), `NoPackage` (por qué no se empaqueta: una extensión de `gh`, una biblioteca, un complemento) y `NoWinget` (por qué no vale para winget), en cada producto o, para los repositorios que encuentra la búsqueda, en `Repos` (con su nombre o un patrón como `github/gh-*`). `Repos` también da el `Choco` de un repositorio cuyo paquete no se llama como él (`google/flatbuffers` → `flatc`).
+- En la tabla del índice de winget, la columna Chocolatey es el paquete del producto con ese ID o el que da `WingetChoco`; `WingetNoChoco` dice por qué uno no puede tenerlo (retirado, versión sin soporte…).
 
 Los productos salen de tres sitios:
 
@@ -225,6 +235,8 @@ Los productos salen de tres sitios:
 - **Índice de winget**: todo lo que registra de los editores de cada fabricante, en su propia tabla, con la versión que tiene el índice y el nombre para `-Install`.
 
 Un producto es **descontinuado** si su repositorio está archivado o si el catálogo lo dice (`Status`); todo lo demás es actual.
+
+El informe guardado en [`catalogo-fabricantes.md`](catalogo-fabricantes.md) es una de estas ejecuciones; para ponerlo al día basta `.\vendor_catalog.bat -OutFile catalogo-fabricantes.md`.
 
 | Comando | Qué hace |
 | :--- | :--- |

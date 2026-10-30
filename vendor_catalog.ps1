@@ -195,6 +195,81 @@ function Get-WindowsAsset($Release) {
         Where-Object { $_ -match $script:WindowsAsset -and $_ -notmatch $script:NotSoftware }) | Select-Object -First 1
 }
 
+function ConvertTo-DownloadKind([string] $Name) {
+    # What a download is, by its name: msi, msix, exe, zip, tar.gz, 7z, gz, dll... A file without an extension
+    # is a program as it is (tool-windows-amd64)
+    switch -Regex ($Name.ToLowerInvariant()) {
+        '\.(tar\.gz|tgz)$' { 'tar.gz'; break }
+        '\.(tar\.xz|txz)$' { 'tar.xz'; break }
+        '\.tar\.bz2$' { 'tar.bz2'; break }
+        '\.(msix|appx)(bundle)?$' { 'msix'; break }
+        '\.7z$' { '7z'; break }
+        '\.([a-z][a-z0-9]{0,5})$' { $Matches[1]; break }
+        default { 'exe' }
+    }
+}
+
+function Get-DownloadKind([string[]] $Name) {
+    # The kinds of the downloads for Windows among the files of a release: 'exe, zip'
+    @($Name | Where-Object { $_ -match $script:WindowsAsset -and $_ -notmatch $script:NotSoftware } |
+        ForEach-Object { ConvertTo-DownloadKind -Name $_ } | Sort-Object -Unique) -join ', '
+}
+
+function ConvertTo-NameKey([string] $Text) {
+    # A name to compare names written in different ways: osv-scanner, OSVScanner -> osvscanner
+    ($Text -replace '[^A-Za-z0-9]').ToLowerInvariant()
+}
+
+function Get-RepoData($Repos, [string] $Name) {
+    # What vendor_catalog.psd1 says (Repos) of a repository found on GitHub: its own entry, or else the first
+    # pattern (github/gh-*) that it matches
+    if (-not $Repos) { return @{} }
+    if ($Repos.ContainsKey($Name)) { return $Repos[$Name] }
+    foreach ($pattern in @($Repos.Keys | Where-Object { $_ -like '*[*?]*' } | Sort-Object)) {
+        if ($Name -like $pattern) { return $Repos[$pattern] }
+    }
+    @{}
+}
+
+function Get-PackagingVerdict($Row, [bool] $WingetRead) {
+    # Whether a product can be packaged for Chocolatey and for winget: 'ya' (there is a package), 'si', 'no (why)',
+    # 'preparado: <id>' (this repository prepares it for winget) or '?' (nothing to tell)
+    $kinds = @("$($Row.Descarga)" -split ', ' | Where-Object { $_ })
+    $programs = @($kinds | Where-Object { $_ -ne 'npm' })
+    $hasPackage = $Row.PaqueteChocolatey -and $Row.Chocolatey -and $Row.Chocolatey -notmatch ': '
+    $choco = if ($Row.NoPackage) { "no ($($Row.NoPackage))" }
+    elseif ($hasPackage) { if ($Row.Supuesto) { 'ya (?)' } else { 'ya' } }
+    elseif ($Row.Estado -eq 'descontinuado') { 'no (descontinuado)' }
+    elseif ($programs) { 'si' }
+    elseif ($kinds) { 'si (con Node.js)' }
+    else { '?' }
+    # winget only takes msi, msix, exe and zip (README, "winget"); without the index nothing tells that it is there
+    $winget = if ($Row.NoPackage) { "no ($($Row.NoPackage))" }
+    elseif ($Row.Winget -and $Row.Winget -ne '-') { 'ya' }
+    elseif ($Row.WingetId -and $script:RepoWinget -contains $Row.WingetId) { "preparado: $($Row.WingetId)" }
+    elseif ($Row.NoWinget) { "no ($($Row.NoWinget))" }
+    elseif ($Row.Estado -eq 'descontinuado') { 'no (descontinuado)' }
+    elseif (@($programs | Where-Object { 'msi', 'msix', 'exe', 'zip' -contains $_ })) { if ($WingetRead) { 'si' } else { '?' } }
+    elseif ($programs) { "no ($($programs -join ', '))" }
+    elseif ($kinds) { 'no (solo npm)' }
+    else { '?' }
+    [pscustomobject]@{ Choco = $choco; Winget = $winget }
+}
+
+function Format-VerdictCount($Rows, [string] $Property) {
+    # How many rows have each verdict: '56 ya, 93 si, 28 no'
+    $labels = [ordered]@{ 'ya' = 'ya'; 'preparado' = 'preparados'; 'si' = 'si'; 'no' = 'no'; '?' = 'sin datos' }
+    @(foreach ($key in $labels.Keys) {
+            $count = @($Rows | Where-Object { ("$($_.$Property)" -split '[ :]')[0] -eq $key }).Count
+            if ($count) { "$count $($labels[$key])" }
+        }) -join ', '
+}
+
+function ConvertTo-MarkdownRow($Row) {
+    # A row of a Markdown table with the values of the properties of an object, in their order
+    '| ' + (@($Row.PSObject.Properties | ForEach-Object { "$($_.Value)" -replace '\|', '/' }) -join ' | ') + ' |'
+}
+
 function ConvertTo-DateText($Value) {
     # yyyy-MM-dd of a date as the sources give it. Windows PowerShell leaves ISO 8601 dates as text and
     # PowerShell 7 turns them into [datetime]; an HTTP header says "Wed, 07 Oct 2026 14:51:10 GMT".
@@ -533,6 +608,24 @@ function Get-WingetPackage([string[]] $Publisher) {
     }
 }
 
+function Get-WingetVersion([string[]] $Id) {
+    # Latest version of some packages of the winget community repository, of any publisher, by their identifiers:
+    # the highest numbered folder of each one. An identifier that the index does not have gets nothing.
+    $paths = @{}
+    foreach ($name in @($Id | Select-Object -Unique)) {
+        if ($name -notmatch '^[\w+-]+(\.[\w+-]+)+$') { throw "Identificador de winget no valido: '$name'" }
+        $paths[$name] = "manifests/$($name.Substring(0, 1).ToLowerInvariant())/$($name.Replace('.', '/'))"
+    }
+    $versions = @{}
+    if (-not $paths.Count) { return $versions }
+    $folders = Get-WingetFolder -Path @($paths.Values)
+    foreach ($name in $paths.Keys) {
+        $versions[$name] = @($folders[$paths[$name]] | Where-Object { $_.type -eq 'tree' -and $_.name -match '^v?\d' } |
+            Sort-Object { ConvertTo-SortKey -Version $_.name } -Descending | ForEach-Object { $_.name })[0]
+    }
+    $versions
+}
+
 function ConvertFrom-WingetManifest([string] $Text, [string] $Language, [bool] $Is64Bit = [System.Environment]::Is64BitOperatingSystem) {
     # The installer of a winget manifest for this PC and how to run it. On 64-bit Windows: x64 first, then one
     # for any architecture, then x86; on 32-bit Windows, x86 or any. In the language asked when there is one
@@ -654,6 +747,15 @@ foreach ($nuspec in Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\desco
         if (-not $script:Replaced.ContainsKey($dependency.id)) { $script:Replaced[$dependency.id] = @() }
         $script:Replaced[$dependency.id] += $metadata.id
     }
+}
+# The winget packages that this repository prepares (README, "winget"): the Id of each winget.psd1 and the
+# manifests of each winget folder (Vendor.Product.yaml, without .installer or .locale.<language>)
+$script:RepoWinget = @()
+foreach ($folder in Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\actuales\*\winget') -Directory -ErrorAction SilentlyContinue) {
+    $data = Join-Path $folder.FullName 'winget.psd1'
+    if (Test-Path -LiteralPath $data) { $script:RepoWinget += "$((Import-PowerShellDataFile -Path $data).Id)" }
+    $script:RepoWinget += @(Get-ChildItem -LiteralPath $folder.FullName -Filter '*.yaml' |
+            Where-Object { $_.Name -notmatch '\.(installer|locale\..+)\.yaml$' } | ForEach-Object { $_.BaseName })
 }
 
 Write-Host '========================================================'
@@ -781,13 +883,15 @@ foreach ($entry in $entries) {
         Fabricante = $entry.Vendor; Producto = $entry.Product; Canal = $entry.Channel; Estado = 'actual'
         Version = ''; Fecha = ''; PaqueteChocolatey = "$($entry.Choco)"; Chocolatey = ''; AlDia = ''
         EnRepo = (Get-LocalStatus -Id $entry.Choco); Instalar = $(if ($entry.Id -and $entry.Installer) { $entry.Id } else { '' })
-        Nota = ''; Origen = 'catalogo'; Fuente = (Get-SourceName -Entry $entry)
-        Prerelease = [bool] $entry.Pre; Supuesto = $false
+        Nota = ''; Winget = ''; Descarga = ''; SePuedeChoco = ''; SePuedeWinget = ''; Origen = 'catalogo'; Fuente = (Get-SourceName -Entry $entry)
+        Prerelease = [bool] $entry.Pre; Supuesto = $false; WingetId = "$($entry.Winget)"; NoPackage = "$($entry.NoPackage)"; NoWinget = "$($entry.NoWinget)"
     }
     $notes = @()
     if ($entry.Note) { $notes += $entry.Note }
+    $assets = @()
     try {
         $latest = Get-SourceVersion -Entry $entry -Repositories $repositories
+        $assets = @($latest.Assets)
         $row.Version = $latest.Version
         $row.Fecha = $latest.Date
         if ($latest.Note) { $notes += $latest.Note }
@@ -799,6 +903,9 @@ foreach ($entry in $entries) {
     }
     if ($entry.Status) { $row.Estado = $entry.Status }
     $row.Nota = $notes -join '; '
+    # What the vendor publishes for Windows: the files of the GitHub release, or else what the catalog says (Format)
+    $row.Descarga = Get-DownloadKind -Name $assets
+    if (-not $row.Descarga) { $row.Descarga = if ($entry.Format) { "$($entry.Format)" } elseif ($entry.Source -eq 'Npm') { 'npm' } else { '' } }
     $rows.Add($row)
 }
 
@@ -815,15 +922,19 @@ if ($token -and -not $NoDiscover) {
                 $release = $repository.latestRelease
                 if (-not $release -or -not (Get-WindowsAsset -Release $release)) { continue }
                 $date = ConvertTo-DateText -Value $release.publishedAt
-                # The only ID to try is the name of the repository, and only for software that is still alive
-                $guess = if ($repository.isArchived) { '' } else { ($fullName -split '/')[1].ToLowerInvariant() }
+                # The only ID to try is the name of the repository, and only for software that is still alive,
+                # unless the catalog knows its package (Repos)
+                $repoData = Get-RepoData -Repos $catalog.Repos -Name $fullName
+                $guess = if ($repoData.Choco) { $repoData.Choco } elseif ($repository.isArchived) { '' } else { ($fullName -split '/')[1].ToLowerInvariant() }
                 $rows.Add([pscustomobject][ordered]@{
                         Fabricante = $name; Producto = $fullName; Canal = ''
                         Estado = $(if ($repository.isArchived) { 'descontinuado' } else { 'actual' })
                         Version = $release.tagName; Fecha = $date; PaqueteChocolatey = $guess; Chocolatey = ''; AlDia = ''
                         EnRepo = (Get-LocalStatus -Id $guess); Instalar = ''
                         Nota = $(if ($repository.isArchived) { 'repositorio archivado' } elseif (Test-Stale -Date $date) { "sin versiones desde $($date.Substring(0, 4))" } else { '' })
-                        Origen = 'GitHub'; Fuente = "github.com/$fullName"; Prerelease = $true; Supuesto = $true
+                        Winget = ''; Descarga = (Get-DownloadKind -Name @($release.releaseAssets.nodes | ForEach-Object { $_.name })); SePuedeChoco = ''; SePuedeWinget = ''
+                        Origen = 'GitHub'; Fuente = "github.com/$fullName"; Prerelease = -not $repoData.Choco; Supuesto = -not $repoData.Choco
+                        WingetId = "$($repoData.Winget)"; NoPackage = "$($repoData.NoPackage)"; NoWinget = "$($repoData.NoWinget)"
                     })
                 $found++
             }
@@ -836,6 +947,7 @@ if ($token -and -not $NoDiscover) {
 # It is the fullest public list of what each vendor ships for Windows, also what is not on GitHub. Its rows
 # go in a table of their own: the index says which version it has, not whether the product is still alive.
 $indexRows = New-Object System.Collections.Generic.List[object]
+$wingetRead = $false
 if ($token -and -not $NoDiscover -and $catalog.Winget) {
     Write-Host '>>> Leyendo el indice de winget: todo lo que registra de cada fabricante...' -ForegroundColor Cyan
     $vendorOf = @{}
@@ -845,18 +957,49 @@ if ($token -and -not $NoDiscover -and $catalog.Winget) {
             $indexRows.Add([pscustomobject][ordered]@{
                     Fabricante = $vendorOf[($package.Id -split '\.')[0]]; Producto = $package.Id; Canal = ''; Estado = 'actual'
                     Version = $package.Version; Fecha = ''; PaqueteChocolatey = ''; Chocolatey = ''; AlDia = ''; EnRepo = ''; Instalar = $package.Id
-                    Nota = ''; Origen = 'winget'; Fuente = "github.com/microsoft/winget-pkgs/tree/master/$($package.Path)"; Prerelease = $false; Supuesto = $false
+                    Nota = ''; Winget = "$($package.Id) $($package.Version)"; Descarga = ''; SePuedeChoco = ''; SePuedeWinget = 'ya'
+                    Origen = 'winget'; Fuente = "github.com/microsoft/winget-pkgs/tree/master/$($package.Path)"; Prerelease = $false; Supuesto = $false
+                    WingetId = $package.Id; NoPackage = ''; NoWinget = ''
                 })
         }
         Write-Host "    $($indexRows.Count) paquetes"
+        $wingetRead = $true
     } catch {
         Write-Host "    [AVISO] No se pudo leer el indice de winget: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+# The package of each product in the index: the identifier the catalog gives (Winget, or Repos for a repository
+# found on GitHub) or else, for a repository found on GitHub, the package of its vendor called like it
+# (google/magika -> Google.Magika). The index has the version of its vendors' packages; the others are looked up.
+if ($wingetRead) {
+    $byName = @{}
+    foreach ($package in $indexRows) {
+        foreach ($key in @((ConvertTo-NameKey -Text ($package.Producto -split '\.')[-1]), (ConvertTo-NameKey -Text ($package.Producto -replace '^[^.]+\.')))) {
+            if (-not $byName.ContainsKey("$($package.Fabricante)|$key")) { $byName["$($package.Fabricante)|$key"] = $package.Producto }
+        }
+    }
+    foreach ($row in @($rows | Where-Object { $_.Origen -eq 'GitHub' -and -not $_.WingetId })) {
+        $key = "$($row.Fabricante)|$(ConvertTo-NameKey -Text ($row.Producto -split '/')[1])"
+        if ($byName.ContainsKey($key)) { $row.WingetId = $byName[$key] }
+    }
+    $wingetVersions = @{}
+    foreach ($package in $indexRows) { $wingetVersions[$package.Producto] = $package.Version }
+    try {
+        $others = Get-WingetVersion -Id @($rows | ForEach-Object { $_.WingetId } | Where-Object { $_ -and -not $wingetVersions.ContainsKey($_) })
+        foreach ($name in $others.Keys) { if ($others[$name]) { $wingetVersions[$name] = $others[$name] } }
+    } catch {
+        Write-Host "    [AVISO] No se pudieron buscar en el indice de winget los paquetes del catalogo: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    foreach ($row in $rows) {
+        $row.Winget = if ($row.WingetId -and $wingetVersions.ContainsKey($row.WingetId)) { "$($row.WingetId) $($wingetVersions[$row.WingetId])" } else { '-' }
     }
 }
 
 # --- 4. Chocolatey ---
 $withId = @($rows | Where-Object { $_.PaqueteChocolatey })
 Write-Host ">>> Consultando Chocolatey: $($withId.Count) paquetes..." -ForegroundColor Cyan
+$chocoSeen = @{}
 foreach ($row in $withId) {
     try {
         $version = Get-ChocolateyVersion -Id $row.PaqueteChocolatey -Prerelease $row.Prerelease
@@ -864,6 +1007,7 @@ foreach ($row in $withId) {
         $row.Chocolatey = "$($row.PaqueteChocolatey): no se pudo consultar"
         continue
     }
+    $chocoSeen["$($row.PaqueteChocolatey)|$([bool] $row.Prerelease)"] = $version
     if ($version) {
         # For a repository found on GitHub the ID is only its name: a package called the same may be something else
         $row.Chocolatey = "$($row.PaqueteChocolatey) $version" + $(if ($row.Supuesto) { ' (?)' } else { '' })
@@ -875,36 +1019,100 @@ foreach ($row in $withId) {
     }
 }
 
+# The rows of the winget index get the Chocolatey package of the product with that identifier (not the one
+# guessed from the name of a repository), or the one that the catalog gives (WingetChoco). A package that a row
+# of the catalog already asked for is not asked again.
+$chocoOf = @{}
+$preOf = @{}
+foreach ($row in $rows | Where-Object { $_.PaqueteChocolatey -and -not $_.Supuesto }) {
+    if ($row.WingetId -and -not $chocoOf.ContainsKey($row.WingetId)) { $chocoOf[$row.WingetId] = $row.PaqueteChocolatey }
+    if ($row.Prerelease) { $preOf[$row.PaqueteChocolatey] = $true }
+}
+if ($catalog.WingetChoco) { foreach ($key in $catalog.WingetChoco.Keys) { $chocoOf[$key] = $catalog.WingetChoco[$key] } }
+$indexWithId = @($indexRows | Where-Object { $chocoOf.ContainsKey($_.Producto) })
+if ($indexWithId) { Write-Host ">>> Consultando Chocolatey para el indice de winget: $($indexWithId.Count) paquetes..." -ForegroundColor Cyan }
+foreach ($row in $indexWithId) {
+    $row.PaqueteChocolatey = $chocoOf[$row.Producto]
+    $seen = "$($row.PaqueteChocolatey)|$([bool] $preOf[$row.PaqueteChocolatey])"
+    if ($chocoSeen.ContainsKey($seen)) {
+        $version = $chocoSeen[$seen]
+    } else {
+        try {
+            $version = Get-ChocolateyVersion -Id $row.PaqueteChocolatey -Prerelease ([bool] $preOf[$row.PaqueteChocolatey])
+        } catch {
+            $row.Chocolatey = "$($row.PaqueteChocolatey): no se pudo consultar"
+            continue
+        }
+        $chocoSeen[$seen] = $version
+    }
+    if ($version) {
+        $row.Chocolatey = "$($row.PaqueteChocolatey) $version"
+        $row.AlDia = Test-UpToDate -Vendor $row.Version -Chocolatey $version
+    } else {
+        $row.Chocolatey = "$($row.PaqueteChocolatey): sin version listada"
+    }
+}
+
+# --- 5. Whether each product can be packaged for Chocolatey and for winget ---
+foreach ($row in $rows) {
+    $verdict = Get-PackagingVerdict -Row $row -WingetRead $wingetRead
+    $row.SePuedeChoco = $verdict.Choco
+    $row.SePuedeWinget = $verdict.Winget
+}
+foreach ($row in $indexRows) {
+    $row.SePuedeChoco = if ($row.Chocolatey -and $row.Chocolatey -notmatch ': ') { 'ya' }
+    elseif ($catalog.WingetNoChoco -and $catalog.WingetNoChoco.ContainsKey($row.Producto)) { "no ($($catalog.WingetNoChoco[$row.Producto]))" }
+    elseif ($row.Chocolatey) { '?' }
+    else { 'si' }
+}
+
 # --- Report ---
 $order = @{}
 for ($i = 0; $i -lt $catalog.Vendors.Count; $i++) { $order[$catalog.Vendors[$i]] = $i }
 # Vendors in the order of the catalog; for each one its named products first, then the repositories found
 $sorted = @($rows | Sort-Object -Property { $order[$_.Fabricante] }, { $_.Origen -ne 'catalogo' }, Producto, Canal)
 $index = @($indexRows | Sort-Object -Property { $order[$_.Fabricante] }, Producto)
-$public = 'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Instalar', 'Nota', 'Origen', 'Fuente'
+$public = 'Fabricante', 'Producto', 'Canal', 'Estado', 'Version', 'Fecha', 'Chocolatey', 'AlDia', 'EnRepo', 'Instalar', 'Nota',
+'Winget', 'Descarga', 'SePuedeChoco', 'SePuedeWinget', 'Origen', 'Fuente'
+$chocolateyColumn = @{ Name = 'Chocolatey'; Expression = { if ($_.Chocolatey) { $_.Chocolatey + $(if ($_.AlDia -eq 'no') { ' (atrasado)' } else { '' }) } else { '-' } } }
 $shown = @(
-    'Fabricante', 'Producto', 'Canal', 'Version', 'Fecha'
-    @{ Name = 'Chocolatey'; Expression = { if ($_.Chocolatey) { $_.Chocolatey + $(if ($_.AlDia -eq 'no') { ' (atrasado)' } else { '' }) } else { '-' } } }
+    'Fabricante', 'Producto', 'Canal', 'Version', 'Fecha', $chocolateyColumn
     @{ Name = 'En este repo'; Expression = { $_.EnRepo } }
     'Instalar', 'Nota'
 )
+$packaging = @(
+    @{ Name = 'winget'; Expression = { $_.Winget } }, 'Descarga'
+    @{ Name = 'Se puede (choco)'; Expression = { $_.SePuedeChoco } }
+    @{ Name = 'Se puede (winget)'; Expression = { $_.SePuedeWinget } }
+)
+$indexShown = @('Fabricante', 'Instalar', 'Version', $chocolateyColumn, @{ Name = 'Se puede (choco)'; Expression = { $_.SePuedeChoco } })
 $groups = [ordered]@{ 'ACTUALES' = 'actual'; 'DESCONTINUADOS' = 'descontinuado' }
+$current = @($sorted | Where-Object { $_.Estado -eq 'actual' })
+$verdicts = 'Se puede, de los actuales: en Chocolatey {0}; en winget {1}.' -f (Format-VerdictCount -Rows $current -Property SePuedeChoco),
+(Format-VerdictCount -Rows $current -Property SePuedeWinget)
 
 if ($OutFile) {
     $path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutFile)
     $lines = @('# Catalogo de fabricantes', '',
-        "Generado por ``vendor_catalog.ps1`` el $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')) UTC. Fabricantes: $($vendors -join ', ').", '')
+        "Generado por ``vendor_catalog.ps1`` el $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')) UTC. Fabricantes: $($vendors -join ', ').", '',
+        ('Columnas: "winget" es el paquete del producto en el indice de winget y su ultima version ("-": no tiene; vacia: ' +
+            'no se leyo el indice). "Descarga" es lo que publica el fabricante para Windows. "Se puede (choco)" y ' +
+            '"Se puede (winget)": "ya" (tiene paquete; "(?)": uno con el mismo nombre que el repositorio), "si" (se puede ' +
+            'hacer), "no (motivo)", "preparado: <id>" (este repositorio lo prepara para winget) o "?" (no hay datos). ' +
+            'winget solo acepta instaladores msi, msix, exe y zip, sin scripts y sin preguntas.'), '',
+        $verdicts, '')
     foreach ($title in $groups.Keys) {
         $lines += "## $($title.Substring(0, 1))$($title.Substring(1).ToLowerInvariant())", ''
-        $lines += '| Fabricante | Producto | Canal | Version | Fecha | Chocolatey | En este repo | Instalar | Nota |', '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |'
-        foreach ($row in $sorted | Where-Object { $_.Estado -eq $groups[$title] } | Select-Object -Property $shown) {
-            $lines += '| ' + (@($row.PSObject.Properties | ForEach-Object { "$($_.Value)" -replace '\|', '/' }) -join ' | ') + ' |'
+        $lines += '| Fabricante | Producto | Canal | Version | Fecha | Chocolatey | En este repo | Instalar | Nota | winget | Descarga | Se puede (choco) | Se puede (winget) |'
+        $lines += '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |'
+        foreach ($row in $sorted | Where-Object { $_.Estado -eq $groups[$title] } | Select-Object -Property ($shown + $packaging)) {
+            $lines += ConvertTo-MarkdownRow -Row $row
         }
         $lines += ''
     }
     if ($index) {
-        $lines += '## Indice de winget', '', '| Fabricante | Instalar | Version |', '| :--- | :--- | :--- |'
-        foreach ($row in $index) { $lines += "| $($row.Fabricante) | $($row.Instalar) | $($row.Version) |" }
+        $lines += '## Indice de winget', '', '| Fabricante | Instalar | Version | Chocolatey | Se puede (choco) |', '| :--- | :--- | :--- | :--- | :--- |'
+        foreach ($row in $index | Select-Object -Property $indexShown) { $lines += ConvertTo-MarkdownRow -Row $row }
         $lines += ''
     }
     [System.IO.File]::WriteAllLines($path, $lines, (New-Object System.Text.UTF8Encoding $false))
@@ -925,18 +1133,25 @@ if ($PassThru) {
             Write-Host '  (ninguno)'
         }
     }
+    if ($current) {
+        Write-Host "`n========================================================"
+        Write-Host "  CHOCOLATEY Y WINGET ($($current.Count))"
+        Write-Host '========================================================'
+        Write-Host (($current | Select-Object -Property (@('Fabricante', 'Producto', 'Canal') + $packaging) | Format-Table -AutoSize | Out-String -Width 300).Trim("`r", "`n"))
+    }
     if ($index) {
         Write-Host "`n========================================================"
         Write-Host "  INDICE DE WINGET ($($index.Count))"
         Write-Host '========================================================'
-        Write-Host (($index | Format-Table -Property Fabricante, Instalar, Version -AutoSize | Out-String -Width 200).Trim("`r", "`n"))
+        Write-Host (($index | Select-Object -Property $indexShown | Format-Table -AutoSize | Out-String -Width 200).Trim("`r", "`n"))
         Write-Host 'Lo que el indice de winget registra de cada fabricante, este o no en las tablas de arriba. Se instala igual: -Install <nombre>, tal cual esta escrito.'
     }
     Write-Host ''
-    $current = @($sorted | Where-Object { $_.Estado -eq 'actual' })
     Write-Host ('Actuales: {0} ({1} con paquete en Chocolatey, {2} de ellos atrasados; {3} en este repositorio). Descontinuados: {4}.' -f `
             $current.Count, @($current | Where-Object { $_.Chocolatey -and $_.Chocolatey -notmatch 'sin version listada|no se pudo' }).Count,
         @($current | Where-Object { $_.AlDia -eq 'no' }).Count, @($current | Where-Object { $_.EnRepo }).Count, ($sorted.Count - $current.Count))
+    Write-Host $verdicts
     Write-Host 'Chocolatey "(?)": existe un paquete con el mismo nombre que el repositorio; puede no ser el mismo programa.'
+    Write-Host 'Se puede: "ya" tiene paquete, "si" se puede hacer, "no (motivo)", "preparado: <id>" lo prepara este repositorio para winget, "?" sin datos. Columna "winget" vacia: no se leyo el indice (-NoDiscover o sin token).'
     Write-Host 'Columna "Instalar": .\vendor_catalog.bat -Install <nombre>[,<nombre>] baja el instalador oficial del fabricante, comprueba su firma y lo instala, sin Chocolatey.'
 }
