@@ -1,0 +1,31 @@
+# Template of update_all.ps1 (README, "winget"): the values in double braces are filled in for each version
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
+
+PackageIdentifier: Cloudflare.Warp.Beta
+PackageVersion: "{{Version}}"
+PackageLocale: en-US
+Publisher: Cloudflare, Inc.
+PublisherUrl: https://www.cloudflare.com/
+PrivacyUrl: https://www.cloudflare.com/privacypolicy/
+Author: Cloudflare, Inc.
+PackageName: Cloudflare One Client Beta
+PackageUrl: https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/beta-releases/
+License: Proprietary
+LicenseUrl: https://www.cloudflare.com/application/terms/
+Copyright: Copyright (c) Cloudflare Inc.
+CopyrightUrl: https://www.cloudflare.com/terms/
+ShortDescription: Beta releases of the Cloudflare One Client (WARP), with the features of the next version.
+Description: |-
+  Early-access releases of the Cloudflare One Client, formerly the Cloudflare WARP client. Use them to test the features of the next version before they reach Cloudflare.Warp.
+  The client sits between your device and the Internet and has several connection modes. It is in part powered by 1.1.1.1, and it encrypts all traffic to and from your device for more privacy.
+Moniker: warp-beta
+Tags:
+- 1.1.1.1
+- beta
+- cloudflare
+- dns
+- vpn
+- warp
+ReleaseNotesUrl: https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/beta-releases/
+ManifestType: defaultLocale
+ManifestVersion: 1.28.0

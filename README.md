@@ -43,6 +43,7 @@ Paquetes/
 │   ├── <paquete>.nuspec          # Metadatos (AU actualiza la versión)
 │   ├── update.ps1                # Chocolatey-AU: au_GetLatest / au_SearchReplace del paquete
 │   ├── <paquete>.json            # Solo fenix-web-server: versión publicada de cada stream (AU)
+│   ├── winget/                   # Si va también a winget: winget.psd1 y, a veces, plantillas *.yaml (ver «winget»)
 │   └── tools/
 │       ├── chocolateyinstall.ps1   # URL + checksum literales (AU los actualiza; Thunderbird lleva uno por idioma/arquitectura)
 │       └── chocolateyuninstall.ps1
@@ -102,6 +103,7 @@ Uso:
 | `.\update_all.bat -Package nicepage -Force` | Re-empaqueta y sube un paquete aunque no haya versión nueva |
 | `.\update_all.bat -NoPush` | Solo empaqueta para revisar: deja los `.nupkg` y restaura los archivos, así la siguiente ejecución normal publica la versión nueva (si la hay: un paquete que solo se empaquetó por `-Force` no se publica) |
 | `.\update_all.bat -NoGit` | Publica en Chocolatey sin hacer commit/push en Git |
+| `.\update_all.bat -NoWinget` | No prepara las versiones para winget (ver «winget») |
 | `.\push_deprecated.bat` | Publica los bridges de `Paquetes/descontinuados/`. Termina con código 1 si falla algún empaquetado o push; `--no-pause` no espera una tecla al final |
 | `cd Paquetes\actuales\nicepage` y `powershell -File update.ps1` | Prueba un solo paquete con AU |
 | `.\vendor_catalog.bat` | Lista el software para Windows de Mozilla, Cloudflare, GitHub, Google, Amazon, Cursor y Fenix con su última versión y su paquete en Chocolatey. Solo consulta (ver «Catálogo de fabricantes e instalación directa») |
@@ -120,6 +122,45 @@ En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede confi
 > **Bridges de deprecación** (`Paquetes/descontinuados/`, `push_deprecated.bat`): se publican como versión **prerelease** (`999.0.1-deprecated`), no estable. Los paquetes a los que redirigen solo publican prereleases, y `choco` solo resuelve una dependencia prerelease si el paquete que la pide también lo es (o con `--pre`). Comprobado con `choco` 2.7.4: con el bridge prerelease, `choco upgrade <id antiguo>` y `choco upgrade all` actualizan sin `--pre` e instalan el paquete nuevo; con un bridge estable fallan siempre con «Unable to resolve dependency». Una versión rechazada no se puede volver a subir: hay que subir el número (`999.0.2-deprecated`). Los IDs que llevan `beta` o `pre` fallan el requisito CPMR0024 del validador («el ID incluye un nombre de prerelease») y eso no tiene arreglo en el paquete, porque el ID es justo lo que se depreca: la versión queda *Waiting for Maintainer* hasta que el verificador la pruebe (una prerelease se aprueba entonces aunque la validación haya fallado, pero puede tardar días) o hasta que se explique en la revisión de su página que es la deprecación de un ID que ya existía. Ojo con el orden: si el validador se pronuncia después del comentario del mantenedor, el estado vuelve a *Waiting for Maintainer* y hay que responder otra vez para que quede en *Responded*, que es cuando lo ve un moderador. Las versiones anteriores de un ID retirado se ocultan (*unlist*) en la web, como pide la [guía oficial](https://docs.chocolatey.org/en-us/community-repository/maintainers/deprecate-a-chocolatey-package/); las de los seis IDs actuales ya lo están (ver «Cómo debe quedar un ID descontinuado»).
 
 > **Nuevos iconos**: añade el PNG a `icons/`, haz commit y usa `https://cdn.jsdelivr.net/gh/DEUS-DEI/ChocoLateYPackages@<commit>/icons/<id>.png`.
+
+### winget (`Paquetes/actuales/<paquete>/winget/`)
+
+Algunos paquetes van también al [repositorio de la comunidad de winget](https://github.com/microsoft/winget-pkgs). Allí no se sube un paquete: cada versión es un PR con tres manifiestos YAML (dirección del instalador del fabricante, su SHA256 y cómo instalarlo) que Microsoft valida instalándolo en una máquina virtual y que aprueba un moderador.
+
+**Ahora mismo no se envía nada.** `update_all.ps1` prepara los manifiestos de cada versión que publica en Chocolatey (estado `Actualizado`) y solo los envía si la variable `WINGET_SUBMIT` vale `true` y `WINGET_TOKEN` tiene el token de GitHub. Ninguna de las dos existe todavía.
+
+| Paquete | ID en winget | Manifiestos |
+| :--- | :--- | :--- |
+| `github-desktop-pre` | `GitHub.GitHubDesktop.Beta` (ya existe; iba por 3.5.5-beta2) | `komac update` |
+| `nicepage` | `ArtisteerLimited.Nicepage` (ya existe; iba por 6.3.1) | `komac update` |
+| `cloudflare-warp-pre` | `Cloudflare.Warp.Beta` (nuevo) | Plantillas |
+| `thunderbird-mozilla` | `Mozilla.Thunderbird.Beta` (nuevo; en-US, como `Mozilla.Thunderbird`) | Plantillas |
+| `fenix-web-server` | `CoreyButler.FenixWebServer` 2.0.0 (nuevo) | Manifiesto fijo, se envía una vez a mano |
+
+Fuera de winget: `thunderbird-nightly` (todas las builds de un ciclo se llaman igual en Windows, `161.0a1`, así que winget no sabría cuál está instalada), `flarectl` (Cloudflare solo lo publica en `.tar.gz` y winget solo admite `.zip`) y Fenix 3.x (su instalador se para en un aviso aunque sea silencioso, y winget no admite scripts como `AcceptUsageNotice.ps1`).
+
+**Cómo se hacen los manifiestos:**
+
+- **`komac update`** (carpeta `winget/` con solo `winget.psd1`): [Komac](https://github.com/russellbanks/Komac) parte de los manifiestos de la versión anterior que ya están en winget y cambia la versión y los instaladores, que descarga y analiza (SHA256, `ProductCode`…).
+- **Plantillas** (`*.yaml` en `winget/`): `update_all.ps1` rellena lo que va entre llaves dobles (versión, direcciones y SHA256 de los instaladores, que descarga) y deja los manifiestos en `winget-manifests\<ID>\<versión>\`, que no va a Git. Se envían tal cual con `komac submit`. Thunderbird las usa siempre, porque Komac toma el instalador de Mozilla por un programa portátil de 32 bits; WARP, porque su ID todavía no existe en winget y `komac update` no tiene de dónde partir. Cuando `Cloudflare.Warp.Beta` ya esté en winget se pueden borrar sus `*.yaml`, y pasa a `komac update`, que añade el `ProductCode` del MSI.
+
+`winget.psd1` dice el `Id`, la `Version` y los `Installers` (nombre = dirección de descarga), y opcionalmente `VersionPattern` (expresión regular cuyo grupo `v` es la versión para winget) y `ReleaseNotesUrl`. `{Clave}` es el dato `Clave` del `$Latest` de Chocolatey-AU (lo que devuelve `au_GetLatest` del `update.ps1`). Si la versión no tiene la forma esperada no se prepara nada, para no mandar una versión equivocada.
+
+Al terminar, `update_all.ps1` muestra una tabla con cada versión: `Preparado` (manifiestos listos; en el workflow, los de plantilla se guardan en el artefacto `winget-manifests` y los de Komac salen en el log), `Enviado` (PR abierto), `Aviso` (no se pudo preparar; no marca la ejecución en rojo porque la versión ya está en Chocolatey) o `Error` (falló el envío: la ejecución termina con código 1). Una versión que no se envió no se reintenta: winget recibe la siguiente.
+
+**Para empezar a enviar:**
+
+1. Crea un token **clásico** de GitHub con el permiso `public_repo` (Komac no puede abrir el PR con uno de grano fino) y guárdalo como secreto `WINGET_TOKEN` del repositorio. Komac crea solo el fork `DEUS-DEI/winget-pkgs` desde el que abre los PR.
+2. Crea la variable de repositorio `WINGET_SUBMIT` con el valor `true` (*Settings → Secrets and variables → Actions → Variables*). Para dejar de enviar, bórrala o cámbiale el valor.
+3. En el primer PR, un bot de Microsoft pide firmar su acuerdo de contribución (CLA) con un comentario: hay que hacerlo una vez.
+4. Fenix 2.0.0 no cambia, así que `update_all.ps1` nunca lo envía: se manda una vez a mano, con Komac instalado (`winget install komac`) y el token en `GITHUB_TOKEN`:
+
+```powershell
+$env:GITHUB_TOKEN = '<token>'
+komac submit --yes Paquetes\actuales\fenix-web-server\winget
+```
+
+En local valen las mismas variables de entorno; sin Komac instalado, los paquetes de `komac update` salen como `Aviso`. Para probar un manifiesto antes de enviarlo: `winget settings --enable LocalManifestFiles` (como administrador) y `winget install --manifest winget-manifests\<ID>\<versión>`.
 
 ### Catálogo de fabricantes e instalación directa (`vendor_catalog.ps1`)
 

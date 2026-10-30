@@ -1,0 +1,27 @@
+# Fenix 2.0.0 for winget, sent once by hand (README, "winget"): update_all.ps1 does not handle this package
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
+# The 3.x pre-releases cannot go to winget: their setup waits at a notice even when silent
+
+PackageIdentifier: CoreyButler.FenixWebServer
+PackageVersion: 2.0.0
+InstallerLocale: en-US
+InstallerType: zip
+NestedInstallerType: inno
+NestedInstallerFiles:
+- RelativeFilePath: fenixsetup.exe
+Scope: machine
+UpgradeBehavior: install
+ElevationRequirement: elevatesSelf
+ProductCode: '{D29AEFD6-B937-48EE-88A7-F0D13305B3F8}_is1'
+AppsAndFeaturesEntries:
+- DisplayName: Fenix 2.0.0
+  Publisher: Ecor Ventures, LLC
+  ProductCode: '{D29AEFD6-B937-48EE-88A7-F0D13305B3F8}_is1'
+InstallationMetadata:
+  DefaultInstallLocation: '%ProgramData%\Fenix'
+Installers:
+- Architecture: x86
+  InstallerUrl: https://github.com/coreybutler/fenix/releases/download/v2.0.0/fenix-windows-2.0.0.zip
+  InstallerSha256: 9B4871180F912464B6683F8BDD843184DF58C0E6F970703C304334FD5DDCA24E
+ManifestType: installer
+ManifestVersion: 1.28.0
