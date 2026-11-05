@@ -78,10 +78,30 @@ function global:au_BeforeUpdate {
   Write-InstallerTable -Installers $installers
 }
 
+function Get-MissingLanguage([string] $BaseUrl, [string] $BuildFolder, [string] $AppVersion) {
+  # The languages of the install script (its <languages> block) that the l10n folder of the build does not
+  # have a manifest for, as "arch/language". en-US is not in that folder: it is the main build.
+  $release = [regex]::Escape($AppVersion)
+  try { $listing = [System.Net.WebClient]::new().DownloadString("$BaseUrl/$BuildFolder-comm-central-l10n/") }
+  catch { $listing = '' }  # the folder does not exist yet
+  $arch = $null
+  foreach ($line in Get-Content -Path '.\tools\chocolateyinstall.ps1' -Encoding UTF8) {
+    if ($line -eq '# </languages>') { break }
+    if ($line -match '^\s*(?<arch>win32|win64) = @\(') { $arch = $Matches.arch; continue }
+    if (-not $arch) { continue }
+    foreach ($match in [regex]::Matches($line, "'(?<lang>[A-Za-z-]+)'")) {
+      $lang = $match.Groups['lang'].Value
+      if ($lang -ne 'en-US' -and $listing -notmatch "thunderbird-$release\.$([regex]::Escape($lang))\.$arch\.checksums") { "$arch/$lang" }
+    }
+  }
+}
+
 function global:au_GetLatest {
   $appVersion = (Invoke-RestMethod -Uri 'https://product-details.mozilla.org/1.0/thunderbird_versions.json').LATEST_THUNDERBIRD_NIGHTLY_VERSION
   $buildInfo  = Invoke-RestMethod -Uri "$nightlyRoot/latest-comm-central/thunderbird-$appVersion.en-US.win64.json"
   $buildTime  = [datetime]::ParseExact([string]$buildInfo.buildid, 'yyyyMMddHHmmss', [cultureinfo]::InvariantCulture)
+  $baseUrl    = '{0}/{1:yyyy}/{1:MM}' -f $nightlyRoot, $buildTime
+  $buildFolder = $buildTime.ToString('yyyy-MM-dd-HH-mm-ss')
 
   # Publish at most one nightly per week (or as soon as the version number changes), so the
   # moderation queue is not flooded with a new package version every day
@@ -92,12 +112,25 @@ function global:au_GetLatest {
     return 'ignore'
   }
 
+  # The other languages (l10n repacks) are published some hours after the en-US build, and the daily run
+  # can come before they are all there: on 2026-11-01 the run found only en-US and the package lost the
+  # other 65 languages. So a build less than 12 hours old waits for every language the package has now
+  # (the next run tries again); an older one is packaged as it is, since Mozilla dropped what it lacks.
+  $missing = @(Get-MissingLanguage -BaseUrl $baseUrl -BuildFolder $buildFolder -AppVersion $appVersion)
+  if ($missing) {
+    if ($buildTime -gt [datetime]::UtcNow.AddHours(-12)) {
+      Write-Host "Thunderbird Daily build $($buildInfo.buildid) does not have all its languages yet ($($missing.Count) missing, e.g. $($missing[0])): skipped"
+      return 'ignore'
+    }
+    Write-Host "Thunderbird Daily build $($buildInfo.buildid) has no installer for: $($missing -join ', ')"
+  }
+
   @{
     # 159.0a1 built 2026-09-25 10:19 -> 159.0.1.2026092510-alpha: every nightly build gets its own version
     Version     = '{0}.1.{1:yyyyMMddHH}-alpha' -f ($appVersion -replace 'a\d+$'), $buildTime
     AppVersion  = $appVersion
-    BaseUrl     = '{0}/{1:yyyy}/{1:MM}' -f $nightlyRoot, $buildTime
-    BuildFolder = $buildTime.ToString('yyyy-MM-dd-HH-mm-ss')
+    BaseUrl     = $baseUrl
+    BuildFolder = $buildFolder
   }
 }
 
