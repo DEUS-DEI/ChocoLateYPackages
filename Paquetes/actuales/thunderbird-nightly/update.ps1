@@ -78,7 +78,7 @@ function global:au_BeforeUpdate {
   Write-InstallerTable -Installers $installers
 }
 
-function Get-MissingLanguages([string] $BaseUrl, [string] $BuildFolder, [string] $AppVersion) {
+function Get-MissingLanguage([string] $BaseUrl, [string] $BuildFolder, [string] $AppVersion) {
   # The languages of the install script (its <languages> block) that the l10n folder of the build does not
   # have a manifest for, as "arch/language". en-US is not in that folder: it is the main build.
   $release = [regex]::Escape($AppVersion)
@@ -116,7 +116,7 @@ function global:au_GetLatest {
   # can come before they are all there: on 2026-11-01 the run found only en-US and the package lost the
   # other 65 languages. So a build less than 12 hours old waits for every language the package has now
   # (the next run tries again); an older one is packaged as it is, since Mozilla dropped what it lacks.
-  $missing = @(Get-MissingLanguages -BaseUrl $baseUrl -BuildFolder $buildFolder -AppVersion $appVersion)
+  $missing = @(Get-MissingLanguage -BaseUrl $baseUrl -BuildFolder $buildFolder -AppVersion $appVersion)
   if ($missing) {
     if ($buildTime -gt [datetime]::UtcNow.AddHours(-12)) {
       Write-Host "Thunderbird Daily build $($buildInfo.buildid) does not have all its languages yet ($($missing.Count) missing, e.g. $($missing[0])): skipped"
