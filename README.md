@@ -4,7 +4,7 @@ Este repositorio contiene una colección de paquetes de Chocolatey mantenidos de
 
 ## 🚀 Estado de la Automatización
 
-GitHub Actions revisa, empaqueta y publica los paquetes **todos los días** (cron a las 04:47 UTC) y también bajo demanda (botón **Run workflow**, con opción de elegir paquetes o forzar). En local se usa `menu.bat`. `thunderbird-nightly` publica como máximo una build por semana para no saturar la cola de moderación.
+GitHub Actions revisa, empaqueta y publica los paquetes **todos los días** (cron a las 04:47 UTC) y también bajo demanda (botón **Run workflow**, con opción de elegir paquetes o forzar). En local se usa `menu.bat`. `thunderbird-nightly` publica como máximo una build por semana para no saturar la cola de moderación, y espera a que Mozilla suba todos sus idiomas (llegan unas horas después de la build en inglés).
 
 ### Actuales (`Paquetes/actuales/`)
 
