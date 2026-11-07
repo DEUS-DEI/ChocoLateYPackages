@@ -102,8 +102,10 @@ echo.
 where gh >nul 2>nul
 if errorlevel 1 goto gh_missing
 
-rem La clave se lee oculta y se pasa a gh por la entrada estandar (no queda en pantalla ni en el historial)
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$s = Read-Host '>>> Pega tu Chocolatey API Key' -AsSecureString; $k = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); if (-not $k) { Write-Host '[ERROR] No se ingreso ninguna clave.'; exit 1 }; gh auth status *> $null; if ($LASTEXITCODE -ne 0) { Write-Host '[ERROR] gh no tiene sesion iniciada. Ejecuta: gh auth login'; exit 1 }; $k | gh secret set CHOCO_API_KEY; if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Secreto CHOCO_API_KEY configurado.' } else { Write-Host '[ERROR] No se pudo configurar el secreto.' }"
+rem La clave sale primero de donde la buscan todos los repositorios del dueno (Get-Secret.ps1: el entorno, las
+rem variables guardadas en Windows, el Administrador de credenciales y un .env.var o .dev.var de la raiz); si no
+rem hay, se pide oculta. Se pasa a gh por la entrada estandar (no queda en pantalla ni en el historial).
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$k = ''; if (Test-Path -LiteralPath 'Get-Secret.ps1' -PathType Leaf) { . '.\Get-Secret.ps1'; $k = Get-ChocoSecret -Name 'CHOCO_API_KEY' }; if ($k) { Write-Host 'Se usa la CHOCO_API_KEY que ya tienes guardada (sin mostrarla).' } else { $s = Read-Host '>>> Pega tu Chocolatey API Key' -AsSecureString; $k = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)) }; if (-not $k) { Write-Host '[ERROR] No se ingreso ninguna clave.'; exit 1 }; gh auth status *> $null; if ($LASTEXITCODE -ne 0) { Write-Host '[ERROR] gh no tiene sesion iniciada. Ejecuta: gh auth login'; exit 1 }; $k | gh secret set CHOCO_API_KEY; if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Secreto CHOCO_API_KEY configurado.' } else { Write-Host '[ERROR] No se pudo configurar el secreto.' }"
 timeout /t 5
 goto main_menu
 

@@ -68,6 +68,21 @@ if ($PSScriptRoot -match '[\[\]]') {
     throw "La ruta del repositorio contiene '[' o ']' ($PSScriptRoot): Chocolatey-AU no la soporta. Clona el repositorio en una ruta sin corchetes."
 }
 
+# Secrets in the order of all the owner's repositories (Get-Secret.ps1, when it is next to this script): the
+# environment of this run wins (in GitHub Actions, the repository secrets), then the variables saved in Windows,
+# the Windows Credential Manager and a .env.var/.dev.var in the root of the repository. Only for this process and
+# what it starts (Chocolatey-AU and the update.ps1 jobs, choco, komac); never printed nor saved.
+$secretHelper = Join-Path $PSScriptRoot 'Get-Secret.ps1'
+if (Test-Path -LiteralPath $secretHelper -PathType Leaf) {
+    . $secretHelper
+    foreach ($secretName in @('CHOCO_API_KEY', 'GITHUB_TOKEN', 'WINGET_TOKEN')) {
+        if ([Environment]::GetEnvironmentVariable($secretName)) { continue }
+        $secretValue = Get-ChocoSecret -Name $secretName
+        if ($secretValue) { [Environment]::SetEnvironmentVariable($secretName, $secretValue, 'Process') }
+    }
+    Remove-Variable -Name secretValue -ErrorAction SilentlyContinue
+}
+
 function Invoke-Tool {
     # choco/git write progress and warnings to stderr; with 'Stop' Windows PowerShell can turn that
     # into a terminating error when the output is redirected (CI). The exit code is checked instead.

@@ -88,6 +88,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Windows PowerShell downloads are much slower with the progress bar
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+# The secrets in the order of all the owner's repositories (Get-Secret.ps1, when it is next to this script)
+$secretHelper = Join-Path $PSScriptRoot 'Get-Secret.ps1'
+if (Test-Path -LiteralPath $secretHelper -PathType Leaf) { . $secretHelper }
 
 # Fields asked of a repository: its newest stable release with its files. Counting or sorting the releases of
 # every repository of an organization is too much for GitHub (502), so the latest releases of any kind (where
@@ -105,7 +108,15 @@ $script:ChocolateyVersions = @{}
 $script:WingetFolders = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::Ordinal)  # names are case-sensitive
 
 function Get-GitHubToken {
-    # The token is only sent to api.github.com and never printed
+    # The token is only sent to api.github.com and never printed. With Get-Secret.ps1, GITHUB_TOKEN and then
+    # GH_TOKEN in the usual order: the environment, the variables saved in Windows, the Windows Credential
+    # Manager and a .env.var/.dev.var in the root of the repository. The token of "gh" goes last.
+    if (Get-Command -Name Get-ChocoSecret -ErrorAction SilentlyContinue) {
+        foreach ($name in 'GITHUB_TOKEN', 'GH_TOKEN') {
+            $secret = Get-ChocoSecret -Name $name
+            if ($secret) { return $secret }
+        }
+    }
     if ($env:GITHUB_TOKEN) { return $env:GITHUB_TOKEN }
     if ($env:GH_TOKEN) { return $env:GH_TOKEN }
     if (Get-Command -Name gh -ErrorAction SilentlyContinue) {

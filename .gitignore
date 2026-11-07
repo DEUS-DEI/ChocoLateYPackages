@@ -10,3 +10,12 @@
 !icons/*.png
 # winget manifests prepared by update_all.ps1 (README, "winget")
 winget-manifests/
+# Secret files (Get-Secret.ps1 reads them last, after the environment and the Windows Credential Manager): never in git
+.env
+*.env
+.env.var
+*.env.var
+.dev.var
+*.dev.var
+.dev.vars
+*.dev.vars
