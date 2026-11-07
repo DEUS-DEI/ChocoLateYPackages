@@ -111,6 +111,8 @@ Uso:
 
 En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede configurar desde la opción 4 de `menu.bat`).
 
+En la PC, los scripts toman `CHOCO_API_KEY`, `GITHUB_TOKEN` (o `GH_TOKEN`) y `WINGET_TOKEN` con `Get-Secret.ps1`, en este orden: las variables de entorno (de la ejecución y las guardadas en Windows), el Administrador de credenciales de Windows (una credencial genérica con ese nombre) y, al final, un `.env.var`, `.dev.var`, `.env` o `.dev.vars` de la raíz del repositorio (`NOMBRE=valor`; todos en `.gitignore`). Ningún mensaje dice el valor ni de dónde salió. Sin ninguno, `choco` usa su `choco apikey`, como siempre.
+
 > **Arreglos de un paquete ya aprobado sin versión nueva del software**: usa la notación de *fix version* (`2.0.0` → `2.0.0.20260926`). En `fenix-web-server` se declara en `$packageFixes` de su `update.ps1`, así que AU la publica solo en la siguiente ejecución.
 
 > **Streams (`fenix-web-server`)**: cada ejecución publica por separado la versión estable y la prerelease. Si solo se publica una, la otra se reintenta en la siguiente ejecución. `-Force` re-empaqueta únicamente el stream que está en ese momento en la carpeta.

@@ -35,6 +35,14 @@ REM  warp-beta              --> cloudflare-warp-pre
 REM ============================================================
 set "bridges=fenix-web-server-beta fenix-web-server-pre github-desktop-beta thunderbird-beta thunderbird-daily warp-beta"
 
+rem Sin CHOCO_API_KEY en el entorno, se busca como en todos los repositorios del dueno (Get-Secret.ps1, desde la
+rem carpeta del repositorio): las variables guardadas en Windows, el Administrador de credenciales y un .env.var o
+rem .dev.var de la raiz. Nunca se imprime. Si no hay, choco usa la clave guardada con "choco apikey add".
+if defined CHOCO_API_KEY goto clave_lista
+if not exist "Get-Secret.ps1" goto clave_lista
+for /f "usebackq delims=" %%k in (`""%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "Get-Secret.ps1" -Name CHOCO_API_KEY"`) do set "CHOCO_API_KEY=%%k"
+:clave_lista
+
 echo Procesando bridges de transicion...
 echo --------------------------------------------------------
 for %%p in (%bridges%) do call :bridge %%p
