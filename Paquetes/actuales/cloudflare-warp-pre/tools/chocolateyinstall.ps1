@@ -8,8 +8,8 @@ if ([System.Environment]::OSVersion.Version -lt [version]'10.0.18363') {
 $packageArgs = @{
   packageName    = $env:ChocolateyPackageName
   fileType       = 'msi'
-  url64bit       = 'https://downloads.cloudflareclient.com/v1/download/windows/version/2026.9.1555.1'
-  checksum64     = 'a4d83ebc218248a5deb807d5050bcab2d033fa27b9d07bdf24a40493e792640f'
+  url64bit       = 'https://downloads.cloudflareclient.com/v1/download/windows/version/2026.9.2663.1'
+  checksum64     = 'd806bd6c1f2141a2845719167fc2b85a090375b531db3275ba7719253a8a80a0'
   checksumType64 = 'sha256'
   softwareName   = 'Cloudflare One Client*'
   silentArgs     = "/qn /norestart /l*v `"$($env:TEMP)\$($env:ChocolateyPackageName).$($env:ChocolateyPackageVersion).MsiInstall.log`""
