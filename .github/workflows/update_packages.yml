@@ -39,7 +39,7 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      # Komac prepara (y, con WINGET_SUBMIT, envia) las versiones para winget (README, "winget").
+      # Komac prepara (y, con WINGET_SUBMIT, envia) las versiones para winget (docs/winget.md).
       # Version fija, comprobada por su SHA256 antes de usarla. Si falla, Chocolatey se publica igual.
       - name: Install Komac
         continue-on-error: true
@@ -56,9 +56,13 @@ jobs:
           }
           Add-Content -Path $env:GITHUB_PATH -Value $folder
 
-      # update_all.ps1 actualiza, sube a Chocolatey y hace commit + push solo de lo publicado.
+      # Scripts\update_all.bat actualiza, sube a Chocolatey y hace commit + push solo de lo publicado.
       # Termina con codigo 1 si algun paquete fallo, para que el workflow se marque en rojo.
       # winget: solo se envia si la variable WINGET_SUBMIT es 'true' y existe el secreto WINGET_TOKEN.
+      # Se llama al .bat, como en la PC: su cabecera corre la parte PowerShell con
+      # "powershell.exe -File Scripts\lib\Lanzar.ps1 <el .bat> <argumentos>", que enlaza -Package y -Force
+      # con su param(). Los argumentos van en un arreglo, uno por elemento (una tabla hash no le sirve a un
+      # programa externo), y el codigo de salida vuelve en $LASTEXITCODE.
       - name: Update, push to Chocolatey and sync Git
         shell: powershell
         env:
@@ -69,10 +73,10 @@ jobs:
           PACKAGES: ${{ inputs.packages }}
           FORCE: ${{ inputs.force }}
         run: |
-          $params = @{}
-          if ($env:PACKAGES) { $params.Package = $env:PACKAGES }
-          if ($env:FORCE -eq 'true') { $params.Force = $true }
-          .\update_all.ps1 @params
+          $arguments = @()
+          if ($env:PACKAGES) { $arguments += '-Package'; $arguments += $env:PACKAGES }
+          if ($env:FORCE -eq 'true') { $arguments += '-Force' }
+          & .\Scripts\update_all.bat @arguments
           exit $LASTEXITCODE
 
       # Los manifiestos de winget hechos con plantillas, para revisarlos o probarlos (winget install --manifest)

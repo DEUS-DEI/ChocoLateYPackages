@@ -1,4 +1,27 @@
-# Helpers shared by the Pester tests (Windows PowerShell 5.1). See tests\README.md.
+# Helpers shared by the Pester tests (Windows PowerShell 5.1). See docs\pruebas.md.
+
+function Copy-RepoScript {
+    # Copies Scripts\<Name> of this repository into <Root>\Scripts, with the loader (Scripts\lib\Lanzar.ps1) unless
+    # -NoLoader: the layout of the repository, so the copy finds Paquetes\ and its data in <Root>, one folder up.
+    # Returns the path of the copy of the first one.
+    param(
+        [Parameter(Mandatory = $true)] [string] $Root,
+        [Parameter(Mandatory = $true)] [string[]] $Name,
+        [switch] $NoLoader
+    )
+    # .NET and not New-Item/Copy-Item: <Root> may have [ and ] (the test of a path with brackets), which the
+    # cmdlets would take for wildcards
+    $repo = Split-Path -Parent $PSScriptRoot
+    $scripts = Join-Path $Root 'Scripts'
+    [IO.Directory]::CreateDirectory((Join-Path $scripts 'lib')) | Out-Null
+    foreach ($file in $Name) {
+        [IO.File]::Copy((Join-Path $repo "Scripts\$file"), (Join-Path $scripts $file), $true)
+    }
+    if (-not $NoLoader) {
+        [IO.File]::Copy((Join-Path $repo 'Scripts\lib\Lanzar.ps1'), (Join-Path $scripts 'lib\Lanzar.ps1'), $true)
+    }
+    Join-Path $scripts $Name[0]
+}
 
 function Invoke-TestProcess {
     # Runs a program hidden, with stdin/stdout/stderr redirected and extra environment variables, and

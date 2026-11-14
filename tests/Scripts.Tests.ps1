@@ -1,7 +1,7 @@
-# Pester 5 tests for the maintenance entry points (push_deprecated.bat, menu.bat, update_all.bat and
-# update_all.ps1) on Windows PowerShell 5.1 and the real cmd.exe. Nothing is published: a fake choco.exe
-# (tests\fakes\FakeChoco.cs) is first in PATH, Chocolatey-AU is replaced by a stub module and Git only
-# pushes to a bare repository inside TestDrive. See tests\README.md.
+# Pester 5 tests for the maintenance entry points (Scripts\push_deprecated.bat, Scripts\menu.bat and
+# Scripts\update_all.bat, its batch header and its PowerShell part) on Windows PowerShell 5.1 and the real
+# cmd.exe. Nothing is published: a fake choco.exe (tests\fakes\FakeChoco.cs) is first in PATH, Chocolatey-AU is
+# replaced by a stub module and Git only pushes to a bare repository inside TestDrive. See docs\pruebas.md.
 
 BeforeAll {
     . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
@@ -10,12 +10,10 @@ BeforeAll {
     $script:FakePath = Install-FakeChoco -Directory (Join-Path $TestDrive 'bin')
 
     # A repository path with the characters that broke the scripts: "!" (delayed expansion), "^" (CALL
-    # doubles it), "&", "(" and ")" (cmd syntax) and spaces
+    # doubles it), "&", "(" and ")" (cmd syntax) and spaces. The scripts go in its Scripts\, as in the repository.
     $script:Special = Join-Path $TestDrive 'a^b (1) & c!'
     New-Item -ItemType Directory -Path $script:Special | Out-Null
-    foreach ($file in 'push_deprecated.bat', 'menu.bat', 'update_all.bat') {
-        Copy-Item -LiteralPath (Join-Path $script:RepoRoot $file) -Destination $script:Special
-    }
+    Copy-RepoScript -Root $script:Special -Name 'push_deprecated.bat', 'menu.bat', 'update_all.bat' -NoLoader | Out-Null
     # Same layout as the repository: Paquetes\actuales (active packages) and Paquetes\descontinuados (bridges)
     $script:Actuales = 'Paquetes\actuales'
     $script:Descontinuados = 'Paquetes\descontinuados'
@@ -79,7 +77,7 @@ Describe 'deprecated bridges' {
 Describe 'push_deprecated.bat' {
     BeforeAll {
         $script:Bridges = @(Get-ChildItem -LiteralPath (Join-Path $script:Special $script:Descontinuados) -Directory | ForEach-Object Name)
-        $script:PushDeprecated = Join-Path $script:Special 'push_deprecated.bat'
+        $script:PushDeprecated = Join-Path $script:Special 'Scripts\push_deprecated.bat'
     }
 
     It 'packs and pushes only the bridges, from any caller folder and repository path' {
@@ -157,11 +155,18 @@ Describe 'push_deprecated.bat' {
 
 Describe 'update_all.bat and menu.bat' {
     BeforeAll {
-        # update_all.ps1 replaced by a stub that records how its parameters were bound
+        # The loader (Scripts\lib\Lanzar.ps1) replaced by a stub that, like the real one, forwards the arguments
+        # after the path of the .bat to a param() block, and records how they were bound
         $script:StubLog = Join-Path $TestDrive 'stub.log'
-        Set-Content -LiteralPath (Join-Path $script:Special 'update_all.ps1') -Encoding Ascii -Value @'
-param([string[]] $Package, [switch] $Force, [switch] $NoPush, [switch] $NoGit)
-Add-Content -LiteralPath $env:STUB_LOG -Value ('Package=[{0}] Force={1} NoPush={2} NoGit={3} Cwd=[{4}]' -f ($Package -join '|'), [bool]$Force, [bool]$NoPush, [bool]$NoGit, (Get-Location).Path)
+        Set-Content -LiteralPath (Join-Path $script:Special 'Scripts\lib\Lanzar.ps1') -Encoding Ascii -Value @'
+$stub = {
+    param([string[]] $Package, [switch] $Force, [switch] $NoPush, [switch] $NoGit)
+    Add-Content -LiteralPath $env:STUB_LOG -Value ('Package=[{0}] Force={1} NoPush={2} NoGit={3} Cwd=[{4}]' -f ($Package -join '|'), [bool]$Force, [bool]$NoPush, [bool]$NoGit, (Get-Location).Path)
+}
+if ((Split-Path -Leaf ([string]$args[0])) -ne 'update_all.bat') { exit 99 }
+$rest = @()
+if ($args.Count -gt 1) { $rest = @($args[1..($args.Count - 1)]) }
+& $stub @rest
 exit [int]$env:STUB_EXIT
 '@
         foreach ($package in 'pkga', 'pkgb') {
@@ -173,17 +178,17 @@ exit [int]$env:STUB_EXIT
             $environment = Get-BaseEnvironment
             $environment.STUB_LOG = $script:StubLog
             $environment.STUB_EXIT = '0'
-            Invoke-TestBatch -Script '.\menu.bat' -WorkingDirectory $script:Special -Environment $environment `
+            Invoke-TestBatch -Script '.\Scripts\menu.bat' -WorkingDirectory $script:Special -Environment $environment `
                 -InputText $InputText -TimeoutSeconds $TimeoutSeconds
         }
     }
 
-    It 'update_all.bat binds the arguments and returns the exit code of update_all.ps1' {
+    It 'update_all.bat binds the arguments and returns the exit code of its PowerShell part' {
         Remove-Item -LiteralPath $script:StubLog -ErrorAction SilentlyContinue
         $environment = Get-BaseEnvironment
         $environment.STUB_LOG = $script:StubLog
         $environment.STUB_EXIT = '3'
-        $run = Invoke-TestBatch -Script (Join-Path $script:Special 'update_all.bat') -Arguments '-Package a,b -Force -NoPush -NoGit' `
+        $run = Invoke-TestBatch -Script (Join-Path $script:Special 'Scripts\update_all.bat') -Arguments '-Package a,b -Force -NoPush -NoGit' `
             -WorkingDirectory $script:Caller -Environment $environment
         $run.ExitCode | Should -Be 3
         Get-Content -LiteralPath $script:StubLog | Should -BeLike 'Package=`[a,b`] Force=True NoPush=True NoGit=True*'
@@ -221,7 +226,7 @@ exit [int]$env:STUB_EXIT
     }
 }
 
-Describe 'update_all.ps1' {
+Describe 'update_all.bat: its PowerShell part' {
     BeforeAll {
         # Chocolatey-AU stub: the package is at 1.0.0 and upstream at $env:STUB_REMOTE_VERSION.
         # With STUB_IN_FEED=1 that version is already in the Chocolatey feed, which real AU reports and
@@ -252,7 +257,7 @@ Export-ModuleMember -Function Update-Package
         # Repository with one package ("demo" 1.0.0), cloned from a bare remote
         $seed = Join-Path $TestDrive 'ua-seed'
         New-Item -ItemType Directory -Path (Join-Path $seed 'Paquetes\actuales\demo\tools') -Force | Out-Null
-        Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'update_all.ps1') -Destination $seed
+        Copy-RepoScript -Root $seed -Name 'update_all.bat' | Out-Null
         Set-Content -LiteralPath (Join-Path $seed 'Paquetes\actuales\demo\demo.nuspec') -Encoding Ascii -Value '<?xml version="1.0"?><package><metadata><id>demo</id><version>1.0.0</version></metadata></package>'
         Set-Content -LiteralPath (Join-Path $seed 'Paquetes\actuales\demo\update.ps1') -Encoding Ascii -Value 'Update-Package'
         Set-Content -LiteralPath (Join-Path $seed 'Paquetes\actuales\demo\tools\chocolateyinstall.ps1') -Encoding Ascii -Value '# test'
@@ -274,7 +279,10 @@ Export-ModuleMember -Function Update-Package
             & git clone -q $script:Remote $script:UaRepo
         }
         function script:Invoke-UpdateAll([string] $Arguments, [hashtable] $Extra = @{}, [string] $Script) {
-            if (-not $Script) { $Script = Join-Path $script:UaRepo 'update_all.ps1' }
+            # Runs the PowerShell part of the copy of Scripts\update_all.bat ($Script) the way its batch header
+            # does: powershell.exe -File Scripts\lib\Lanzar.ps1 "<the .bat>" <arguments>
+            if (-not $Script) { $Script = Join-Path $script:UaRepo 'Scripts\update_all.bat' }
+            $loader = Join-Path (Split-Path -Parent $Script) 'lib\Lanzar.ps1'
             $environment = Get-BaseEnvironment
             $environment.PSModulePath = "$modules;$env:PSModulePath"
             $environment.GIT_AUTHOR_NAME = 'test'; $environment.GIT_AUTHOR_EMAIL = 'test@example.invalid'
@@ -282,7 +290,7 @@ Export-ModuleMember -Function Update-Package
             $environment.STUB_IN_FEED = '0'
             foreach ($key in $Extra.Keys) { $environment[$key] = $Extra[$key] }
             $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-            Invoke-TestProcess -FilePath $powershell -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "{0}" {1}' -f $Script, $Arguments) `
+            Invoke-TestProcess -FilePath $powershell -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "{0}" "{1}" {2}' -f $loader, $Script, $Arguments) `
                 -WorkingDirectory $TestDrive -Environment $environment -TimeoutSeconds 180
         }
         function script:Get-DemoVersion {
@@ -296,8 +304,8 @@ Export-ModuleMember -Function Update-Package
     It 'refuses a repository path with brackets instead of silently finding no package' {
         $bracket = Join-Path $TestDrive 'br[1]'
         New-Item -ItemType Directory -Path $bracket | Out-Null
-        Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'update_all.ps1') -Destination $bracket
-        $run = Invoke-UpdateAll -Arguments '-NoPush -NoGit' -Script (Join-Path $bracket 'update_all.ps1')
+        $copy = Copy-RepoScript -Root $bracket -Name 'update_all.bat'
+        $run = Invoke-UpdateAll -Arguments '-NoPush -NoGit' -Script $copy
         $run.ExitCode | Should -Be 1
         "$($run.Output)$($run.Error)" | Should -Match 'corchetes'
     }
@@ -305,8 +313,8 @@ Export-ModuleMember -Function Update-Package
     It 'fails when there is no package at all' {
         $empty = Join-Path $TestDrive 'empty'
         New-Item -ItemType Directory -Path $empty | Out-Null
-        Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'update_all.ps1') -Destination $empty
-        $run = Invoke-UpdateAll -Arguments '-NoPush -NoGit' -Script (Join-Path $empty 'update_all.ps1')
+        $copy = Copy-RepoScript -Root $empty -Name 'update_all.bat'
+        $run = Invoke-UpdateAll -Arguments '-NoPush -NoGit' -Script $copy
         $run.ExitCode | Should -Be 1
         "$($run.Output)$($run.Error)" | Should -Match 'No se encontro ningun paquete'
     }
@@ -334,18 +342,18 @@ Export-ModuleMember -Function Update-Package
 
     It '-Force -NoPush packs every real package (its pre-pack check finds all the files the scripts need)' {
         # The real package folders with their real update.ps1, run against the Chocolatey-AU stub with no new
-        # version: update_all.ps1 refuses to pack a package whose tools\*.ps1 reference a missing file
+        # version: update_all.bat refuses to pack a package whose tools\*.ps1 reference a missing file
         Remove-Item -LiteralPath $script:FakeLog -ErrorAction SilentlyContinue
         $real = Join-Path $TestDrive 'real-packages'
         New-Item -ItemType Directory -Path (Join-Path $real $script:Actuales) | Out-Null
-        Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'update_all.ps1') -Destination $real
+        $copy = Copy-RepoScript -Root $real -Name 'update_all.bat'
         $packages = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot $script:Actuales) -Directory |
             Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'update.ps1') } | ForEach-Object Name)
         foreach ($package in $packages) {
             Copy-Item -LiteralPath (Join-Path $script:RepoRoot "$script:Actuales\$package") -Destination (Join-Path $real $script:Actuales) -Recurse
             Get-ChildItem -LiteralPath (Join-Path $real "$script:Actuales\$package") -Filter '*.nupkg' | Remove-Item
         }
-        $run = Invoke-UpdateAll -Arguments '-Force -NoPush' -Script (Join-Path $real 'update_all.ps1')
+        $run = Invoke-UpdateAll -Arguments '-Force -NoPush' -Script $copy
         $run.Output | Should -Not -Match 'Faltan archivos'
         $run.ExitCode | Should -Be 0 -Because "$($run.Output)$($run.Error)"
         foreach ($package in $packages) {

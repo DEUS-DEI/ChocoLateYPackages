@@ -1,3 +1,25 @@
+@echo off
+rem vendor_catalog.bat: the Windows software of the vendors of lib\vendor_catalog.psd1 (Mozilla,
+rem Cloudflare, GitHub, Google, Amazon, Cursor, Fenix) with its latest version and its Chocolatey package.
+rem Without -Install it only asks; with -Install it installs from the vendor (docs\vendor_catalog.md).
+rem   vendor_catalog.bat [-Vendor Mozilla,GitHub] [-NoDiscover] [-OutFile catalogo.md]
+rem   vendor_catalog.bat -Install firefox,kiro [-WhatIf] [-Yes] [-Language es-MX]
+rem
+rem This file IS the script: this batch header, up to the first "exit /b", runs lib\Lanzar.ps1 with
+rem Windows PowerShell 5.1, which reads as PowerShell what follows the line ### POWERSHELL ###, with the
+rem path of this .bat as its file. cmd never gets there. Until 2026-11-14 the PowerShell part was
+rem vendor_catalog.ps1 in the root, and this .bat only launched it. It needs lib\Lanzar.ps1 next to it.
+rem ASCII and CRLF (.gitattributes): cmd needs CRLF, and a BOM would break @echo off.
+setlocal
+if not exist "%~dp0lib\Lanzar.ps1" goto sin_lanzar
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0lib\Lanzar.ps1" "%~dpn0.bat" %*
+exit /b %errorlevel%
+
+:sin_lanzar
+echo [ERROR] Falta "%~dp0lib\Lanzar.ps1": vendor_catalog.bat necesita la carpeta Scripts\lib a su lado.
+exit /b 1
+
+### POWERSHELL ###
 <#
 .SYNOPSIS
     Lists the Windows software that the vendors of vendor_catalog.psd1 publish today (Mozilla, Cloudflare,
@@ -60,19 +82,21 @@
     With -Install: do not ask before each product.
 
 .EXAMPLE
-    .\vendor_catalog.ps1
+    Scripts\vendor_catalog.bat
 
 .EXAMPLE
-    .\vendor_catalog.ps1 -Vendor Cloudflare,GitHub -NoDiscover
+    Scripts\vendor_catalog.bat -Vendor Cloudflare,GitHub -NoDiscover
 
 .EXAMPLE
-    .\vendor_catalog.ps1 -PassThru | Where-Object { $_.Estado -eq 'actual' -and -not $_.Chocolatey } | Format-Table
+    & .\Scripts\lib\Lanzar.ps1 .\Scripts\vendor_catalog.bat -PassThru | Where-Object { $_.Estado -eq 'actual' -and -not $_.Chocolatey } | Format-Table
+
+    From PowerShell, through the loader in the same process, the rows come back as objects.
 
 .EXAMPLE
-    .\vendor_catalog.ps1 -Install firefox,kiro -WhatIf
+    Scripts\vendor_catalog.bat -Install firefox,kiro -WhatIf
 
 .EXAMPLE
-    .\vendor_catalog.ps1 -Install chrome,gh -Yes
+    Scripts\vendor_catalog.bat -Install chrome,gh -Yes
 #>
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
@@ -88,8 +112,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Windows PowerShell downloads are much slower with the progress bar
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-# The secrets in the order of all the owner's repositories (Get-Secret.ps1, when it is next to this script)
-$secretHelper = Join-Path $PSScriptRoot 'Get-Secret.ps1'
+# The repository: the folder above Scripts\ ($PSScriptRoot is the folder of this .bat, see lib\Lanzar.ps1)
+$repoRoot = Split-Path -Parent $PSScriptRoot
+# The secrets in the order of all the owner's repositories (lib\Get-Secret.ps1, when it is there)
+$secretHelper = Join-Path $PSScriptRoot 'lib\Get-Secret.ps1'
 if (Test-Path -LiteralPath $secretHelper -PathType Leaf) { . $secretHelper }
 
 # Fields asked of a repository: its newest stable release with its files. Counting or sorting the releases of
@@ -254,7 +280,7 @@ function Get-PackagingVerdict($Row, [bool] $WingetRead) {
     elseif ($programs) { 'si' }
     elseif ($kinds) { 'si (con Node.js)' }
     else { '?' }
-    # winget only takes msi, msix, exe and zip (README, "winget"); without the index nothing tells that it is there
+    # winget only takes msi, msix, exe and zip (docs\winget.md); without the index nothing tells that it is there
     $winget = if ($Row.NoPackage) { "no ($($Row.NoPackage))" }
     elseif ($Row.Winget -and $Row.Winget -ne '-') { 'ya' }
     elseif ($Row.WingetId -and $script:RepoWinget -contains $Row.WingetId) { "preparado: $($Row.WingetId)" }
@@ -737,7 +763,7 @@ function Invoke-Installer($Spec, [string] $Path) {
 }
 
 # --- Vendors asked for ---
-$catalog = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot 'vendor_catalog.psd1')
+$catalog = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot 'lib\vendor_catalog.psd1')
 $vendors = @($catalog.Vendors)
 if ($Vendor) {
     # powershell -File passes "a,b" as a single string
@@ -748,10 +774,10 @@ if ($Vendor) {
 }
 
 # --- Packages of this repository: active ones, retired IDs and the active package each bridge leads to ---
-$script:ActiveIds = @(Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\actuales') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+$script:ActiveIds = @(Get-ChildItem -Path (Join-Path $repoRoot 'Paquetes\actuales') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
 $script:RetiredIds = @()
 $script:Replaced = @{}
-foreach ($nuspec in Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\descontinuados\*\*.nuspec') -ErrorAction SilentlyContinue) {
+foreach ($nuspec in Get-ChildItem -Path (Join-Path $repoRoot 'Paquetes\descontinuados\*\*.nuspec') -ErrorAction SilentlyContinue) {
     $metadata = ([xml] (Get-Content -LiteralPath $nuspec.FullName -Raw)).package.metadata
     $script:RetiredIds += $metadata.id
     foreach ($dependency in @($metadata.dependencies.dependency | Where-Object { $_.id })) {
@@ -759,10 +785,10 @@ foreach ($nuspec in Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\desco
         $script:Replaced[$dependency.id] += $metadata.id
     }
 }
-# The winget packages that this repository prepares (README, "winget"): the Id of each winget.psd1 and the
+# The winget packages that this repository prepares (docs\winget.md): the Id of each winget.psd1 and the
 # manifests of each winget folder (Vendor.Product.yaml, without .installer or .locale.<language>)
 $script:RepoWinget = @()
-foreach ($folder in Get-ChildItem -Path (Join-Path $PSScriptRoot 'Paquetes\actuales\*\winget') -Directory -ErrorAction SilentlyContinue) {
+foreach ($folder in Get-ChildItem -Path (Join-Path $repoRoot 'Paquetes\actuales\*\winget') -Directory -ErrorAction SilentlyContinue) {
     $data = Join-Path $folder.FullName 'winget.psd1'
     if (Test-Path -LiteralPath $data) { $script:RepoWinget += "$((Import-PowerShellDataFile -Path $data).Id)" }
     $script:RepoWinget += @(Get-ChildItem -LiteralPath $folder.FullName -Filter '*.yaml' |
@@ -1105,7 +1131,7 @@ $verdicts = 'Se puede, de los actuales: en Chocolatey {0}; en winget {1}.' -f (F
 if ($OutFile) {
     $path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutFile)
     $lines = @('# Catalogo de fabricantes', '',
-        "Generado por ``vendor_catalog.ps1`` el $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')) UTC. Fabricantes: $($vendors -join ', ').", '',
+        "Generado por ``Scripts/vendor_catalog.bat`` el $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')) UTC. Fabricantes: $($vendors -join ', ').", '',
         ('Columnas: "winget" es el paquete del producto en el indice de winget y su ultima version ("-": no tiene; vacia: ' +
             'no se leyo el indice). "Descarga" es lo que publica el fabricante para Windows. "Se puede (choco)" y ' +
             '"Se puede (winget)": "ya" (tiene paquete; "(?)": uno con el mismo nombre que el repositorio), "si" (se puede ' +
@@ -1164,5 +1190,5 @@ if ($PassThru) {
     Write-Host $verdicts
     Write-Host 'Chocolatey "(?)": existe un paquete con el mismo nombre que el repositorio; puede no ser el mismo programa.'
     Write-Host 'Se puede: "ya" tiene paquete, "si" se puede hacer, "no (motivo)", "preparado: <id>" lo prepara este repositorio para winget, "?" sin datos. Columna "winget" vacia: no se leyo el indice (-NoDiscover o sin token).'
-    Write-Host 'Columna "Instalar": .\vendor_catalog.bat -Install <nombre>[,<nombre>] baja el instalador oficial del fabricante, comprueba su firma y lo instala, sin Chocolatey.'
+    Write-Host 'Columna "Instalar": Scripts\vendor_catalog.bat -Install <nombre>[,<nombre>] baja el instalador oficial del fabricante, comprueba su firma y lo instala, sin Chocolatey.'
 }

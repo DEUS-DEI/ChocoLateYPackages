@@ -6,11 +6,12 @@
 #      puts them there), in UTF-8 or, made by hand in its window, in UTF-16;
 #   4. a .env.var, .dev.var, .env or .dev.vars file in the root of the repository (NAME=value; all of them are in
 #      .gitignore and never go to GitHub).
-# Returns '' when there is none. It never prints the value nor where it came from. Dot-source it:
-#   . (Join-Path $PSScriptRoot 'Get-Secret.ps1')
-# A .bat runs it instead (push_deprecated.bat): "powershell -File Get-Secret.ps1 -Name NAME" writes only the value,
-# for "for /f" to catch it, and nothing else. No param block on purpose: dot-sourced, it must not create a $Name
-# variable in the caller's scope.
+# Returns '' when there is none. It never prints the value nor where it came from. It lives in Scripts\lib (until
+# 2026-11-14, in the root). Dot-source it, from a script of Scripts\:
+#   . (Join-Path $PSScriptRoot 'lib\Get-Secret.ps1')
+# A .bat runs it instead (push_deprecated.bat, from the root): "powershell -File Scripts\lib\Get-Secret.ps1 -Name
+# NAME" writes only the value, for "for /f" to catch it, and nothing else. No param block on purpose: dot-sourced, it
+# must not create a $Name variable in the caller's scope.
 # Windows PowerShell 5.1 (also PowerShell 7). ASCII.
 
 function Get-ChocoWindowsCredential {
@@ -115,8 +116,8 @@ function Get-ChocoSecret {
         $value = Get-ChocoWindowsCredential -Name $Name
         if ($value) { return $value }
     }
-    # The root of the repository: the folder of this file, wherever the function is called from.
-    $root = Split-Path -Parent $MyInvocation.MyCommand.ScriptBlock.File
+    # The root of the repository: two folders above this file (Scripts\lib), wherever the function is called from.
+    $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.ScriptBlock.File))
     foreach ($file in @('.env.var', '.dev.var', '.env', '.dev.vars')) {
         $path = Join-Path $root $file
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }

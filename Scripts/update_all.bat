@@ -1,3 +1,24 @@
+@echo off
+rem update_all.bat: checks, updates, packs and pushes the active packages (Paquetes\actuales) with
+rem Chocolatey-AU, and commits to Git only what reached Chocolatey. Same parameters as always:
+rem   update_all.bat [-Force] [-Package nicepage,github-desktop-pre] [-NoPush] [-NoGit] [-NoWinget]
+rem It works on the repository (the folder above Scripts\), wherever it is called from.
+rem
+rem This file IS the script: this batch header, up to the first "exit /b", runs lib\Lanzar.ps1 with
+rem Windows PowerShell 5.1, which reads as PowerShell what follows the line ### POWERSHELL ###, with the
+rem path of this .bat as its file. cmd never gets there. Until 2026-11-14 the PowerShell part was
+rem update_all.ps1 in the root, and this .bat only launched it. It needs lib\Lanzar.ps1 next to it.
+rem ASCII and CRLF (.gitattributes): cmd needs CRLF, and a BOM would break @echo off.
+setlocal
+if not exist "%~dp0lib\Lanzar.ps1" goto sin_lanzar
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0lib\Lanzar.ps1" "%~dpn0.bat" %*
+exit /b %errorlevel%
+
+:sin_lanzar
+echo [ERROR] Falta "%~dp0lib\Lanzar.ps1": update_all.bat necesita la carpeta Scripts\lib a su lado.
+exit /b 1
+
+### POWERSHELL ###
 <#
 .SYNOPSIS
     Checks, updates, packs and publishes the active Chocolatey packages of this repository.
@@ -15,7 +36,7 @@
     A package with a winget\winget.psd1 also goes to the winget community repository (microsoft/winget-pkgs):
     for each version published to Chocolatey the script prepares its winget manifests and submits them with
     Komac only when the environment variable WINGET_SUBMIT is 'true' and WINGET_TOKEN holds the GitHub token
-    (README, "winget"). Otherwise nothing is sent.
+    (docs\winget.md). Otherwise nothing is sent.
 
 .PARAMETER Package
     Only process these packages (folder names, comma separated). Default: all active packages.
@@ -35,10 +56,10 @@
     Do not prepare (nor submit) the winget manifests of the published versions.
 
 .EXAMPLE
-    .\update_all.ps1
+    Scripts\update_all.bat
 
 .EXAMPLE
-    .\update_all.ps1 -Package nicepage -Force
+    Scripts\update_all.bat -Package nicepage -Force
 #>
 [CmdletBinding()]
 param(
@@ -51,6 +72,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Windows PowerShell downloads are much slower with the progress bar
+# The repository: the folder above Scripts\ ($PSScriptRoot is the folder of this .bat, see lib\Lanzar.ps1)
+$repoRoot = Split-Path -Parent $PSScriptRoot
 $pushSource = 'https://push.chocolatey.org/'
 $wingetFolder = 'winget'  # folder of a package with its winget data (winget.psd1) and its manifest templates, if any
 
@@ -64,15 +87,15 @@ if ($Force) {
 
 # Chocolatey-AU reads the nuspec with Get-Item -Path, which treats [ and ] as wildcards: in such a folder
 # every package would fail (or, before this check, no package was found at all and the run "succeeded")
-if ($PSScriptRoot -match '[\[\]]') {
-    throw "La ruta del repositorio contiene '[' o ']' ($PSScriptRoot): Chocolatey-AU no la soporta. Clona el repositorio en una ruta sin corchetes."
+if ($repoRoot -match '[\[\]]') {
+    throw "La ruta del repositorio contiene '[' o ']' ($repoRoot): Chocolatey-AU no la soporta. Clona el repositorio en una ruta sin corchetes."
 }
 
-# Secrets in the order of all the owner's repositories (Get-Secret.ps1, when it is next to this script): the
+# Secrets in the order of all the owner's repositories (lib\Get-Secret.ps1, when it is there): the
 # environment of this run wins (in GitHub Actions, the repository secrets), then the variables saved in Windows,
 # the Windows Credential Manager and a .env.var/.dev.var in the root of the repository. Only for this process and
 # what it starts (Chocolatey-AU and the update.ps1 jobs, choco, komac); never printed nor saved.
-$secretHelper = Join-Path $PSScriptRoot 'Get-Secret.ps1'
+$secretHelper = Join-Path $PSScriptRoot 'lib\Get-Secret.ps1'
 if (Test-Path -LiteralPath $secretHelper -PathType Leaf) {
     . $secretHelper
     foreach ($secretName in @('CHOCO_API_KEY', 'GITHUB_TOKEN', 'WINGET_TOKEN')) {
@@ -103,7 +126,7 @@ if (Get-Module -ListAvailable -Name Chocolatey-AU) {
 
 # Active packages = folders of Paquetes\actuales with an update.ps1 (retired IDs live in Paquetes\descontinuados)
 $packagesFolder = 'Paquetes/actuales'  # relative to the repository, with "/": it is also the path given to Git
-$packagesRoot = Join-Path $PSScriptRoot $packagesFolder
+$packagesRoot = Join-Path $repoRoot $packagesFolder
 $packageDirs = @(Get-ChildItem -Path $packagesRoot -Directory -ErrorAction SilentlyContinue |
     Where-Object { Test-Path (Join-Path $_.FullName 'update.ps1') })
 if (-not $packageDirs) { throw "No se encontro ningun paquete (carpetas con update.ps1) en $packagesRoot" }
@@ -276,22 +299,22 @@ $report | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 function Sync-GitRemote([bool] $HasNewCommit) {
     # Pushes every local commit, including one left behind by a previous run whose push failed.
     # If the remote moved on meanwhile (e.g. another run), rebase onto it and retry once.
-    $ahead = Invoke-Tool git -C $PSScriptRoot rev-list --count '@{u}..HEAD' 2>$null
+    $ahead = Invoke-Tool git -C $repoRoot rev-list --count '@{u}..HEAD' 2>$null
     if ($LASTEXITCODE -ne 0) {
         # No upstream branch: publish it only if it carries automated commits (from this run or from a
         # previous one whose push failed) that are not on any remote yet
-        $pending = @(Invoke-Tool git -C $PSScriptRoot log HEAD --not --remotes --format=%s) -like 'chore: automated update of*'
+        $pending = @(Invoke-Tool git -C $repoRoot log HEAD --not --remotes --format=%s) -like 'chore: automated update of*'
         if (-not ($HasNewCommit -or $pending)) { return $true }
-        $branch = Invoke-Tool git -C $PSScriptRoot symbolic-ref --short -q HEAD
+        $branch = Invoke-Tool git -C $repoRoot symbolic-ref --short -q HEAD
         if (-not $branch) { Write-Host '[ERROR] HEAD desconectado (detached): no se puede hacer push.' -ForegroundColor Red; return $false }
-        Invoke-Tool git -C $PSScriptRoot push --set-upstream origin $branch | Out-Host
+        Invoke-Tool git -C $repoRoot push --set-upstream origin $branch | Out-Host
         return ($LASTEXITCODE -eq 0)
     }
     if (-not ($ahead -as [int])) { return $true }
-    Invoke-Tool git -C $PSScriptRoot push | Out-Host
+    Invoke-Tool git -C $repoRoot push | Out-Host
     if ($LASTEXITCODE -ne 0) {
-        Invoke-Tool git -C $PSScriptRoot pull --rebase --autostash | Out-Host
-        if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $PSScriptRoot push | Out-Host }
+        Invoke-Tool git -C $repoRoot pull --rebase --autostash | Out-Host
+        if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $repoRoot push | Out-Host }
     }
     return ($LASTEXITCODE -eq 0)
 }
@@ -301,15 +324,15 @@ if ($NoPush -or $NoGit) {
 } else {
     # Forced pushes count too (e.g. a fix version edited by hand), but only if their folder has changes
     $published = @($report | Where-Object { $_.Estado -in 'Actualizado', 'Push parcial', 'Registrado' -or
-        ($_.Estado -eq 'Forzado' -and (Invoke-Tool git -C $PSScriptRoot status --porcelain "$packagesFolder/$($_.Paquete)")) })
+        ($_.Estado -eq 'Forzado' -and (Invoke-Tool git -C $repoRoot status --porcelain "$packagesFolder/$($_.Paquete)")) })
     $gitOk = $true
     if ($published) {
         Write-Host '>>> Sincronizando cambios con Git...' -ForegroundColor Cyan
         $paths = @($published | ForEach-Object { "$packagesFolder/$($_.Paquete)" })
         $message = 'chore: automated update of ' + (($published | ForEach-Object { "$($_.Paquete) v$($_.Nueva)" }) -join ', ')
         # Commit only the published packages ("--only"), never other changes the user had already staged
-        Invoke-Tool git -C $PSScriptRoot add @paths
-        if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $PSScriptRoot commit --only -m $message @paths }
+        Invoke-Tool git -C $repoRoot add @paths
+        if ($LASTEXITCODE -eq 0) { Invoke-Tool git -C $repoRoot commit --only -m $message @paths }
         $gitOk = ($LASTEXITCODE -eq 0)
     }
     if ($gitOk) { $gitOk = Sync-GitRemote -HasNewCommit ($published.Count -gt 0) }
@@ -326,7 +349,7 @@ if ($NoPush -or $NoGit) {
     }
 }
 
-# --- WINGET: the versions published above, for the winget community repository (README, "winget") ---
+# --- WINGET: the versions published above, for the winget community repository (docs\winget.md) ---
 function Expand-WingetValue([string] $Template, [hashtable] $Data) {
     # Replaces each {Key} of a value of winget.psd1 with the value of Key in AU's $Latest
     $text = $Template
@@ -407,7 +430,7 @@ if ($wingetQueue.Count) {
     } elseif (-not $wingetSubmit) {
         Write-Host '    Solo se preparan: no se envia nada (WINGET_SUBMIT no es true).' -ForegroundColor Gray
     }
-    $wingetOutput = if ($env:WINGET_OUTPUT) { $env:WINGET_OUTPUT } else { Join-Path $PSScriptRoot 'winget-manifests' }
+    $wingetOutput = if ($env:WINGET_OUTPUT) { $env:WINGET_OUTPUT } else { Join-Path $repoRoot 'winget-manifests' }
     $komac = Get-Command -Name komac -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     # Komac reads the token from GITHUB_TOKEN (so it never goes on its command line). Only looking (komac
     # update --dry-run) works with any token that can read GitHub, such as the workflow's own
