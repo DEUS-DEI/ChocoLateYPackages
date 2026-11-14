@@ -1,9 +1,10 @@
 @echo off
 setlocal
 title AU Maestro - Panel de Control
-rem Trabajar siempre desde la carpeta del repositorio, se lance desde donde se lance (pushd, y no cd /d,
-rem tambien funciona desde una ruta UNC). Las opciones llaman a .\update_all.bat relativo a esta carpeta.
-pushd "%~dp0" || (echo [ERROR] No se pudo entrar en "%~dp0". & pause & exit /b 1)
+rem Trabajar siempre desde la carpeta del repositorio (la de encima de Scripts\, donde esta este .bat), se
+rem lance desde donde se lance (pushd, y no cd /d, tambien funciona desde una ruta UNC). Las opciones llaman a
+rem Scripts\update_all.bat relativo a esa carpeta.
+pushd "%~dp0.." || (echo [ERROR] No se pudo entrar en "%~dp0..". & pause & exit /b 1)
 
 :main_menu
 set "timer=15"
@@ -35,14 +36,14 @@ goto end
 :normal_update
 echo.
 echo ^>^>^> Iniciando actualizacion automatica normal...
-call .\update_all.bat
+call Scripts\update_all.bat
 timeout /t 15
 goto main_menu
 
 :force_all
 echo.
 echo ^>^>^> Iniciando FORZADO de todos los paquetes...
-call .\update_all.bat -Force
+call Scripts\update_all.bat -Force
 timeout /t 15
 goto main_menu
 
@@ -84,7 +85,7 @@ set "pkg=%sel%"
 
 echo.
 echo ^>^>^> Forzando actualizacion + push para: %pkg%
-call .\update_all.bat -Force -Package %pkg%
+call Scripts\update_all.bat -Force -Package %pkg%
 timeout /t 15
 goto choose_package
 
@@ -102,10 +103,10 @@ echo.
 where gh >nul 2>nul
 if errorlevel 1 goto gh_missing
 
-rem La clave sale primero de donde la buscan todos los repositorios del dueno (Get-Secret.ps1: el entorno, las
-rem variables guardadas en Windows, el Administrador de credenciales y un .env.var o .dev.var de la raiz); si no
-rem hay, se pide oculta. Se pasa a gh por la entrada estandar (no queda en pantalla ni en el historial).
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$k = ''; if (Test-Path -LiteralPath 'Get-Secret.ps1' -PathType Leaf) { . '.\Get-Secret.ps1'; $k = Get-ChocoSecret -Name 'CHOCO_API_KEY' }; if ($k) { Write-Host 'Se usa la CHOCO_API_KEY que ya tienes guardada (sin mostrarla).' } else { $s = Read-Host '>>> Pega tu Chocolatey API Key' -AsSecureString; $k = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)) }; if (-not $k) { Write-Host '[ERROR] No se ingreso ninguna clave.'; exit 1 }; gh auth status *> $null; if ($LASTEXITCODE -ne 0) { Write-Host '[ERROR] gh no tiene sesion iniciada. Ejecuta: gh auth login'; exit 1 }; $k | gh secret set CHOCO_API_KEY; if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Secreto CHOCO_API_KEY configurado.' } else { Write-Host '[ERROR] No se pudo configurar el secreto.' }"
+rem La clave sale primero de donde la buscan todos los repositorios del dueno (Scripts\lib\Get-Secret.ps1: el
+rem entorno, las variables guardadas en Windows, el Administrador de credenciales y un .env.var o .dev.var de la
+rem raiz); si no hay, se pide oculta. Se pasa a gh por la entrada estandar (no queda en pantalla ni en el historial).
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$k = ''; if (Test-Path -LiteralPath 'Scripts\lib\Get-Secret.ps1' -PathType Leaf) { . '.\Scripts\lib\Get-Secret.ps1'; $k = Get-ChocoSecret -Name 'CHOCO_API_KEY' }; if ($k) { Write-Host 'Se usa la CHOCO_API_KEY que ya tienes guardada (sin mostrarla).' } else { $s = Read-Host '>>> Pega tu Chocolatey API Key' -AsSecureString; $k = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)) }; if (-not $k) { Write-Host '[ERROR] No se ingreso ninguna clave.'; exit 1 }; gh auth status *> $null; if ($LASTEXITCODE -ne 0) { Write-Host '[ERROR] gh no tiene sesion iniciada. Ejecuta: gh auth login'; exit 1 }; $k | gh secret set CHOCO_API_KEY; if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Secreto CHOCO_API_KEY configurado.' } else { Write-Host '[ERROR] No se pudo configurar el secreto.' }"
 timeout /t 5
 goto main_menu
 

@@ -1,4 +1,4 @@
-# Data of vendor_catalog.ps1: the Windows software of a few vendors, where its latest version is published and,
+# Data of Scripts\vendor_catalog.bat (until 2026-11-14 vendor_catalog.ps1): the Windows software of a few vendors, where its latest version is published and,
 # for the products the script can install, where the official installer is. Nothing here is a package.
 @{
     # Order of the vendors in the report
@@ -150,7 +150,7 @@
     #   Choco                      ID of its package in the Chocolatey community repository, if it has one
     #   Pre                        $true when that package only has pre-release versions
     #   Winget                     ID of its package in the winget community repository, or of the one that this
-    #                              repository prepares for winget (README, "winget")
+    #                              repository prepares for winget (docs\winget.md)
     #   Format                     what the vendor publishes for Windows ('exe, msi'), when it is not the files of
     #                              a GitHub release (the script reads those)
     #   NoPackage, NoWinget        why it cannot be packaged at all, or not for winget (report, "Se puede")

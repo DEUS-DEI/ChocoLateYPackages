@@ -21,12 +21,12 @@ function global:au_SearchReplace {
 function global:au_GetLatest {
   # Authenticated requests avoid the 60 requests/hour limit of the anonymous GitHub API
   $headers = @{ 'User-Agent' = 'chocolatey-au' }
-  # The token in the order of all the owner's repositories (Get-Secret.ps1 of the repository root): the
-  # environment (update_all.ps1 already puts it there), the variables saved in Windows, the Windows Credential
-  # Manager and a .env.var/.dev.var in the root. Never printed.
+  # The token in the order of all the owner's repositories (Scripts\lib\Get-Secret.ps1 of the repository): the
+  # environment (Scripts\update_all.bat already puts it there), the variables saved in Windows, the Windows
+  # Credential Manager and a .env.var/.dev.var in the root. Never printed.
   $token = $env:GITHUB_TOKEN
   if (-not $token) {
-    $secretHelper = Join-Path $PSScriptRoot '..\..\..\Get-Secret.ps1'
+    $secretHelper = Join-Path $PSScriptRoot '..\..\..\Scripts\lib\Get-Secret.ps1'
     if (Test-Path -LiteralPath $secretHelper -PathType Leaf) { . $secretHelper; $token = Get-ChocoSecret -Name 'GITHUB_TOKEN' }
   }
   if ($token) { $headers.Authorization = "Bearer $token" }

@@ -1,17 +1,22 @@
-# Pester 5 tests for vendor_catalog.ps1 and vendor_catalog.psd1 on Windows PowerShell 5.1. Nothing goes out to
-# the network: the script runs from a copy in TestDrive with a small catalog of invented vendors, and every
-# request (GitHub, Chocolatey, the vendors) is answered by a mock that fails on any address it does not know.
-# The GitHub token is a fake one and the real "gh" is never called. See tests\README.md.
+# Pester 5 tests for Scripts\vendor_catalog.bat (its PowerShell part) and Scripts\lib\vendor_catalog.psd1 on
+# Windows PowerShell 5.1. Nothing goes out to the network: the script runs from a copy in TestDrive with a small
+# catalog of invented vendors, and every request (GitHub, Chocolatey, the vendors) is answered by a mock that fails
+# on any address it does not know. The GitHub token is a fake one and the real "gh" is never called. See
+# docs\pruebas.md.
 
 BeforeAll {
+    . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
     $script:RepoRoot = Split-Path -Parent $PSScriptRoot
-    $script:CatalogScript = Join-Path $script:RepoRoot 'vendor_catalog.ps1'
+    $script:CatalogScript = Join-Path $script:RepoRoot 'Scripts\vendor_catalog.bat'
+    # Runs the PowerShell part of a copy of the .bat in this process with a hashtable of parameters
+    $script:InvokeSection = Join-Path $PSScriptRoot 'Invoke-Section.ps1'
+    . (Join-Path $script:RepoRoot 'Scripts\lib\Lanzar.ps1')
 
     function script:Import-CatalogCode([string[]] $Function, [string[]] $Variable = @()) {
-        # Defines here some functions of vendor_catalog.ps1, and the script variables they read, without
-        # running the script
+        # Defines here some functions of the PowerShell part of vendor_catalog.bat, and the script variables they
+        # read, without running the script
         $tokens = $null; $errors = $null
-        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:CatalogScript, [ref] $tokens, [ref] $errors)
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput((Get-ChocoSeccionBat -Ruta $script:CatalogScript -Texto), $script:CatalogScript, [ref] $tokens, [ref] $errors)
         foreach ($statement in $ast.EndBlock.Statements) {
             if ($statement -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $Function -contains $statement.Name) {
                 . ([scriptblock]::Create(($statement.Extent.Text -replace '^function ', 'function script:')))
@@ -38,7 +43,7 @@ BeforeAll {
 
 Describe 'vendor_catalog.psd1' {
     BeforeAll {
-        $script:Data = Import-PowerShellDataFile -Path (Join-Path $script:RepoRoot 'vendor_catalog.psd1')
+        $script:Data = Import-PowerShellDataFile -Path (Join-Path $script:RepoRoot 'Scripts\lib\vendor_catalog.psd1')
         # What each source needs to find the latest version
         $script:SourceFields = @{
             Mozilla = 'File', 'Key'; GitHub = @('Repo'); GitHubTag = 'Repo', 'TagPrefix'; Warp = @('Track')
@@ -127,7 +132,7 @@ Describe 'vendor_catalog.psd1' {
     }
 }
 
-Describe 'vendor_catalog.ps1: is the Chocolatey package behind' {
+Describe 'vendor_catalog.bat: is the Chocolatey package behind' {
     BeforeAll {
         Import-CatalogCode -Function 'ConvertTo-VersionPart', 'Test-UpToDate'
     }
@@ -173,7 +178,7 @@ Describe 'vendor_catalog.ps1: is the Chocolatey package behind' {
     }
 }
 
-Describe 'vendor_catalog.ps1: which release and which downloads count' {
+Describe 'vendor_catalog.bat: which release and which downloads count' {
     BeforeAll {
         Import-CatalogCode -Function 'Get-Release', 'Get-WindowsAsset' -Variable '$script:WindowsAsset', '$script:NotSoftware'
     }
@@ -225,7 +230,7 @@ Describe 'vendor_catalog.ps1: which release and which downloads count' {
     }
 }
 
-Describe 'vendor_catalog.ps1: versions and installers of the winget index' {
+Describe 'vendor_catalog.bat: versions and installers of the winget index' {
     BeforeAll {
         Import-CatalogCode -Function 'ConvertTo-SortKey', 'ConvertFrom-WingetManifest'
         $script:Hash = 'C' * 64
@@ -296,13 +301,13 @@ Describe 'vendor_catalog.ps1: versions and installers of the winget index' {
     }
 }
 
-Describe 'vendor_catalog.ps1: the report' {
+Describe 'vendor_catalog.bat: the report' {
     BeforeAll {
         # --- A repository with the script, an invented catalog and packages of its own ---
         $script:Work = Join-Path $TestDrive 'catalog-repo'
         New-Item -ItemType Directory -Path $script:Work | Out-Null
-        Copy-Item -LiteralPath $script:CatalogScript -Destination $script:Work
-        Set-Content -LiteralPath (Join-Path $script:Work 'vendor_catalog.psd1') -Encoding Ascii -Value @'
+        $script:WorkScript = Copy-RepoScript -Root $script:Work -Name 'vendor_catalog.bat'
+        Set-Content -LiteralPath (Join-Path $script:Work 'Scripts\lib\vendor_catalog.psd1') -Encoding Ascii -Value @'
 @{
     Vendors  = @('Acme', 'Beta Works (Someone)')
     Owners   = @{ 'Acme' = @('acme'); 'Beta Works (Someone)' = @('betaworks') }
@@ -339,7 +344,8 @@ Describe 'vendor_catalog.ps1: the report' {
         }
 
         # --- What the vendors, GitHub and Chocolatey answer ---
-        # The mocks run inside the scopes of vendor_catalog.ps1, where $script: is that file's scope and not
+        # The mocks run inside the scopes of the PowerShell part of vendor_catalog.bat, which tests\Invoke-Section.ps1
+        # runs: there $script: is that file's scope and not
         # this one's. They read this one object as plain $Fake, which PowerShell finds up the call stack.
         $script:Fake = @{}
         $recent = (Get-Date).ToUniversalTime().AddDays(-30)
@@ -468,8 +474,7 @@ Describe 'vendor_catalog.ps1: the report' {
         function script:Invoke-Catalog([hashtable] $Parameters = @{}) {
             # Runs the copy of the script and returns its rows, what it printed and the requests it made
             $script:Fake.Requests = New-Object System.Collections.Generic.List[object]
-            $catalog = Join-Path $script:Work 'vendor_catalog.ps1'
-            $output = @(& $catalog @Parameters 6>&1 3>&1)
+            $output = @(& $script:InvokeSection -Bat $script:WorkScript -Parameters $Parameters 6>&1 3>&1)
             [pscustomobject]@{
                 Rows     = @($output | Where-Object { $_ -isnot [System.Management.Automation.InformationRecord] -and $_ -isnot [System.Management.Automation.WarningRecord] })
                 Text     = @($output | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { "$_" }) -join "`n"
@@ -766,14 +771,14 @@ Describe 'vendor_catalog.ps1: the report' {
     }
 }
 
-Describe 'vendor_catalog.ps1: installing from the vendor' {
+Describe 'vendor_catalog.bat: installing from the vendor' {
     # Nothing is downloaded or run: Invoke-WebRequest writes an empty file, Get-AuthenticodeSignature answers
     # what each test says and Start-Process only records how it was called.
     BeforeAll {
         $script:InstallRepo = Join-Path $TestDrive 'install-repo'
         New-Item -ItemType Directory -Path $script:InstallRepo | Out-Null
-        Copy-Item -LiteralPath $script:CatalogScript -Destination $script:InstallRepo
-        Set-Content -LiteralPath (Join-Path $script:InstallRepo 'vendor_catalog.psd1') -Encoding Ascii -Value @'
+        $script:InstallScript = Copy-RepoScript -Root $script:InstallRepo -Name 'vendor_catalog.bat'
+        Set-Content -LiteralPath (Join-Path $script:InstallRepo 'Scripts\lib\vendor_catalog.psd1') -Encoding Ascii -Value @'
 @{
     Vendors  = @('Acme')
     Owners   = @{ 'Acme' = @('acme') }
@@ -918,8 +923,9 @@ Describe 'vendor_catalog.ps1: installing from the vendor' {
             # Runs the copy of the script with -Install and returns its rows and what it printed
             foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started', 'Folders') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
             $script:Fake.Searches = 0
-            $catalog = Join-Path $script:InstallRepo 'vendor_catalog.ps1'
-            $output = @(& $catalog @Parameters -PassThru 6>&1 3>&1)
+            $withPassThru = $Parameters.Clone()
+            $withPassThru.PassThru = $true
+            $output = @(& $script:InvokeSection -Bat $script:InstallScript -Parameters $withPassThru 6>&1 3>&1)
             [pscustomobject]@{
                 Rows = @($output | Where-Object { $_ -isnot [System.Management.Automation.InformationRecord] -and $_ -isnot [System.Management.Automation.WarningRecord] })
                 Text = @($output | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { "$_" }) -join "`n"
@@ -1302,7 +1308,7 @@ Installers:
 
     It 'the report names what can be installed and reads the sources that installers use' {
         foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
-        $rows = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -NoDiscover -PassThru 6>$null)
+        $rows = @(& $script:InvokeSection -Bat $script:InstallScript -Parameters @{ NoDiscover = $true; PassThru = $true } 6>$null)
         $byProduct = @{}
         foreach ($row in $rows) { $byProduct[$row.Producto] = $row }
         @($rows | Where-Object { $_.Instalar } | ForEach-Object Instalar | Sort-Object) | Should -Be 'browser', 'client', 'desktop', 'editor', 'loose', 'plain', 'sdk', 'sync', 'tunnel'
@@ -1323,7 +1329,7 @@ Installers:
     Context 'the winget index' {
         It 'lists everything the index has of the publishers of the vendor, each with its latest version' {
             foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started', 'Folders') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
-            $rows = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -PassThru 6>$null | Where-Object { $_.Origen -eq 'winget' })
+            $rows = @(& $script:InvokeSection -Bat $script:InstallScript -Parameters @{ PassThru = $true } 6>$null | Where-Object { $_.Origen -eq 'winget' })
             @($rows | ForEach-Object { "$($_.Producto) $($_.Version)" }) | Should -Be @(
                 'Acme.Bundle 2.0', 'Acme.Inner 1.0', 'Acme.Kit 0.9', 'Acme.Old 3.1', 'Acme.Portable 1.0', 'Acme.Suite.21.JDK 21.0.12.12'
                 'Acme.Suite.25.JDK 25.0.4.10', 'Acme.Tool 1.10.0', 'Acme.Tool.Beta 1.11.0', 'Acme.Tool.Beta.EXE 1.11.0', 'Acme.Wrong 1.0')
@@ -1338,7 +1344,7 @@ Installers:
         It 'prints the index in a table of its own and writes it to the Markdown report' {
             $report = Join-Path $TestDrive 'indice.md'
             foreach ($list in 'Requests', 'Downloads', 'Checked', 'Started', 'Folders') { $script:Fake[$list] = New-Object System.Collections.Generic.List[object] }
-            $output = @(& (Join-Path $script:InstallRepo 'vendor_catalog.ps1') -OutFile $report 6>&1 3>&1)
+            $output = @(& $script:InvokeSection -Bat $script:InstallScript -Parameters @{ OutFile = $report } 6>&1 3>&1)
             $text = @($output | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { "$_" }) -join "`n"
             $text | Should -Match '(?m)^  INDICE DE WINGET \(11\)$'
             $text | Should -Match '(?m)^Acme\s+Acme\.Suite\.21\.JDK\s+21\.0\.12\.12\s+-\s+si\s*$'

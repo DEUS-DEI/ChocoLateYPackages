@@ -1,11 +1,12 @@
 @echo off
 rem Sin expansion retardada: con ella una "!" en la ruta del repositorio rompe el cambio de carpeta
 setlocal
-rem Trabajar siempre desde la carpeta del repositorio, se lance desde donde se lance. pushd (y no cd /d)
-rem tambien funciona desde una ruta UNC. Si falla, se para: nunca empaquetar en la carpeta de quien lo llama.
-pushd "%~dp0" || (echo [ERROR] No se pudo entrar en "%~dp0". & pause & exit /b 1)
+rem Trabajar siempre desde la carpeta del repositorio (la de encima de Scripts\, donde esta este .bat), se
+rem lance desde donde se lance. pushd (y no cd /d) tambien funciona desde una ruta UNC. Si falla, se para:
+rem nunca empaquetar en la carpeta de quien lo llama.
+pushd "%~dp0.." || (echo [ERROR] No se pudo entrar en "%~dp0..". & pause & exit /b 1)
 
-rem Uso: push_deprecated.bat [--no-pause]   Codigo de salida: 0 si todo se publico, 1 si algo fallo.
+rem Uso: Scripts\push_deprecated.bat [--no-pause]   Codigo de salida: 0 si todo se publico, 1 si algo fallo.
 set "failed=0"
 
 echo ========================================================
@@ -35,12 +36,12 @@ REM  warp-beta              --> cloudflare-warp-pre
 REM ============================================================
 set "bridges=fenix-web-server-beta fenix-web-server-pre github-desktop-beta thunderbird-beta thunderbird-daily warp-beta"
 
-rem Sin CHOCO_API_KEY en el entorno, se busca como en todos los repositorios del dueno (Get-Secret.ps1, desde la
-rem carpeta del repositorio): las variables guardadas en Windows, el Administrador de credenciales y un .env.var o
-rem .dev.var de la raiz. Nunca se imprime. Si no hay, choco usa la clave guardada con "choco apikey add".
+rem Sin CHOCO_API_KEY en el entorno, se busca como en todos los repositorios del dueno (Scripts\lib\Get-Secret.ps1,
+rem desde la carpeta del repositorio): las variables guardadas en Windows, el Administrador de credenciales y un
+rem .env.var o .dev.var de la raiz. Nunca se imprime. Si no hay, choco usa la clave guardada con "choco apikey add".
 if defined CHOCO_API_KEY goto clave_lista
-if not exist "Get-Secret.ps1" goto clave_lista
-for /f "usebackq delims=" %%k in (`""%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "Get-Secret.ps1" -Name CHOCO_API_KEY"`) do set "CHOCO_API_KEY=%%k"
+if not exist "Scripts\lib\Get-Secret.ps1" goto clave_lista
+for /f "usebackq delims=" %%k in (`""%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "Scripts\lib\Get-Secret.ps1" -Name CHOCO_API_KEY"`) do set "CHOCO_API_KEY=%%k"
 :clave_lista
 
 echo Procesando bridges de transicion...
@@ -64,7 +65,7 @@ echo    ya existente, siguiendo la guia oficial:
 echo    https://docs.chocolatey.org/en-us/community-repository/maintainers/deprecate-a-chocolatey-package/
 echo  - Cuando el bridge este aprobado, oculta (unlist) todas
 echo    las versiones anteriores del ID deprecado.
-echo  - Los paquetes ACTIVOS se gestionan con update_all.bat
+echo  - Los paquetes ACTIVOS se gestionan con Scripts\update_all.bat
 echo  - Estado de moderacion: https://ch0.co/moderation
 echo ========================================================
 if /i not "%~1"=="--no-pause" pause
