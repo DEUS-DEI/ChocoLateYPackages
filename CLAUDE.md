@@ -67,6 +67,15 @@ abajo.
 - Las funciones `au_GetLatest` y `au_SearchReplace` las llama Chocolatey-AU con su firma; no cambiarlas de forma.
   `au_GetLatest` debe devolver solo lo que AU espera (nada de `Write-Output` extra).
 
+## Solo un menu deja la ventana abierta
+- Lo pidio el usuario el 2026-11-15, para todos sus repositorios ("verifica que otro script no dejen ventanas
+  abiertas o no se que sean estrictamente menus"): al acabar bien ningun script espera una tecla; el `pause` del
+  final va solo con error, o cuando lo unico que hace es ensenar algo que si no no se alcanzaria a leer. Dentro de un
+  menu, la espera despues de una opcion se queda.
+- `Scripts\menu.bat` es un menu: sus `timeout` despues de cada opcion se quedan. `Scripts\push_deprecated.bat` espera
+  una tecla solo si algo fallo (y nunca con `--no-pause`); hasta ese dia esperaba siempre. `update_all.bat` y
+  `vendor_catalog.bat` nunca esperaban.
+
 ## Sin pruebas ni tests
 - Lo pidio el usuario el 2026-10-20, para acelerar el trabajo: antes de subir no se corren tests ni pruebas (ni
   `Invoke-ScriptAnalyzer`, ni `Invoke-Pester`, ni la busqueda de `docs/pruebas.md`, ni nada que "compruebe" el

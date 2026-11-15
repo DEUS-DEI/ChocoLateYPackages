@@ -18,6 +18,8 @@ y no este archivo. Si una regla cambia, se cambia en los dos.
   contestar. Nunca se fusiona el PR de un tercero sin que el usuario lo diga.
 - **Sin pruebas antes de subir**, salvo que el usuario las pida (el CI si las corre). Las pruebas usan un `choco` falso
   y nunca publican nada.
+- **Solo un menu deja la ventana abierta** (2026-11-15): al acabar bien ningun script espera una tecla; el `pause`
+  del final, solo con error o cuando solo ensena algo.
 - **Scripts en `Scripts/`, documentacion en `docs/`.** `update_all.bat` y `vendor_catalog.bat` llevan su PowerShell
   dentro, detras de `### POWERSHELL ###` (los lanza `Scripts\lib\Lanzar.ps1` con Windows PowerShell 5.1); un script
   nuevo va igual, no como un `.ps1` suelto. Los `update.ps1` y `tools\*.ps1` de cada paquete se quedan como `.ps1` en

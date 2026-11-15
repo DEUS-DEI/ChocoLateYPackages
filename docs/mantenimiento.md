@@ -61,7 +61,7 @@ Uso (desde la raíz del repositorio; cada script trabaja sobre el repositorio au
 | `Scripts\update_all.bat -NoPush` | Solo empaqueta para revisar: deja los `.nupkg` y restaura los archivos, así la siguiente ejecución normal publica la versión nueva (si la hay: un paquete que solo se empaquetó por `-Force` no se publica) |
 | `Scripts\update_all.bat -NoGit` | Publica en Chocolatey sin hacer commit/push en Git |
 | `Scripts\update_all.bat -NoWinget` | No prepara las versiones para winget (ver [winget](winget.md)) |
-| `Scripts\push_deprecated.bat` | Publica los bridges de `Paquetes/descontinuados/`. Termina con código 1 si falla algún empaquetado o push; `--no-pause` no espera una tecla al final |
+| `Scripts\push_deprecated.bat` | Publica los bridges de `Paquetes/descontinuados/`. Termina con código 1 si falla algún empaquetado o push; solo espera una tecla al final si algo falló (desde el 2026-11-15; antes, siempre), y con `--no-pause` nunca |
 | `cd Paquetes\actuales\nicepage` y `powershell -File update.ps1` | Prueba un solo paquete con AU |
 | `Scripts\vendor_catalog.bat` | Lista el software para Windows de Mozilla, Cloudflare, GitHub, Google, Amazon, Cursor y Fenix con su última versión y su paquete en Chocolatey. Solo consulta (ver [el catálogo de fabricantes](vendor_catalog.md)) |
 | `Scripts\vendor_catalog.bat -Install chrome,kiro` | Instala esos productos con el instalador oficial del fabricante, sin Chocolatey. También acepta nombres del índice de winget (`Google.QuickShare`) |

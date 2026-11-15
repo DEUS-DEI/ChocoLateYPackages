@@ -7,6 +7,8 @@ rem nunca empaquetar en la carpeta de quien lo llama.
 pushd "%~dp0.." || (echo [ERROR] No se pudo entrar en "%~dp0..". & pause & exit /b 1)
 
 rem Uso: Scripts\push_deprecated.bat [--no-pause]   Codigo de salida: 0 si todo se publico, 1 si algo fallo.
+rem Solo espera una tecla al final si algo fallo, y nunca con --no-pause: al acabar bien la ventana se cierra
+rem sola (2026-11-15, lo pidio el usuario: solo un menu deja la ventana abierta).
 set "failed=0"
 
 echo ========================================================
@@ -68,7 +70,7 @@ echo    las versiones anteriores del ID deprecado.
 echo  - Los paquetes ACTIVOS se gestionan con Scripts\update_all.bat
 echo  - Estado de moderacion: https://ch0.co/moderation
 echo ========================================================
-if /i not "%~1"=="--no-pause" pause
+if /i not "%~1"=="--no-pause" if not "%failed%"=="0" pause
 popd
 exit /b %failed%
 
