@@ -4,7 +4,7 @@ setlocal
 rem Trabajar siempre desde la carpeta del repositorio (la de encima de Scripts\, donde esta este .bat), se
 rem lance desde donde se lance. pushd (y no cd /d) tambien funciona desde una ruta UNC. Si falla, se para:
 rem nunca empaquetar en la carpeta de quien lo llama.
-pushd "%~dp0.." || (echo [ERROR] No se pudo entrar en "%~dp0..". & pause & exit /b 1)
+pushd "%~dp0.." || (echo [ERROR] No se pudo entrar en "%~dp0..". & (if /i not "%~1"=="--no-pause" pause) & exit /b 1)
 
 rem Uso: Scripts\push_deprecated.bat [--no-pause]   Codigo de salida: 0 si todo se publico, 1 si algo fallo.
 rem Solo espera una tecla al final si algo fallo, y nunca con --no-pause: al acabar bien la ventana se cierra
