@@ -27,7 +27,7 @@ Al terminar, `Scripts\update_all.bat` muestra una tabla con cada versión: `Prep
 
 **Para empezar a enviar:**
 
-1. Crea un token **clásico** de GitHub con el permiso `public_repo` (Komac no puede abrir el PR con uno de grano fino) y guárdalo como secreto `WINGET_TOKEN` del repositorio. Komac crea solo el fork `DEUS-DEI/winget-pkgs` desde el que abre los PR.
+1. Crea un token **clásico** de GitHub con el permiso `public_repo` (Komac no puede abrir el PR con uno de grano fino) y guárdalo como secreto `WINGET_TOKEN` del entorno `chocolatey` (*Settings → Environments → chocolatey → Add environment secret*, o `gh secret set WINGET_TOKEN --env chocolatey`), no del repositorio: desde el 2026-11-21 los secretos del workflow van ahí, para que solo `main` los use. La opción 4 de `Scripts\menu.bat` solo pone `CHOCO_API_KEY`. Komac crea solo el fork `DEUS-DEI/winget-pkgs` desde el que abre los PR.
 2. Crea la variable de repositorio `WINGET_SUBMIT` con el valor `true` (*Settings → Secrets and variables → Actions → Variables*). Para dejar de enviar, bórrala o cámbiale el valor.
 3. En el primer PR, un bot de Microsoft pide firmar su acuerdo de contribución (CLA) con un comentario: hay que hacerlo una vez.
 4. Fenix 2.0.0 no cambia, así que `Scripts\update_all.bat` nunca lo envía: se manda una vez a mano, con Komac instalado (`winget install komac`) y el token en `GITHUB_TOKEN`:
