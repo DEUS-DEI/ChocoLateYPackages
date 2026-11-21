@@ -18,8 +18,10 @@ abajo.
   pendiente o con conflicto: se arregla primero. No cambia lo de "Sin pruebas ni tests" ni vale para un PR que el
   usuario pida no fusionar o que no abrio la sesion (el repositorio es publico: el PR de un tercero nunca se fusiona
   sin que el usuario lo diga). La fusion automatica de GitHub (auto-merge) esta activada, pero `main` no exige
-  comprobaciones (el ruleset "Proteger main" solo impide borrarla y el push forzado), asi que nada hace esperar a
-  `gh pr merge --auto`: la fusion la hace la sesion.
+  comprobaciones (el ruleset "Proteger main" solo impide borrarla y el push forzado, porque el bot de
+  `update_packages.yml` sube a `main` directo cada dia), asi que nada hace esperar a `gh pr merge --auto`: la fusion
+  la hace la sesion. Desde el 2026-11-21 el repositorio solo permite fusionar con commit de merge (squash y rebase
+  apagados).
 
 ## Estructura
 - `Scripts/`: los scripts de mantenimiento (desde el 2026-11-14; antes en la raiz). `update_all.bat` y
@@ -90,6 +92,10 @@ abajo.
 ## Secretos
 - La API key de Chocolatey vive en el secreto `CHOCO_API_KEY` de GitHub y en `choco apikey` de la PC. Nunca
   imprimirla ni escribirla en el repositorio. Lo mismo con el token de winget (`WINGET_TOKEN`), cuando exista.
+- Desde el 2026-11-21 esos secretos van en el **entorno `chocolatey`** de GitHub (Settings -> Environments), que solo
+  usa `main`; `update_packages.yml` lo declara en su job y la opcion 4 de `Scripts\menu.bat` pone ahi la clave y
+  borra la del repositorio. Hasta que el usuario corra esa opcion, el workflow sigue con el secreto del repositorio
+  (la clave no esta en esta PC).
 - En la PC los scripts los toman con `Scripts/lib/Get-Secret.ps1`, en el orden de todos los repositorios del dueno
   (entorno, credencial de Windows, `.env.var`/`.dev.var` de la raiz), sin decir nunca el valor ni de donde salio.
 

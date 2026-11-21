@@ -68,7 +68,7 @@ Uso (desde la raíz del repositorio; cada script trabaja sobre el repositorio au
 
 Desde PowerShell, sin `cmd.exe`, `update_all.bat` y `vendor_catalog.bat` se lanzan igual que lo hace su cabecera: `powershell -File Scripts\lib\Lanzar.ps1 Scripts\update_all.bat -NoPush`. En el mismo proceso (`& .\Scripts\lib\Lanzar.ps1 .\Scripts\vendor_catalog.bat -NoDiscover -PassThru`), `-PassThru` devuelve objetos.
 
-En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` (se puede configurar desde la opción 4 de `Scripts\menu.bat`).
+En GitHub Actions la API Key se toma del secreto `CHOCO_API_KEY` del entorno `chocolatey` (*Settings → Environments*), que solo usa `main` desde el 2026-11-21: una rama o un PR no la pueden leer. Se configura desde la opción 4 de `Scripts\menu.bat`, que la pone en el entorno y borra la que hubiera en el repositorio (si no puede borrarla, lo avisa). Mientras el entorno no la tenga, el workflow usa la del repositorio. La opción 4 se corre **con `update_packages.yml` ya declarando el entorno en `main`** (desde el PR 26): antes, el workflow de `main` no veía el entorno y, borrada la del repositorio, se quedaba sin clave.
 
 En la PC, los scripts toman `CHOCO_API_KEY`, `GITHUB_TOKEN` (o `GH_TOKEN`) y `WINGET_TOKEN` con `Scripts\lib\Get-Secret.ps1`, en este orden: las variables de entorno (de la ejecución y las guardadas en Windows), el Administrador de credenciales de Windows (una credencial genérica con ese nombre) y, al final, un `.env.var`, `.dev.var`, `.env` o `.dev.vars` de la raíz del repositorio (`NOMBRE=valor`; todos en `.gitignore`). Ningún mensaje dice el valor ni de dónde salió. Sin ninguno, `choco` usa su `choco apikey`, como siempre.
 

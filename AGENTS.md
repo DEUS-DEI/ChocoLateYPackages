@@ -30,7 +30,8 @@ y no este archivo. Si una regla cambia, se cambia en los dos.
   usuario lo pida para un producto concreto.
 - **winget**: no se envia nada todavia; no crear `WINGET_SUBMIT` ni `WINGET_TOKEN`, ni ejecutar `komac submit`.
 - **Secretos** (`CHOCO_API_KEY`, `GITHUB_TOKEN`, `WINGET_TOKEN`): nunca se imprimen ni se escriben en el repositorio;
-  en la PC los toma `Scripts\lib\Get-Secret.ps1` sin decir de donde salen.
+  en la PC los toma `Scripts\lib\Get-Secret.ps1` sin decir de donde salen. En GitHub van en el entorno `chocolatey`,
+  que solo usa `main` (2026-11-21; la opcion 4 de `Scripts\menu.bat` los pone ahi).
 - **Codificacion**: `chocolateyinstall.ps1` en UTF-8 con BOM; los demas `.ps1` y los `.bat`, en ASCII; los `.bat`,
   en CRLF.
 

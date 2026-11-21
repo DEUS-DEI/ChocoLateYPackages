@@ -22,6 +22,10 @@ concurrency:
 jobs:
   update-repo:
     runs-on: windows-latest
+    # CHOCO_API_KEY (y WINGET_TOKEN, cuando exista) van en este entorno, que solo
+    # usa main (2026-11-21): una rama o un PR no los pueden leer. Mientras el
+    # entorno no tenga la clave, GitHub da la del repositorio, si sigue ahi.
+    environment: chocolatey
     timeout-minutes: 60
     permissions:
       contents: write # Permiso para que el bot pueda hacer push
