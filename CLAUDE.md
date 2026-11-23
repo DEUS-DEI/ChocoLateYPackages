@@ -12,8 +12,8 @@ abajo.
   commits en `main` todos los dias a las 04:47 UTC: no ejecutarla, no empaquetar ni publicar nada, y contar con que
   `main` avanza sola (traer `main` antes de subir una rama).
 - Con el CI en verde se fusiona, sin esperar a que el usuario lo pida (lo pidio el 2026-10-13, para todos sus
-  repositorios). Un PR abierto en la sesion se fusiona con commit de merge (`gh pr merge --merge`) en cuanto su
-  ultimo commit tiene en verde `Tests / test` y lo que aparezca de los revisores automaticos (abajo), GitHub lo da
+  repositorios). Un PR abierto en la sesion se fusiona con commit de merge (`gh pr merge --merge --match-head-commit <sha>`) en cuanto su
+  ultimo commit tiene en verde `Tests / test` y lo que aparezca de los revisores automaticos (salvo lo de uno no disponible), GitHub lo da
   por fusionable (sin conflictos) y no queda ningun comentario de revision por contestar; GitHub borra la rama al
   fusionar. Rojo,
   pendiente o con conflicto: se arregla primero. No cambia lo de "Sin pruebas ni tests" ni vale para un PR que el
@@ -27,14 +27,18 @@ abajo.
   "todo debe ser en capas gratuitas"): Devin Review, cubic (`cubic-dev-ai`), Greptile y CodeRabbit (`coderabbitai`)
   revisan cada PR al abrirlo y con cada push nuevo (hasta ese dia Devin solo revisaba el primer commit). Antes de
   fusionar, en el ultimo commit tienen que haber terminado los cuatro: el estado `Devin Review` y las comprobaciones
-  de cubic, `Greptile Review` y `CodeRabbit` ya no estan pendientes. Uno que a los 15 minutos del ultimo push no dejo
-  nada en ese commit, o que dice que no le queda cuota, cuenta como no disponible y no frena la fusion. Se leen los
-  comentarios de todos, lo real se corrige, lo que no se contesta diciendo por que, y se resuelve cada hilo. Se
-  fusiona con `gh pr merge --merge --match-head-commit <sha>` (el commit que revisaron); `--auto` solo despues de que
-  terminaron, y antes de subir otro commit se quita con `gh pr merge --disable-auto`. Ninguno es obligatorio y nada
-  de ellos se paga: van en plan gratis o de prueba, y al acabar las pruebas (cubic el 30-nov-2026, Greptile y
-  CodeRabbit el 7-dic-2026) quedan menos (cubic, 20 PR al mes; Greptile, sin creditos; CodeRabbit, en los privados
-  solo resumenes).
+  de cubic, `Greptile Review` y `CodeRabbit` ya terminaron con una revision. Uno que a los 15 minutos (contados desde
+  que se abrio el PR, para el primer commit, o desde el ultimo push) no dejo nada en ese commit, sigue pendiente, se
+  cancelo o dice que no le queda cuota cuenta como no disponible: no frena la fusion y su comprobacion no cuenta. Se
+  leen los comentarios de todos (hilos y comentarios generales), lo real se corrige, lo que no se contesta diciendo
+  por que, y se resuelve cada hilo. Se fusiona con `gh pr merge --merge --match-head-commit <sha>` (el commit que
+  revisaron); `--auto`, con el mismo `--match-head-commit <sha>`, solo despues de eso, y antes de subir otro commit se
+  quita con `gh pr merge --disable-auto` (basta porque solo la cuenta DEUS-DEI sube a estas ramas). Lo que un revisor
+  diga despues de fusionar se atiende en otro PR. Ninguno es obligatorio y nada de ellos se paga: van en plan gratis o
+  de prueba, y al acabar las pruebas (cubic el 30-nov-2026, Greptile y CodeRabbit el 7-dic-2026) quedan menos (cubic,
+  20 PR al mes; Greptile, sin creditos; CodeRabbit, en los privados solo resumenes; CodeRabbit ademas tiene un tope de
+  revisiones seguidas).
+
 
 ## Estructura
 - `Scripts/`: los scripts de mantenimiento (desde el 2026-11-14; antes en la raiz). `update_all.bat` y

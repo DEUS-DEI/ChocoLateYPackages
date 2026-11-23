@@ -14,14 +14,15 @@ y no este archivo. Si una regla cambia, se cambia en los dos.
   `main` todos los dias a las 04:47 UTC: no ejecutarlo, no empaquetar ni publicar nada, y traer `main` antes de subir
   una rama.
 - **Un PR que abre el agente se fusiona el mismo**, con merge commit (nunca squash), cuando su ultimo commit tiene en
-  verde `Tests / test` y lo que aparezca de los revisores automaticos, GitHub lo da por fusionable y no queda ningun
+  verde `Tests / test` y lo que aparezca de los revisores automaticos (salvo lo de uno no disponible), GitHub lo da por fusionable y no queda ningun
   comentario de revision por contestar. Nunca se fusiona el PR de un tercero sin que el usuario lo diga.
 - **Cuatro revisores automaticos** (2026-11-23): Devin Review, cubic, Greptile y CodeRabbit revisan cada PR y cada
-  push nuevo. Antes de fusionar, en el ultimo commit ya no esta pendiente `Devin Review` ni las comprobaciones de
-  cubic, `Greptile Review` y `CodeRabbit`; uno que a los 15 minutos no dejo nada, o que dice que no le queda cuota,
-  no cuenta. Lo real se corrige, lo demas se contesta y cada hilo se resuelve. Se fusiona con `--match-head-commit`;
-  `--auto` solo despues de que terminaron (y se quita con `--disable-auto` antes de subir otro commit). Ninguno es
-  obligatorio.
+  push nuevo. Antes de fusionar, en el ultimo commit terminaron `Devin Review` y las comprobaciones de cubic,
+  `Greptile Review` y `CodeRabbit`; uno que a los 15 minutos (desde que se abrio el PR o desde el ultimo push) no dejo
+  nada, sigue pendiente, se cancelo o dice que no le queda cuota no cuenta. Lo real se corrige, lo demas se contesta
+  (hilos y comentarios generales) y cada hilo se resuelve. Se fusiona con `gh pr merge --merge --match-head-commit
+  <sha>` (el commit revisado); `--auto` solo despues de eso, y se quita con `--disable-auto` antes de subir otro
+  commit. Lo que llegue despues de fusionar va en otro PR. Ninguno es obligatorio.
 - **Sin pruebas antes de subir**, salvo que el usuario las pida (el CI si las corre). Las pruebas usan un `choco` falso
   y nunca publican nada.
 - **Solo un menu deja la ventana abierta** (2026-11-15): al acabar bien ningun script espera una tecla; el `pause`
