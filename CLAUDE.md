@@ -13,8 +13,9 @@ abajo.
   `main` avanza sola (traer `main` antes de subir una rama).
 - Con el CI en verde se fusiona, sin esperar a que el usuario lo pida (lo pidio el 2026-10-13, para todos sus
   repositorios). Un PR abierto en la sesion se fusiona con commit de merge (`gh pr merge --merge`) en cuanto su
-  ultimo commit tiene en verde `Tests / test` y el estado `Devin Review`, GitHub lo da por fusionable (sin
-  conflictos) y no queda ningun comentario de revision por contestar; GitHub borra la rama al fusionar. Rojo,
+  ultimo commit tiene en verde `Tests / test` y lo que aparezca de los revisores automaticos (abajo), GitHub lo da
+  por fusionable (sin conflictos) y no queda ningun comentario de revision por contestar; GitHub borra la rama al
+  fusionar. Rojo,
   pendiente o con conflicto: se arregla primero. No cambia lo de "Sin pruebas ni tests" ni vale para un PR que el
   usuario pida no fusionar o que no abrio la sesion (el repositorio es publico: el PR de un tercero nunca se fusiona
   sin que el usuario lo diga). La fusion automatica de GitHub (auto-merge) esta activada, pero `main` no exige
@@ -22,6 +23,12 @@ abajo.
   `update_packages.yml` sube a `main` directo cada dia), asi que nada hace esperar a `gh pr merge --auto`: la fusion
   la hace la sesion. Desde el 2026-11-21 el repositorio solo permite fusionar con commit de merge (squash y rebase
   apagados).
+- **Cuatro revisores automaticos** (desde el 2026-11-23, lo pidio el usuario: "probemos todas las que se puedan",
+  "todo debe ser en capas gratuitas"): Devin Review, cubic (`cubic-dev-ai`), Greptile y CodeRabbit (`coderabbitai`)
+  revisan cada PR al abrirlo y con cada push nuevo (hasta ese dia Devin solo revisaba el primer commit). Antes de
+  fusionar se espera a que terminen los que salgan en el PR, se leen los comentarios de los cuatro, lo real se
+  corrige, lo que no se contesta diciendo por que, y se resuelve cada hilo. Ninguno es obligatorio; van en plan
+  gratis o de prueba y, si a uno se le acaba la cuota, deja de revisar sin frenar la fusion. Nada de ellos se paga.
 
 ## Estructura
 - `Scripts/`: los scripts de mantenimiento (desde el 2026-11-14; antes en la raiz). `update_all.bat` y
