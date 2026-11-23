@@ -17,12 +17,13 @@ y no este archivo. Si una regla cambia, se cambia en los dos.
   verde `Tests / test` y lo que aparezca de los revisores automaticos (salvo lo de uno no disponible), GitHub lo da por fusionable y no queda ningun
   comentario de revision por contestar. Nunca se fusiona el PR de un tercero sin que el usuario lo diga.
 - **Cuatro revisores automaticos** (2026-11-23): Devin Review, cubic, Greptile y CodeRabbit revisan cada PR y cada
-  push nuevo. Antes de fusionar, en el ultimo commit terminaron `Devin Review` y las comprobaciones de cubic,
-  `Greptile Review` y `CodeRabbit`; uno que a los 15 minutos (desde que se abrio el PR o desde el ultimo push) no dejo
-  nada, sigue pendiente, se cancelo o dice que no le queda cuota no cuenta. Lo real se corrige, lo demas se contesta
-  (hilos y comentarios generales) y cada hilo se resuelve. Se fusiona con `gh pr merge --merge --match-head-commit
-  <sha>` (el commit revisado); `--auto` solo despues de eso, y se quita con `--disable-auto` antes de subir otro
-  commit. Lo que llegue despues de fusionar va en otro PR. Ninguno es obligatorio.
+  push nuevo; ninguno es obligatorio. Antes de fusionar se espera a que en el ultimo commit terminen `Devin Review` y
+  las comprobaciones de cubic, `Greptile Review` y `CodeRabbit`: uno que dice que no le queda cuota no cuenta desde
+  que lo dice, y uno que a los 15 minutos (desde que se abrio el PR o desde el ultimo push) no dejo nada, sigue
+  pendiente o se cancelo, tampoco. Se lee todo lo suyo (hilos, comentarios y lo que agregan a la descripcion), lo real
+  se corrige, lo demas se contesta y cada hilo se resuelve. Se fusiona ese commit con `gh pr merge --merge
+  --match-head-commit <sha>` o, en su lugar, con `--auto` y el mismo `<sha>` si falta una comprobacion obligatoria;
+  antes de otro push o de "Update branch" se quita con `--disable-auto`. Lo que llegue despues va en otro PR.
 - **Sin pruebas antes de subir**, salvo que el usuario las pida (el CI si las corre). Las pruebas usan un `choco` falso
   y nunca publican nada.
 - **Solo un menu deja la ventana abierta** (2026-11-15): al acabar bien ningun script espera una tecla; el `pause`
