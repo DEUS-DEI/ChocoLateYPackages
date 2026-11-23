@@ -14,8 +14,17 @@ y no este archivo. Si una regla cambia, se cambia en los dos.
   `main` todos los dias a las 04:47 UTC: no ejecutarlo, no empaquetar ni publicar nada, y traer `main` antes de subir
   una rama.
 - **Un PR que abre el agente se fusiona el mismo**, con merge commit (nunca squash), cuando su ultimo commit tiene en
-  verde `Tests / test` y `Devin Review`, GitHub lo da por fusionable y no queda ningun comentario de revision por
-  contestar. Nunca se fusiona el PR de un tercero sin que el usuario lo diga.
+  verde `Tests / test` y lo que aparezca de los revisores automaticos (salvo lo de uno no disponible), GitHub lo da por fusionable y no queda ningun
+  comentario de revision por contestar. Nunca se fusiona el PR de un tercero sin que el usuario lo diga.
+- **Cuatro revisores automaticos** (2026-11-23): Devin Review, cubic, Greptile y CodeRabbit revisan cada PR y cada
+  push nuevo; ninguno es obligatorio. Antes de fusionar se espera a que en el ultimo commit terminen `Devin Review` y
+  las comprobaciones de cubic, `Greptile Review` y `CodeRabbit`: uno que dice que no le queda cuota no cuenta desde
+  que lo dice, y uno que a los 15 minutos (desde que se abrio el PR o desde el ultimo push) no dejo nada, sigue
+  pendiente o se cancelo, tampoco. Se lee todo lo suyo (hilos, comentarios y lo que agregan a la descripcion), lo real
+  se corrige, lo demas se contesta y cada hilo se resuelve. Se fusiona ese commit con `gh pr merge --merge
+  --match-head-commit <sha>` cuando `Tests / test` este en verde (aqui sin `--auto`: `main` no exige comprobaciones ni
+  hilos resueltos); un push o un "Update branch" es un commit nuevo y se vuelve a esperar. Lo que llegue antes de
+  fusionar se atiende en este PR; lo que llegue despues, en otro.
 - **Sin pruebas antes de subir**, salvo que el usuario las pida (el CI si las corre). Las pruebas usan un `choco` falso
   y nunca publican nada.
 - **Solo un menu deja la ventana abierta** (2026-11-15): al acabar bien ningun script espera una tecla; el `pause`

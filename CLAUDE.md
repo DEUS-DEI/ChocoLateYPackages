@@ -12,16 +12,38 @@ abajo.
   commits en `main` todos los dias a las 04:47 UTC: no ejecutarla, no empaquetar ni publicar nada, y contar con que
   `main` avanza sola (traer `main` antes de subir una rama).
 - Con el CI en verde se fusiona, sin esperar a que el usuario lo pida (lo pidio el 2026-10-13, para todos sus
-  repositorios). Un PR abierto en la sesion se fusiona con commit de merge (`gh pr merge --merge`) en cuanto su
-  ultimo commit tiene en verde `Tests / test` y el estado `Devin Review`, GitHub lo da por fusionable (sin
-  conflictos) y no queda ningun comentario de revision por contestar; GitHub borra la rama al fusionar. Rojo,
-  pendiente o con conflicto: se arregla primero. No cambia lo de "Sin pruebas ni tests" ni vale para un PR que el
+  repositorios). Un PR abierto en la sesion se fusiona con commit de merge (`gh pr merge --merge --match-head-commit <sha>`) en cuanto su
+  ultimo commit tiene en verde `Tests / test` y lo que aparezca de los revisores automaticos (salvo lo de uno no disponible), GitHub lo da
+  por fusionable (sin conflictos) y no queda ningun comentario de revision por contestar; GitHub borra la rama al
+  fusionar. Rojo,
+  pendiente o con conflicto (sin contar a un revisor automatico no disponible): se arregla primero. No cambia lo de "Sin pruebas ni tests" ni vale para un PR que el
   usuario pida no fusionar o que no abrio la sesion (el repositorio es publico: el PR de un tercero nunca se fusiona
   sin que el usuario lo diga). La fusion automatica de GitHub (auto-merge) esta activada, pero `main` no exige
   comprobaciones (el ruleset "Proteger main" solo impide borrarla y el push forzado, porque el bot de
   `update_packages.yml` sube a `main` directo cada dia), asi que nada hace esperar a `gh pr merge --auto`: la fusion
   la hace la sesion. Desde el 2026-11-21 el repositorio solo permite fusionar con commit de merge (squash y rebase
   apagados).
+- **Cuatro revisores automaticos** (desde el 2026-11-23, lo pidio el usuario: "probemos todas las que se puedan",
+  "todo debe ser en capas gratuitas"): Devin Review, cubic (`cubic-dev-ai`), Greptile y CodeRabbit (`coderabbitai`)
+  revisan cada PR al abrirlo y con cada push nuevo (hasta ese dia Devin solo revisaba el primer commit). Ninguno es
+  comprobacion obligatoria y nada de ellos se paga. Antes de fusionar:
+  1. Esperar a que en el ultimo commit terminen el estado `Devin Review` y las comprobaciones de cubic, `Greptile
+     Review` y `CodeRabbit`. Uno que dice que no le queda cuota cuenta como no disponible desde que lo dice; uno que a
+     los 15 minutos (desde que se abrio el PR, para el primer commit, o desde el ultimo push) no dejo nada, sigue
+     pendiente o se cancelo, tambien. Lo de un revisor no disponible no cuenta ni como rojo ni como pendiente.
+  2. Leer lo de todos (hilos, comentarios generales y lo que agregan a la descripcion del PR), corregir lo real,
+     contestar lo demas diciendo por que y resolver cada hilo.
+  3. Fusionar ese mismo commit con `gh pr merge --merge --match-head-commit <sha>` cuando `Tests / test` este en verde
+     (si ningun revisor estuvo disponible, `<sha>` es el del ultimo push). Aqui no se usa `--auto`: `main` no exige
+     comprobaciones ni hilos resueltos, asi que nada lo frenaria. Un push o un "Update branch" es un commit nuevo: se
+     vuelve al paso 1.
+  Hasta que se fusione, la sesion sigue mirando el PR: lo que llegue antes (hilo o comentario general) se atiende en
+  el mismo PR; lo que llegue despues de fusionar se atiende en otro PR. Al acabar las pruebas (cubic el 30-nov-2026,
+  Greptile y CodeRabbit el 7-dic-2026) quedan menos: cubic, 20 PR al mes; Greptile, sin creditos; CodeRabbit, en los
+  privados solo resumenes y con tope de revisiones seguidas.
+
+
+
 
 ## Estructura
 - `Scripts/`: los scripts de mantenimiento (desde el 2026-11-14; antes en la raiz). `update_all.bat` y
