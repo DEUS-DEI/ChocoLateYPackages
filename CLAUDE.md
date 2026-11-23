@@ -26,9 +26,15 @@ abajo.
 - **Cuatro revisores automaticos** (desde el 2026-11-23, lo pidio el usuario: "probemos todas las que se puedan",
   "todo debe ser en capas gratuitas"): Devin Review, cubic (`cubic-dev-ai`), Greptile y CodeRabbit (`coderabbitai`)
   revisan cada PR al abrirlo y con cada push nuevo (hasta ese dia Devin solo revisaba el primer commit). Antes de
-  fusionar se espera a que terminen los que salgan en el PR, se leen los comentarios de los cuatro, lo real se
-  corrige, lo que no se contesta diciendo por que, y se resuelve cada hilo. Ninguno es obligatorio; van en plan
-  gratis o de prueba y, si a uno se le acaba la cuota, deja de revisar sin frenar la fusion. Nada de ellos se paga.
+  fusionar, en el ultimo commit tienen que haber terminado los cuatro: el estado `Devin Review` y las comprobaciones
+  de cubic, `Greptile Review` y `CodeRabbit` ya no estan pendientes. Uno que a los 15 minutos del ultimo push no dejo
+  nada en ese commit, o que dice que no le queda cuota, cuenta como no disponible y no frena la fusion. Se leen los
+  comentarios de todos, lo real se corrige, lo que no se contesta diciendo por que, y se resuelve cada hilo. Se
+  fusiona con `gh pr merge --merge --match-head-commit <sha>` (el commit que revisaron); `--auto` solo despues de que
+  terminaron, y antes de subir otro commit se quita con `gh pr merge --disable-auto`. Ninguno es obligatorio y nada
+  de ellos se paga: van en plan gratis o de prueba, y al acabar las pruebas (cubic el 30-nov-2026, Greptile y
+  CodeRabbit el 7-dic-2026) quedan menos (cubic, 20 PR al mes; Greptile, sin creditos; CodeRabbit, en los privados
+  solo resumenes).
 
 ## Estructura
 - `Scripts/`: los scripts de mantenimiento (desde el 2026-11-14; antes en la raiz). `update_all.bat` y
