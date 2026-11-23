@@ -20,8 +20,8 @@ abajo.
   usuario pida no fusionar o que no abrio la sesion (el repositorio es publico: el PR de un tercero nunca se fusiona
   sin que el usuario lo diga). La fusion automatica de GitHub (auto-merge) esta activada, pero `main` no exige
   comprobaciones (el ruleset "Proteger main" solo impide borrarla y el push forzado, porque el bot de
-  `update_packages.yml` sube a `main` directo cada dia), asi que nada hace esperar a `gh pr merge --auto`: la fusion
-  la hace la sesion. Desde el 2026-11-21 el repositorio solo permite fusionar con commit de merge (squash y rebase
+  `update_packages.yml` sube a `main` directo cada dia), asi que no se usa `gh pr merge --auto` (fusionaria sin
+  esperar a nada): la fusion la hace la sesion. Desde el 2026-11-21 el repositorio solo permite fusionar con commit de merge (squash y rebase
   apagados).
 - **Cuatro revisores automaticos** (desde el 2026-11-23, lo pidio el usuario: "probemos todas las que se puedan",
   "todo debe ser en capas gratuitas"): Devin Review, cubic (`cubic-dev-ai`), Greptile y CodeRabbit (`coderabbitai`)
