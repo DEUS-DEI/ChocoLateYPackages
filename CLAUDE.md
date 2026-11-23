@@ -33,14 +33,15 @@ abajo.
      pendiente o se cancelo, tambien. Lo de un revisor no disponible no cuenta ni como rojo ni como pendiente.
   2. Leer lo de todos (hilos, comentarios generales y lo que agregan a la descripcion del PR), corregir lo real,
      contestar lo demas diciendo por que y resolver cada hilo.
-  3. Fusionar ese mismo commit con `gh pr merge --merge --match-head-commit <sha>` o, en su lugar, con `gh pr merge
-     --auto --merge --match-head-commit <sha>` si falta que termine una comprobacion obligatoria (si ningun revisor
-     estuvo disponible, `<sha>` es el del ultimo push). Antes de subir otro commit o de usar "Update branch" se quita
-     con `gh pr merge --disable-auto`; basta porque solo la cuenta DEUS-DEI sube a estas ramas.
-  Un hilo que llega antes de fusionar frena el `--auto` (por el ruleset) y se atiende en el mismo PR; un comentario
-  general que llega despues de pedir `--auto`, o lo que llegue despues de fusionar, se atiende en otro PR. Al acabar
-  las pruebas (cubic el 30-nov-2026, Greptile y CodeRabbit el 7-dic-2026) quedan menos: cubic, 20 PR al mes; Greptile,
-  sin creditos; CodeRabbit, en los privados solo resumenes y con tope de revisiones seguidas.
+  3. Fusionar ese mismo commit con `gh pr merge --merge --match-head-commit <sha>` cuando `Tests / test` este en verde
+     (si ningun revisor estuvo disponible, `<sha>` es el del ultimo push). Aqui no se usa `--auto`: `main` no exige
+     comprobaciones ni hilos resueltos, asi que nada lo frenaria. Un push o un "Update branch" es un commit nuevo: se
+     vuelve al paso 1.
+  Hasta que se fusione, la sesion sigue mirando el PR: lo que llegue antes (hilo o comentario general) se atiende en
+  el mismo PR; lo que llegue despues de fusionar se atiende en otro PR. Al acabar las pruebas (cubic el 30-nov-2026,
+  Greptile y CodeRabbit el 7-dic-2026) quedan menos: cubic, 20 PR al mes; Greptile, sin creditos; CodeRabbit, en los
+  privados solo resumenes y con tope de revisiones seguidas.
+
 
 
 

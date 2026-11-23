@@ -22,8 +22,9 @@ y no este archivo. Si una regla cambia, se cambia en los dos.
   que lo dice, y uno que a los 15 minutos (desde que se abrio el PR o desde el ultimo push) no dejo nada, sigue
   pendiente o se cancelo, tampoco. Se lee todo lo suyo (hilos, comentarios y lo que agregan a la descripcion), lo real
   se corrige, lo demas se contesta y cada hilo se resuelve. Se fusiona ese commit con `gh pr merge --merge
-  --match-head-commit <sha>` o, en su lugar, con `--auto` y el mismo `<sha>` si falta una comprobacion obligatoria;
-  antes de otro push o de "Update branch" se quita con `--disable-auto`. Lo que llegue despues va en otro PR.
+  --match-head-commit <sha>` cuando `Tests / test` este en verde (aqui sin `--auto`: `main` no exige comprobaciones ni
+  hilos resueltos); un push o un "Update branch" es un commit nuevo y se vuelve a esperar. Lo que llegue antes de
+  fusionar se atiende en este PR; lo que llegue despues, en otro.
 - **Sin pruebas antes de subir**, salvo que el usuario las pida (el CI si las corre). Las pruebas usan un `choco` falso
   y nunca publican nada.
 - **Solo un menu deja la ventana abierta** (2026-11-15): al acabar bien ningun script espera una tecla; el `pause`
